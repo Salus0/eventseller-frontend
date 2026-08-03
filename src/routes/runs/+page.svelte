@@ -1,8 +1,6 @@
 <script>
   import { api } from "$lib/api";
 
-  console.log("BACKEND:", import.meta.env.PUBLIC_BACKEND_URL);
-
   let runs = [];
 
   api("/runs/test").then((r) => runs = r);
