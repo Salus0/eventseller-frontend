@@ -10,7 +10,7 @@
     "@sveltejs/kit": "latest",
     "@sveltejs/adapter-auto": "latest",
     "svelte": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
     "vite": "latest"
   }
 }
