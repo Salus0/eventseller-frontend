@@ -7,10 +7,10 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "vite": "latest",
     "@sveltejs/kit": "latest",
     "@sveltejs/adapter-auto": "latest",
     "svelte": "latest",
-    "typescript": "latest",
-    "vite": "latest"
+    "typescript": "latest"
   }
 }
