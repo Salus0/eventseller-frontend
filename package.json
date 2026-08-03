@@ -1,0 +1,14 @@
+{
+  "name": "eventseller-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/kit": "latest",
+    "@sveltejs/adapter-auto": "latest",
+    "svelte": "latest",
+    "typescript": "latest"
+  }
