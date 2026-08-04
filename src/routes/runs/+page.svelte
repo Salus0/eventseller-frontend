@@ -3,15 +3,15 @@
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
   // Backend-URL mit Fallback für lokale Tests
-  const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app/';
+  const backendUrl = PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
   let runs = [];
   
   // Formular-Felder
-  let eventType = 'Endless Tower'; // Standardauswahl
+  let eventType = 'Endless Tower';
   let customEventType = '';
-  let eventDate = new Date().toISOString().split('T')[0]; // Heutiges Datum YYYY-MM-DD
-  let runNote = ''; // Optionaler Zusatz (z. B. "Gruppe 1")
+  let eventDate = new Date().toISOString().split('T')[0];
+  let runNote = '';
 
   let isLoading = true;
   let errorMessage = '';
@@ -47,7 +47,6 @@
 
   // Neuen Run im Backend erstellen
   async function createRun() {
-    // Ermittle die tatsächliche Event-Art
     const selectedType = eventType === 'Sonstiges' ? customEventType.trim() : eventType;
     
     if (!selectedType) {
@@ -59,7 +58,6 @@
       return;
     }
 
-    // Name zusammenbauen (z. B. "Endless Tower - 04.08.2026 (Gruppe A)")
     const formattedDate = new Date(eventDate).toLocaleDateString('de-DE');
     const computedName = runNote.trim() 
       ? `${selectedType} - ${formattedDate} (${runNote.trim()})`
@@ -80,10 +78,9 @@
       });
 
       if (res.ok) {
-        // Formular zurücksetzen
         runNote = '';
         customEventType = '';
-        await fetchRuns(); // Liste aktualisieren
+        await fetchRuns();
       } else {
         alert('Run konnte nicht erstellt werden.');
       }
@@ -194,7 +191,6 @@
     margin-bottom: 1.5rem;
   }
 
-  /* Raster-Layout für das Formular */
   .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -223,4 +219,81 @@
     border: 1px solid #475569;
     border-radius: 6px;
     color: white;
-    font-size: 0.95rem
+    font-size: 0.95rem;
+  }
+
+  input:focus, select:focus {
+    outline: none;
+    border-color: #fbbf24;
+  }
+
+  .form-actions {
+    margin-top: 0.5rem;
+  }
+
+  .submit-btn {
+    background-color: #d97706;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.2s;
+  }
+
+  .submit-btn:hover {
+    background-color: #b45309;
+  }
+
+  .runs-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .runs-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    background-color: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+  }
+
+  .run-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .run-name {
+    font-weight: 600;
+    color: #f8fafc;
+  }
+
+  .run-meta {
+    font-size: 0.8rem;
+    color: #94a3b8;
+  }
+
+  .badge {
+    background-color: #059669;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+  }
+
+  .status-text {
+    color: #94a3b8;
+  }
+
+  .error {
+    color: #ef4444;
+  }
+</style>
