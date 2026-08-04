@@ -2,20 +2,16 @@
   import { onMount } from 'svelte';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
-  // Backend-URL mit Fallback für lokale Tests
   const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app/';
 
   let runs = [];
-  
-  // Formular-Felder
-  let eventType = ''; // Freitext für Event-Art
-  let eventDate = new Date().toISOString().split('T')[0]; // Standard: Heutiges Datum YYYY-MM-DD
-  let runNote = ''; // Optionaler Zusatz (z. B. "Gruppe 1")
+  let eventType = '';
+  let eventDate = new Date().toISOString().split('T')[0];
+  let runNote = '';
 
   let isLoading = true;
   let errorMessage = '';
 
-  // Runs vom Backend abrufen
   async function fetchRuns() {
     isLoading = true;
     errorMessage = '';
@@ -34,7 +30,6 @@
     }
   }
 
-  // Neuen Run im Backend erstellen
   async function createRun() {
     const trimmedType = eventType.trim();
     if (!trimmedType) {
@@ -46,7 +41,6 @@
       return;
     }
 
-    // Name zusammenbauen (z. B. "Endless Tower - 04.08.2026 (Gruppe A)")
     const formattedDate = new Date(eventDate).toLocaleDateString('de-DE');
     const computedName = runNote.trim() 
       ? `${trimmedType} - ${formattedDate} (${runNote.trim()})`
@@ -67,10 +61,9 @@
       });
 
       if (res.ok) {
-        // Formular zurücksetzen
         eventType = '';
         runNote = '';
-        await fetchRuns(); // Liste aktualisieren
+        await fetchRuns();
       } else {
         alert('Run konnte nicht erstellt werden.');
       }
@@ -91,7 +84,6 @@
   <h2>Neuen Event-Run anlegen</h2>
   
   <form on:submit|preventDefault={createRun} class="form-grid">
-    
     <div class="form-group">
       <label for="event-type">Event-Art *</label>
       <input 
@@ -123,7 +115,7 @@
       />
     </div>
 
-    <div class="form-actions full-width">
+    <div class="full-width">
       <button type="submit" class="submit-btn">Run anlegen</button>
     </div>
   </form>
@@ -157,19 +149,22 @@
 </section>
 
 <style>
-  h1 {
-    color: #fbbf24;
-    margin-bottom: 1.5rem;
-  }
-
-  .card {
-    background-color: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .form-grid {
-    display: grid;
-    grid-template-
+  h1 { color: #fbbf24; margin-bottom: 1.5rem; }
+  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .form-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 200px; }
+  .full-width { width: 100%; flex: 100%; }
+  label { font-size: 0.875rem; font-weight: 600; color: #94a3b8; }
+  input { padding: 0.6rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.95rem; }
+  input:focus { outline: none; border-color: #fbbf24; }
+  .submit-btn { background-color: #d97706; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; }
+  .submit-btn:hover { background-color: #b45309; }
+  .runs-list { list-style: none; padding: 0; margin: 0; }
+  .runs-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1rem; background-color: #0f172a; border: 1px solid #334155; border-radius: 6px; margin-bottom: 0.5rem; }
+  .run-info { display: flex; flex-direction: column; gap: 0.2rem; }
+  .run-name { font-weight: 600; color: #f8fafc; }
+  .run-meta { font-size: 0.8rem; color: #94a3b8; }
+  .badge { background-color: #059669; color: white; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 4px; }
+  .status-text { color: #94a3b8; }
+  .error { color: #ef4444; }
+</style>
