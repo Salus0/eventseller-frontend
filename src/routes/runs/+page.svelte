@@ -1,8 +1,10 @@
 <script>
   import { onMount } from 'svelte';
+  // Importiert die öffentliche Umgebungsvariable aus SvelteKit
+  import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
-  // Backend-URL (oder via PUBLIC_BACKEND_URL aus der .env)
-  const backendUrl = 'https://DEINE-RAILWAY-URL.up.railway.app';
+  // Falls die Variable lokal nicht geladen wird, nutzen wir localhost als Fallback
+  const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app/';
 
   let runs = [];
   let newRunName = '';
