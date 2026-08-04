@@ -3,7 +3,7 @@
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
   // Backend-URL mit Fallback für lokale Tests
-  const backendUrl = PUBLIC_BACKEND_URL || 'http://localhost:8000';
+  const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app/';
 
   let runs = [];
   
