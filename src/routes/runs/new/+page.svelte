@@ -1,32 +1,44 @@
 <script>
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
-  const backendUrl = PUBLIC_BACKEND_URL || 'http://localhost:8000';
+  const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 
-  // Basisdaten
   let eventType = '';
   let eventDate = new Date().toISOString().split('T')[0];
   let runNote = '';
 
-  // Dynamische Listen für Teilnehmer & Items
-  let participants = ['']; // Startet mit einem leeren Feld
-  let items = [{ name: '', quantity: 1 }];
+  let availableParticipants = [];
+  let isLoadingParticipants = true;
 
-  // Teilnehmer-Feld hinzufügen / entfernen
+  let selectedParticipants = [{ participant_id: '', class_name: '' }];
+
+  const roClasses = [
+    'Rune Knight', 'Warlock', 'Ranger', 'Arch Bishop', 'Mechanic', 'Guillotine Cross',
+    'Royal Guard', 'Sorcerer', 'Minstrel', 'Wanderer', 'Genetic', 'Shadow Chaser',
+    'Soul Reaper', 'Star Emperor', 'Kagerou/Oboro', 'Rebellion', 'Super Novice', 'Sonstiges'
+  ];
+
+  async function fetchAvailableParticipants() {
+    try {
+      const res = await fetch(`${backendUrl}/participants/`);
+      if (res.ok) {
+        availableParticipants = await res.json();
+      }
+    } catch (err) {
+      console.error('Fehler beim Laden der Teilnehmer-Stammdaten:', err);
+    } finally {
+      isLoadingParticipants = false;
+    }
+  }
+
   function addParticipant() {
-    participants = [...participants, ''];
+    selectedParticipants = [...selectedParticipants, { participant_id: '', class_name: '' }];
   }
+  
   function removeParticipant(index) {
-    participants = participants.filter((_, i) => i !== index);
-  }
-
-  // Item-Feld hinzufügen / entfernen
-  function addItem() {
-    items = [...items, { name: '', quantity: 1 }];
-  }
-  function removeItem(index) {
-    items = items.filter((_, i) => i !== index);
+    selectedParticipants = selectedParticipants.filter((_, i) => i !== index);
   }
 
   async function createRun() {
@@ -41,17 +53,19 @@
       ? `${trimmedType} - ${formattedDate} (${runNote.trim()})`
       : `${trimmedType} - ${formattedDate}`;
 
-    // Filtere leere Einträge heraus
-    const validParticipants = participants.map(p => p.trim()).filter(Boolean);
-    const validItems = items.filter(item => item.name.trim() !== '');
+    const validParticipants = selectedParticipants
+      .filter(p => p.participant_id !== '')
+      .map(p => ({
+        participant_id: p.participant_id,
+        class_name: p.class_name || 'Unbekannt'
+      }));
 
     const payload = {
       name: computedName,
       event_type: trimmedType,
       date: eventDate,
       note: runNote.trim(),
-      participants: validParticipants,
-      items: validItems
+      participants: validParticipants
     };
 
     try {
@@ -62,7 +76,6 @@
       });
 
       if (res.ok) {
-        // Nach Erfolg zurück zur Übersicht navigieren
         goto('/runs');
       } else {
         alert('Run konnte nicht erstellt werden.');
@@ -72,6 +85,10 @@
       alert('Netzwerkfehler beim Erstellen des Runs.');
     }
   }
+
+  onMount(() => {
+    fetchAvailableParticipants();
+  });
 </script>
 
 <div class="header">
@@ -80,7 +97,7 @@
 </div>
 
 <form on:submit|preventDefault={createRun} class="form-container">
-  
+  <!-- Sektion 1: Grunddaten -->
   <section class="card">
     <h2>1. Allgemeine Infos</h2>
     <div class="form-grid">
@@ -101,53 +118,45 @@
     </div>
   </section>
 
+  <!-- Sektion 2: Teilnehmer & Klassenauswahl -->
   <section class="card">
-    <h2>2. Teilnehmer</h2>
-    <div class="dynamic-list">
-      {#each participants as participant, index}
-        <div class="row">
-          <input 
-            type="text" 
-            bind:value={participants[index]} 
-            placeholder="Charakter- / Spielername" 
-          />
-          {#if participants.length > 1}
-            <button type="button" class="remove-btn" on:click={() => removeParticipant(index)}>✕</button>
-          {/if}
-        </div>
-      {/each}
-      <button type="button" class="add-btn" on:click={addParticipant}>+ Teilnehmer hinzufügen</button>
-    </div>
-  </section>
+    <h2>2. Teilnehmer & Klassen für diesen Run</h2>
+    
+    {#if isLoadingParticipants}
+      <p class="status-text">Lade verfügbare Spieler...</p>
+    {:else if availableParticipants.length === 0}
+      <p class="status-text">Keine Spieler in den Stammdaten gefunden. Lege zuerst welche unter <strong>Teilnehmer</strong> an!</p>
+    {:else}
+      <div class="dynamic-list">
+        {#each selectedParticipants as entry, index}
+          <div class="row">
+            <select bind:value={selectedParticipants[index].participant_id} class="select-player" required>
+              <option value="">-- Spieler wählen --</option>
+              {#each availableParticipants as p}
+                <option value={p.id}>{p.name}</option>
+              {/each}
+            </select>
 
-  <section class="card">
-    <h2>3. Erbeutete Items / Drops</h2>
-    <div class="dynamic-list">
-      {#each items as item, index}
-        <div class="row item-row">
-          <input 
-            type="text" 
-            bind:value={items[index].name} 
-            placeholder="Item-Name (z.B. Card, Weapon)" 
-          />
-          <input 
-            type="number" 
-            min="1" 
-            bind:value={items[index].quantity} 
-            placeholder="Anzahl" 
-            class="qty-input"
-          />
-          {#if items.length > 1}
-            <button type="button" class="remove-btn" on:click={() => removeItem(index)}>✕</button>
-          {/if}
-        </div>
-      {/each}
-      <button type="button" class="add-btn" on:click={addItem}>+ Item hinzufügen</button>
-    </div>
+            <select bind:value={selectedParticipants[index].class_name} class="select-class">
+              <option value="">-- Klasse wählen --</option>
+              {#each roClasses as roClass}
+                <option value={roClass}>{roClass}</option>
+              {/each}
+            </select>
+
+            {#if selectedParticipants.length > 1}
+              <button type="button" class="remove-btn" on:click={() => removeParticipant(index)}>✕</button>
+            {/if}
+          </div>
+        {/each}
+
+        <button type="button" class="add-btn" on:click={addParticipant}>+ Spieler hinzufügen</button>
+      </div>
+    {/if}
   </section>
 
   <div class="actions">
-    <button type="submit" class="submit-btn">Run speichern</button>
+    <button type="submit" class="submit-btn">Run anlegen</button>
   </div>
 </form>
 
@@ -162,20 +171,16 @@
   .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 200px; }
   .full-width { width: 100%; flex: 100%; }
   label { font-size: 0.875rem; font-weight: 600; color: #94a3b8; }
-  input { padding: 0.6rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.95rem; }
-  input:focus { outline: none; border-color: #fbbf24; }
-  
+  input, select { padding: 0.6rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.95rem; }
+  input:focus, select:focus { outline: none; border-color: #fbbf24; }
   .dynamic-list { display: flex; flex-direction: column; gap: 0.6rem; }
   .row { display: flex; gap: 0.5rem; align-items: center; }
-  .row input { flex: 1; }
-  .qty-input { max-width: 100px; }
-  
+  .select-player, .select-class { flex: 1; }
   .add-btn { background-color: #334155; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; align-self: flex-start; font-size: 0.85rem; margin-top: 0.4rem; }
   .add-btn:hover { background-color: #475569; }
-  
   .remove-btn { background-color: #ef4444; color: white; border: none; padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer; }
   .remove-btn:hover { background-color: #dc2626; }
-  
   .submit-btn { background-color: #d97706; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; font-size: 1rem; }
   .submit-btn:hover { background-color: #b45309; }
+  .status-text { color: #94a3b8; }
 </style>
