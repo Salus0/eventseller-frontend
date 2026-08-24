@@ -16,10 +16,32 @@
   let participantInputs = {};
   let itemInputs = {};
 
-  const roClasses = [
-    'Rune Knight', 'Warlock', 'Ranger', 'Arch Bishop', 'Mechanic', 'Guillotine Cross',
-    'Royal Guard', 'Sorcerer', 'Minstrel', 'Wanderer', 'Genetic', 'Shadow Chaser',
-    'Soul Reaper', 'Star Emperor', 'Kagerou/Oboro', 'Rebellion', 'Super Novice', 'Sonstiges'
+const roClasses = [
+    // Transcended 2-1 Classes
+    'Lord Knight',
+    'High Wizard',
+    'Sniper',
+    'High Priest',
+    'Whitesmith',
+    'Assassin Cross',
+    
+    // Transcended 2-2 Classes
+    'Paladin',
+    'Professor',
+    'Clown',
+    'Gypsy',
+    'Champion',
+    'Creator',
+    'Stalker',
+    
+    // Expanded Classes
+    'Gunslinger',
+    'Ninja',
+    'Star Gladiator',
+    'Super Novice',
+    
+    // Fallback
+    'Sonstiges'
   ];
 
   async function toggleExpand(id) {
