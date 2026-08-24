@@ -5,11 +5,15 @@
   const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 
   let participants = [];
-  let newParticipantName = '';
+  let newName = '';
   let isLoading = true;
   let errorMessage = '';
 
-  async function fetchParticipants() {
+  // Zustand für das Editieren
+  let editingId = null;
+  let editName = '';
+
+  async function loadParticipants() {
     isLoading = true;
     errorMessage = '';
     try {
@@ -17,84 +21,128 @@
       if (res.ok) {
         participants = await res.json();
       } else {
-        errorMessage = `Fehler beim Laden der Teilnehmer (Status: ${res.status})`;
+        errorMessage = 'Fehler beim Laden der Teilnehmer.';
       }
     } catch (err) {
-      errorMessage = 'Verbindungsfehler zum Backend!';
       console.error(err);
+      errorMessage = 'Verbindungsfehler zum Backend!';
     } finally {
       isLoading = false;
     }
   }
 
-  async function createParticipant() {
-    const trimmedName = newParticipantName.trim();
-    if (!trimmedName) {
-      alert('Bitte gib einen Spielernamen ein.');
-      return;
-    }
+  async function addParticipant() {
+    if (!newName.trim()) return;
 
     try {
       const res = await fetch(`${backendUrl}/participants/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmedName })
+        body: JSON.stringify({ name: newName.trim() })
       });
 
       if (res.ok) {
-        newParticipantName = '';
-        await fetchParticipants();
+        newName = '';
+        await loadParticipants();
       } else {
         alert('Teilnehmer konnte nicht angelegt werden.');
       }
     } catch (err) {
       console.error(err);
-      alert('Netzwerkfehler beim Anlegen des Teilnehmers.');
+      alert('Fehler beim Anlegen des Teilnehmers.');
+    }
+  }
+
+  function startEditing(participant) {
+    editingId = participant.id;
+    editName = participant.name;
+  }
+
+  function cancelEditing() {
+    editingId = null;
+    editName = '';
+  }
+
+  async function saveParticipant(id) {
+    if (!editName.trim()) {
+      alert('Der Name darf nicht leer sein.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${backendUrl}/participants/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName.trim() })
+      });
+
+      if (res.ok) {
+        editingId = null;
+        editName = '';
+        await loadParticipants();
+      } else {
+        alert('Änderung konnte nicht gespeichert werden.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Fehler beim Aktualisieren des Teilnehmers.');
     }
   }
 
   onMount(() => {
-    fetchParticipants();
+    loadParticipants();
   });
 </script>
 
-<h1>👥 Teilnehmer-Verwaltung</h1>
+<div class="header-action">
+  <h1>Teilnehmer Verwaltung</h1>
+</div>
 
 <section class="card">
-  <h2>Neuen Spieler anlegen</h2>
-  
-  <form on:submit|preventDefault={createParticipant} class="form-grid">
-    <div class="form-group">
-      <label for="participant-name">Spielername / Ingame-Name *</label>
-      <input 
-        id="participant-name"
-        type="text" 
-        bind:value={newParticipantName} 
-        placeholder="z. B. Valkyrie_RO" 
-        required 
-      />
-    </div>
-
-    <div class="full-width">
-      <button type="submit" class="submit-btn">+ Spieler anlegen</button>
-    </div>
+  <h2>Neuen Teilnehmer anlegen</h2>
+  <form on:submit|preventDefault={addParticipant} class="add-form">
+    <input 
+      type="text" 
+      placeholder="Name des Teilnehmers" 
+      bind:value={newName} 
+      class="input-field" 
+    />
+    <button type="submit" class="create-btn">+ Hinzufügen</button>
   </form>
 </section>
 
-<section class="card">
-  <h2>Registrierte Spieler</h2>
+<section class="card margin-top">
+  <h2>Alle Teilnehmer ({participants.length})</h2>
 
   {#if isLoading}
     <p class="status-text">Lade Teilnehmer...</p>
   {:else if errorMessage}
     <p class="error">{errorMessage}</p>
   {:else if participants.length === 0}
-    <p class="status-text">Noch keine Spieler eingetragen. Lege oben deinen ersten Teilnehmer an!</p>
+    <p class="status-text">Noch keine Teilnehmer eingetragen.</p>
   {:else}
-    <ul class="participants-list">
-      {#each participants as p}
+    <ul class="participant-list">
+      {#each participants as p, i}
         <li class="participant-item">
-          <span class="p-name">👤 {p.name}</span>
+          <span class="num">{i + 1}.</span>
+
+          {#if editingId === p.id}
+            <!-- Bearbeitungs-Modus -->
+            <input 
+              type="text" 
+              bind:value={editName} 
+              class="input-field edit-input"
+              on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
+            />
+            <div class="btn-group">
+              <button type="button" class="save-btn" on:click={() => saveParticipant(p.id)}>Speichern</button>
+              <button type="button" class="cancel-btn" on:click={cancelEditing}>Abbrechen</button>
+            </div>
+          {:else}
+            <!-- Normaler Anzeige-Modus -->
+            <span class="name">{p.name}</span>
+            <button type="button" class="action-btn" on:click={() => startEditing(p)}>✏️ Edit</button>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -102,25 +150,31 @@
 </section>
 
 <style>
-  h1 { color: #fbbf24; margin-bottom: 1.5rem; }
-  h2 { font-size: 1.1rem; color: #f8fafc; margin-bottom: 1rem; }
-  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
-  
-  .form-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
-  .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 220px; }
-  .full-width { width: 100%; flex: 100%; margin-top: 0.5rem; }
-  
-  label { font-size: 0.875rem; font-weight: 600; color: #94a3b8; }
-  input { padding: 0.6rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.95rem; }
-  input:focus { outline: none; border-color: #fbbf24; }
-  
-  .submit-btn { background-color: #d97706; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; }
-  .submit-btn:hover { background-color: #b45309; }
-  
-  .participants-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
-  .participant-item { background-color: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 0.75rem 1rem; display: flex; align-items: center; }
-  .p-name { font-weight: 600; color: #f8fafc; font-size: 0.95rem; }
-  
+  .header-action { margin-bottom: 1.5rem; }
+  h1 { color: #fbbf24; margin: 0; }
+  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
+  .margin-top { margin-top: 1.5rem; }
+  h2 { color: #f8fafc; font-size: 1.1rem; margin-top: 0; margin-bottom: 1rem; }
+
+  .add-form { display: flex; gap: 0.5rem; max-width: 500px; }
+  .input-field { flex: 1; padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
+  .edit-input { max-width: 300px; }
+
+  .create-btn { background-color: #d97706; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+  .create-btn:hover { background-color: #b45309; }
+
+  .participant-list { list-style: none; padding: 0; margin: 0; max-width: 600px; }
+  .participant-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem; border-bottom: 1px solid #334155; background-color: #0f172a; margin-bottom: 0.4rem; border-radius: 6px; }
+  .num { color: #fbbf24; font-weight: 600; min-width: 25px; }
+  .name { flex: 1; color: #f8fafc; font-weight: 500; }
+
+  .action-btn { background-color: #334155; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+  .action-btn:hover { background-color: #475569; }
+
+  .btn-group { display: flex; gap: 0.4rem; }
+  .save-btn { background-color: #059669; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+  .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+
   .status-text { color: #94a3b8; }
   .error { color: #ef4444; }
 </style>
