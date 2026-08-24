@@ -23,11 +23,13 @@
     isLoading = true;
     errorMessage = '';
     try {
+      // WICHTIG: backendUrl nutzen + Slash am Ende
       const res = await fetch(`${backendUrl}/items/`);
       if (res.ok) {
-        items = await res.json();
+        const data = await res.json();
+        items = Array.isArray(data) ? data : [];
       } else {
-        errorMessage = 'Fehler beim Laden der Items.';
+        errorMessage = `Fehler beim Laden (Status: ${res.status})`;
       }
     } catch (err) {
       console.error(err);
