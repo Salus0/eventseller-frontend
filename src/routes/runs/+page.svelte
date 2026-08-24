@@ -27,7 +27,6 @@
       expandedRunIds.delete(id);
     } else {
       expandedRunIds.add(id);
-      // Details für den aufgeklappten Run live vom Backend nachladen
       await loadRunDetails(id);
     }
     expandedRunIds = expandedRunIds;
@@ -43,10 +42,9 @@
       let loadedParticipants = [];
       let loadedItems = [];
 
-      if (partsRes.ok) loadedParticipants = await partsRes.ok ? await partsRes.json() : [];
-      if (itemsRes.ok) loadedItems = await itemsRes.ok ? await itemsRes.json() : [];
+      if (partsRes.ok) loadedParticipants = await partsRes.json();
+      if (itemsRes.ok) loadedItems = await itemsRes.json();
 
-      // Run-Daten im State mit den nachgeladenen Details anreichern
       runs = runs.map(r => {
         if (r.id === runId) {
           return {
@@ -73,7 +71,6 @@
 
       if (runsRes.ok) {
         runs = await runsRes.json();
-        // Für alle bereits geladenen Runs die Teilnehmer initial im Hintergrund mitladen
         for (const run of runs) {
           loadRunDetails(run.id);
         }
@@ -222,14 +219,13 @@
       {#each runs as run}
         {@const isExpanded = expandedRunIds.has(run.id)}
         <li class="run-item">
-          <!-- Header -->
+          <!-- Header (Datum entfernt) -->
           <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
             <div class="run-info">
               <span class="run-name">{run.name}</span>
-              <span class="run-meta">
-                {#if run.run_type}📌 {run.run_type} {/if}
-                {#if run.created_at}📅 {new Date(run.created_at).toLocaleDateString('de-DE')}{/if}
-              </span>
+              {#if run.run_type}
+                <span class="run-meta">📌 {run.run_type}</span>
+              {/if}
             </div>
 
             <div class="header-right">
@@ -270,10 +266,16 @@
                     </button>
 
                   {:else}
+                    <!-- Editier-Ansicht (Klasse anpassbar) -->
                     <ul class="edit-list">
                       {#each participantInputs[run.id].list as p, idx}
                         <li class="edit-row">
-                          <span>{p.name} ({p.class_name})</span>
+                          <span class="edit-name">{p.name}</span>
+                          <select bind:value={p.class_name} class="small-select inline-select">
+                            {#each roClasses as roClass}
+                              <option value={roClass}>{roClass}</option>
+                            {/each}
+                          </select>
                           <button type="button" class="del-btn" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
                         </li>
                       {/each}
@@ -401,7 +403,9 @@
   .action-btn:hover { background-color: #475569; }
 
   .edit-list { margin-bottom: 0.5rem !important; }
-  .edit-row { background-color: #0f172a; padding: 0.3rem 0.5rem !important; border-radius: 4px; margin-bottom: 0.2rem; }
+  .edit-row { background-color: #0f172a; padding: 0.3rem 0.5rem !important; border-radius: 4px; margin-bottom: 0.2rem; display: flex; gap: 0.5rem; align-items: center; }
+  .edit-name { flex: 1; }
+  .inline-select { flex: 1; max-width: 140px; }
   .del-btn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; }
   
   .add-row { display: flex; gap: 0.3rem; margin-bottom: 0.6rem; }
