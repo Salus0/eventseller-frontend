@@ -9,15 +9,10 @@
   let isLoading = true;
   let errorMessage = '';
   
-  // Status für das Aufklappen der Runs
   let expandedRunIds = new Set();
-
-  // Status für den Editiermodus je Run:
-  // z.B. editingParticipants[runId] = true/false
   let editingParticipants = {};
   let editingItems = {};
 
-  // Formular-Puffer für Bearbeitungsmodi
   let participantInputs = {};
   let itemInputs = {};
 
@@ -27,13 +22,44 @@
     'Soul Reaper', 'Star Emperor', 'Kagerou/Oboro', 'Rebellion', 'Super Novice', 'Sonstiges'
   ];
 
-  function toggleExpand(id) {
+  async function toggleExpand(id) {
     if (expandedRunIds.has(id)) {
       expandedRunIds.delete(id);
     } else {
       expandedRunIds.add(id);
+      // Details für den aufgeklappten Run live vom Backend nachladen
+      await loadRunDetails(id);
     }
     expandedRunIds = expandedRunIds;
+  }
+
+  async function loadRunDetails(runId) {
+    try {
+      const [partsRes, itemsRes] = await Promise.all([
+        fetch(`${backendUrl}/runs/${runId}/participants`),
+        fetch(`${backendUrl}/runs/${runId}/sales`)
+      ]);
+
+      let loadedParticipants = [];
+      let loadedItems = [];
+
+      if (partsRes.ok) loadedParticipants = await partsRes.ok ? await partsRes.json() : [];
+      if (itemsRes.ok) loadedItems = await itemsRes.ok ? await itemsRes.json() : [];
+
+      // Run-Daten im State mit den nachgeladenen Details anreichern
+      runs = runs.map(r => {
+        if (r.id === runId) {
+          return {
+            ...r,
+            participants: loadedParticipants,
+            items: loadedItems
+          };
+        }
+        return r;
+      });
+    } catch (err) {
+      console.error(`Fehler beim Nachladen der Details für Run ${runId}:`, err);
+    }
   }
 
   async function fetchData() {
@@ -45,8 +71,15 @@
         fetch(`${backendUrl}/participants/`)
       ]);
 
-      if (runsRes.ok) runs = await runsRes.json();
-      else errorMessage = `Fehler beim Laden der Runs (Status: ${runsRes.status})`;
+      if (runsRes.ok) {
+        runs = await runsRes.json();
+        // Für alle bereits geladenen Runs die Teilnehmer initial im Hintergrund mitladen
+        for (const run of runs) {
+          loadRunDetails(run.id);
+        }
+      } else {
+        errorMessage = `Fehler beim Laden der Runs (Status: ${runsRes.status})`;
+      }
 
       if (partsRes.ok) availableParticipants = await partsRes.json();
     } catch (err) {
@@ -75,7 +108,7 @@
     const pName = pObj ? pObj.name : 'Unbekannt';
 
     input.list.push({
-      participant_id: input.newParticipantId,
+      participant_id: Number(input.newParticipantId),
       name: pName,
       class_name: input.newClass || 'Unbekannt'
     });
@@ -91,7 +124,11 @@
   }
 
   async function saveParticipants(runId) {
-    const updatedList = participantInputs[runId].list;
+    const updatedList = participantInputs[runId].list.map(p => ({
+      participant_id: Number(p.participant_id),
+      class_name: p.class_name || 'Unbekannt'
+    }));
+
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/participants`, {
         method: 'PUT',
@@ -101,7 +138,7 @@
 
       if (res.ok) {
         editingParticipants[runId] = false;
-        await fetchData();
+        await loadRunDetails(runId);
       } else {
         alert('Teilnehmer konnten nicht gespeichert werden.');
       }
@@ -151,7 +188,7 @@
 
       if (res.ok) {
         editingItems[runId] = false;
-        await fetchData();
+        await loadRunDetails(runId);
       } else {
         alert('Items konnten nicht gespeichert werden.');
       }
@@ -190,8 +227,8 @@
             <div class="run-info">
               <span class="run-name">{run.name}</span>
               <span class="run-meta">
-                {#if run.event_type}📌 {run.event_type} {/if}
-                {#if run.date}📅 {new Date(run.date).toLocaleDateString('de-DE')}{/if}
+                {#if run.run_type}📌 {run.run_type} {/if}
+                {#if run.created_at}📅 {new Date(run.created_at).toLocaleDateString('de-DE')}{/if}
               </span>
             </div>
 
@@ -206,10 +243,6 @@
           <!-- Detailbereich -->
           {#if isExpanded}
             <div class="run-details">
-              {#if run.note}
-                <p class="note"><strong>Notiz:</strong> {run.note}</p>
-              {/if}
-
               <div class="details-grid">
                 
                 <!-- BEREICH 1: TEILNEHMER -->
@@ -217,12 +250,11 @@
                   <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
 
                   {#if !editingParticipants[run.id]}
-                    <!-- Normale Ansicht -->
                     {#if run.participants && run.participants.length > 0}
                       <ul>
                         {#each run.participants as p}
                           <li>
-                            <span>{p.name || p}</span>
+                            <span>{p.name}</span>
                             {#if p.class_name}
                               <span class="class-tag">{p.class_name}</span>
                             {/if}
@@ -238,7 +270,6 @@
                     </button>
 
                   {:else}
-                    <!-- Editier-Ansicht -->
                     <ul class="edit-list">
                       {#each participantInputs[run.id].list as p, idx}
                         <li class="edit-row">
@@ -278,13 +309,12 @@
                   <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
 
                   {#if !editingItems[run.id]}
-                    <!-- Normale Ansicht -->
                     {#if run.items && run.items.length > 0}
                       <ul>
                         {#each run.items as item}
                           <li>
-                            <span class="item-name">{item.name}</span>
-                            <span class="item-qty">x{item.quantity}</span>
+                            <span class="item-name">{item.item_name || item.name}</span>
+                            <span class="item-qty">x{item.quantity || item.amount || 1}</span>
                           </li>
                         {/each}
                       </ul>
@@ -297,11 +327,10 @@
                     </button>
 
                   {:else}
-                    <!-- Editier-Ansicht -->
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
                         <li class="edit-row">
-                          <span>{item.name} (x{item.quantity})</span>
+                          <span>{item.name || item.item_name} (x{item.quantity || 1})</span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                         </li>
                       {/each}
@@ -360,7 +389,6 @@
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
-  .note { font-size: 0.9rem; color: #cbd5e1; margin-bottom: 1rem; }
   .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
   .detail-block { background-color: #1e293b; padding: 0.8rem; border-radius: 6px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
   .detail-block h3 { font-size: 0.9rem; color: #fbbf24; margin-top: 0; margin-bottom: 0.5rem; }
@@ -372,7 +400,6 @@
   .action-btn { background-color: #334155; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; align-self: flex-start; margin-top: 0.5rem; }
   .action-btn:hover { background-color: #475569; }
 
-  /* Editing Styles */
   .edit-list { margin-bottom: 0.5rem !important; }
   .edit-row { background-color: #0f172a; padding: 0.3rem 0.5rem !important; border-radius: 4px; margin-bottom: 0.2rem; }
   .del-btn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; }
