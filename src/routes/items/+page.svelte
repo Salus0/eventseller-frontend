@@ -1,8 +1,10 @@
 <script>
-  import { onMount } from 'svelte';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
-  const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
+  // Erzwingt die Railway-URL, falls die Umgebungsvariable leer/undefined ist
+  const backendUrl = (PUBLIC_BACKEND_URL && PUBLIC_BACKEND_URL.trim() !== '') 
+    ? PUBLIC_BACKEND_URL 
+    : 'https://yggdrasil-eventseller-backend.up.railway.app';
 
   let items = [];
   let isLoading = true;
@@ -23,8 +25,11 @@
     isLoading = true;
     errorMessage = '';
     try {
-      // WICHTIG: backendUrl nutzen + Slash am Ende
-      const res = await fetch(`${backendUrl}/items/`);
+      // Explicite Kontrolle der Ziel-URL im Log
+      const targetUrl = `${backendUrl.replace(/\/$/, '')}/items/`;
+      console.log('Lade Items von:', targetUrl);
+
+      const res = await fetch(targetUrl);
       if (res.ok) {
         const data = await res.json();
         items = Array.isArray(data) ? data : [];
@@ -32,7 +37,7 @@
         errorMessage = `Fehler beim Laden (Status: ${res.status})`;
       }
     } catch (err) {
-      console.error(err);
+      console.error('Fetch Fehler:', err);
       errorMessage = 'Verbindungsfehler zum Backend!';
     } finally {
       isLoading = false;
