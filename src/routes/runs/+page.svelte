@@ -103,17 +103,17 @@
 
     const selectedId = Number(input.newParticipantId);
 
-    // Prüfen, ob der Spieler bereits in der Liste ist
-    const exists = input.list.some(p => Number(p.participant_id) === selectedId);
-    if (exists) {
-      alert('Dieser Teilnehmer ist bereits in der Liste!');
+    // Duplikat-Prüfung: Bereits in der aktuellen Bearbeitungsliste?
+    const isAlreadyInList = input.list.some(p => Number(p.participant_id) === selectedId);
+    if (isAlreadyInList) {
+      alert('Dieser Teilnehmer wurde bereits zu diesem Run hinzugefügt!');
       return;
     }
 
     const pObj = availableParticipants.find(p => Number(p.id) === selectedId);
     const pName = pObj ? pObj.name : 'Unbekannt';
 
-    // WICHTIG: Neues Objekt erzeugen und Array neu zuweisen für Svelte-Reaktivität
+    // Am ENDE der Liste anhängen für korrekte Reihenfolge (1, 2, 3...)
     input.list = [
       ...input.list,
       {
