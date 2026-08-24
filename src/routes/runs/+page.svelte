@@ -103,17 +103,17 @@
 
     const selectedId = Number(input.newParticipantId);
 
-    // Duplikat-Prüfung: Bereits in der aktuellen Bearbeitungsliste?
+    // Duplikat-Sicherheitsprüfung
     const isAlreadyInList = input.list.some(p => Number(p.participant_id) === selectedId);
     if (isAlreadyInList) {
-      alert('Dieser Teilnehmer wurde bereits zu diesem Run hinzugefügt!');
+      alert('Dieser Teilnehmer befindet sich bereits in der Liste!');
       return;
     }
 
     const pObj = availableParticipants.find(p => Number(p.id) === selectedId);
     const pName = pObj ? pObj.name : 'Unbekannt';
 
-    // Am ENDE der Liste anhängen für korrekte Reihenfolge (1, 2, 3...)
+    // Garantiert UNTEN anhängen (Reihenfolge 1, 2, 3... bleibt erhalten)
     input.list = [
       ...input.list,
       {
@@ -300,9 +300,10 @@
                     </ul>
 
                     <div class="add-row">
+                      <!-- Dropdown filtert bereits ausgewählte Teilnehmer automatisch heraus -->
                       <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
                         <option value="">-- Spieler wählen --</option>
-                        {#each availableParticipants as ap}
+                        {#each availableParticipants.filter(ap => !participantInputs[run.id].list.some(p => Number(p.participant_id) === Number(ap.id))) as ap}
                           <option value={ap.id}>{ap.name}</option>
                         {/each}
                       </select>
