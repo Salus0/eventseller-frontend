@@ -101,23 +101,37 @@
     const input = participantInputs[runId];
     if (!input.newParticipantId) return;
 
-    const pObj = availableParticipants.find(p => p.id === Number(input.newParticipantId) || p.id === input.newParticipantId);
+    const selectedId = Number(input.newParticipantId);
+
+    // Prüfen, ob der Spieler bereits in der Liste ist
+    const exists = input.list.some(p => Number(p.participant_id) === selectedId);
+    if (exists) {
+      alert('Dieser Teilnehmer ist bereits in der Liste!');
+      return;
+    }
+
+    const pObj = availableParticipants.find(p => Number(p.id) === selectedId);
     const pName = pObj ? pObj.name : 'Unbekannt';
 
-    input.list.push({
-      participant_id: Number(input.newParticipantId),
-      name: pName,
-      class_name: input.newClass || 'Unbekannt'
-    });
+    // WICHTIG: Neues Objekt erzeugen und Array neu zuweisen für Svelte-Reaktivität
+    input.list = [
+      ...input.list,
+      {
+        participant_id: selectedId,
+        name: pName,
+        class_name: input.newClass || 'Unbekannt'
+      }
+    ];
 
     input.newParticipantId = '';
     input.newClass = '';
-    participantInputs = participantInputs;
+    participantInputs = { ...participantInputs };
   }
 
   function removeParticipantFromBuffer(runId, index) {
     participantInputs[runId].list.splice(index, 1);
-    participantInputs = participantInputs;
+    participantInputs[runId].list = [...participantInputs[runId].list];
+    participantInputs = { ...participantInputs };
   }
 
   async function saveParticipants(runId) {
@@ -159,19 +173,23 @@
     const input = itemInputs[runId];
     if (!input.newName.trim()) return;
 
-    input.list.push({
-      name: input.newName.trim(),
-      quantity: input.newQuantity || 1
-    });
+    input.list = [
+      ...input.list,
+      {
+        name: input.newName.trim(),
+        quantity: input.newQuantity || 1
+      }
+    ];
 
     input.newName = '';
     input.newQuantity = 1;
-    itemInputs = itemInputs;
+    itemInputs = { ...itemInputs };
   }
 
   function removeItemFromBuffer(runId, index) {
     itemInputs[runId].list.splice(index, 1);
-    itemInputs = itemInputs;
+    itemInputs[runId].list = [...itemInputs[runId].list];
+    itemInputs = { ...itemInputs };
   }
 
   async function saveItems(runId) {
@@ -219,7 +237,7 @@
       {#each runs as run}
         {@const isExpanded = expandedRunIds.has(run.id)}
         <li class="run-item">
-          <!-- Header (Datum entfernt) -->
+          <!-- Header -->
           <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
             <div class="run-info">
               <span class="run-name">{run.name}</span>
@@ -248,9 +266,9 @@
                   {#if !editingParticipants[run.id]}
                     {#if run.participants && run.participants.length > 0}
                       <ul>
-                        {#each run.participants as p}
+                        {#each run.participants as p, i}
                           <li>
-                            <span>{p.name}</span>
+                            <span><strong class="num-prefix">{i + 1}.</strong> {p.name}</span>
                             {#if p.class_name}
                               <span class="class-tag">{p.class_name}</span>
                             {/if}
@@ -266,11 +284,11 @@
                     </button>
 
                   {:else}
-                    <!-- Editier-Ansicht (Klasse anpassbar) -->
+                    <!-- Editier-Ansicht -->
                     <ul class="edit-list">
                       {#each participantInputs[run.id].list as p, idx}
                         <li class="edit-row">
-                          <span class="edit-name">{p.name}</span>
+                          <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
                           <select bind:value={p.class_name} class="small-select inline-select">
                             {#each roClasses as roClass}
                               <option value={roClass}>{roClass}</option>
@@ -397,6 +415,7 @@
   
   .detail-block ul { list-style: none; padding: 0; margin: 0 0 0.8rem 0; }
   .detail-block li { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; color: #e2e8f0; padding: 0.3rem 0; border-bottom: 1px dashed #334155; }
+  .num-prefix { color: #fbbf24; font-weight: 600; margin-right: 0.3rem; }
   .class-tag { background-color: #334155; color: #38bdf8; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 4px; }
   
   .action-btn { background-color: #334155; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; align-self: flex-start; margin-top: 0.5rem; }
