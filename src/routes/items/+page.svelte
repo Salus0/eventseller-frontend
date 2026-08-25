@@ -231,7 +231,15 @@
                   <img 
                     src={`/items/${editItemId || 501}.png`} 
                     alt="Preview"
-                    on:error={(e) => { e.target.onerror = null; e.target.src = '/items/default.png'; }}
+                    on:error={(e) => {
+                      const img = e.target;
+                      if (img.src.endsWith('.png')) {
+                        img.src = `/items/${editItemId || 501}.gif`;
+                      } else if (img.src.endsWith('.gif')) {
+                        img.onerror = null;
+                        img.src = '/items/default.png';
+                      }
+                    }}
                   />
                 </td>
                 <td>
@@ -264,7 +272,18 @@
                   <img 
                     src={`/items/${item.item_id}.png`} 
                     alt={item.name}
-                    on:error={(e) => { e.target.onerror = null; e.target.src = '/items/default.png'; }}
+                    on:error={(e) => {
+                      const img = e.target;
+                      // 1. Wenn PNG fehlschlägt, versuche GIF
+                      if (img.src.endsWith('.png')) {
+                        img.src = `/items/${item.item_id}.gif`;
+                      } 
+                      // 2. Wenn GIF auch fehlschlägt, lade default.png
+                      else if (img.src.endsWith('.gif')) {
+                        img.onerror = null; // Verhindert Endlosschleifen
+                        img.src = '/items/default.png';
+                      }
+                    }}
                   />
                 </td>
                 <td class="id-cell">#{item.item_id}</td>
