@@ -211,7 +211,7 @@
   }
 
   async function saveItems(runId) {
-    // Exakte Mapping-Anpassung für deine run_drops Tabelle (item_id, amount)
+    // Sende sowohl amount als auch quantity mit für maximale Frontend/Backend-Kompatibilität
     const updatedList = itemInputs[runId].list.map(item => ({
       item_id: item.item_id ? Number(item.item_id) : null,
       amount: Number(item.amount) || 1,
@@ -286,7 +286,6 @@
   });
 </script>
 
-<!-- Template / HTML Section -->
 <datalist id="master-items-list">
   {#each masterItems as item}
     <option value={item.name}>{item.name} (ID: {item.item_id || item.id})</option>
@@ -504,7 +503,7 @@
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
   
-  /* Aufteilung 1/3 (1fr) zu 2/3 (2fr) */
+  /* Grid 1/3 zu 2/3 Aufteilung */
   .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; }
   
   @media (max-width: 768px) {
