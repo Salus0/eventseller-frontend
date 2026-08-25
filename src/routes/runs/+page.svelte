@@ -150,47 +150,31 @@
   function enableItemEditing(run) {
     itemInputs[run.id] = {
       list: run.items ? JSON.parse(JSON.stringify(run.items)) : [],
-      newId: '',
       newName: '',
       newQuantity: 1
     };
     editingItems[run.id] = true;
   }
 
-  // Auto-Fill Mechanik bei ID-Eingabe
-  function handleItemIdInput(runId) {
-    const input = itemInputs[runId];
-    if (!input.newId) return;
-    const match = masterItems.find(i => String(i.id) === String(input.newId));
-    if (match) {
-      input.newName = match.name;
-    }
-  }
-
-  // Auto-Fill Mechanik bei Namens-Eingabe
-  function handleItemNameInput(runId) {
-    const input = itemInputs[runId];
-    if (!input.newName) return;
-    const match = masterItems.find(i => i.name.toLowerCase() === input.newName.toLowerCase());
-    if (match) {
-      input.newId = match.id;
-    }
-  }
-
   function addItemToBuffer(runId) {
     const input = itemInputs[runId];
     if (!input.newName.trim()) return;
 
+    // Suche das Item in masterItems (falls per Name oder ID/Name gewählt)
+    const matchedMasterItem = masterItems.find(
+      i => i.name.toLowerCase() === input.newName.trim().toLowerCase() ||
+           `${i.name} (ID: ${i.id})`.toLowerCase() === input.newName.trim().toLowerCase()
+    );
+
     input.list = [
       ...input.list, 
       { 
-        item_id: input.newId ? Number(input.newId) : null,
-        name: input.newName.trim(), 
+        item_id: matchedMasterItem ? matchedMasterItem.id : null,
+        name: matchedMasterItem ? matchedMasterItem.name : input.newName.trim(), 
         quantity: input.newQuantity || 1 
       }
     ];
 
-    input.newId = '';
     input.newName = '';
     input.newQuantity = 1;
     itemInputs = { ...itemInputs };
@@ -416,7 +400,7 @@
                     </button>
 
                   {:else}
-                    <!-- Editier-Ansicht: Anzahl (1), Item ID, Name -->
+                    <!-- Editier-Ansicht: Anzahl (1) & Name / Item ID Autocomplete -->
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
                         <li class="edit-row">
@@ -440,17 +424,9 @@
                       />
                       <input 
                         type="text" 
-                        placeholder="Item ID" 
-                        bind:value={itemInputs[run.id].newId}
-                        on:input={() => handleItemIdInput(run.id)}
-                        class="id-field"
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="Item Name" 
+                        placeholder="Item Name oder ID" 
                         list="master-items-list"
                         bind:value={itemInputs[run.id].newName}
-                        on:input={() => handleItemNameInput(run.id)}
                         class="small-input"
                       />
                       <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
@@ -513,8 +489,7 @@
   
   .add-row { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; align-items: center; flex-wrap: wrap; }
   .small-select, .small-input { flex: 2; min-width: 140px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
-  .id-field { width: 80px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
-  .qty-field { width: 60px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
+  .qty-field { width: 65px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
   .mini-add-btn { background-color: #d97706; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
   
   .id-tag { color: #64748b; font-size: 0.75rem; }
