@@ -211,9 +211,10 @@
   }
 
   async function saveItems(runId) {
-    // Sende sowohl amount als auch quantity mit für maximale Frontend/Backend-Kompatibilität
+    // Sende 'name', 'item_id', 'amount' und 'quantity', um FastAPI/Pydantic-Validierung zu bestehen
     const updatedList = itemInputs[runId].list.map(item => ({
       item_id: item.item_id ? Number(item.item_id) : null,
+      name: item.name || getItemName(item.item_id, 'Unbekannt'),
       amount: Number(item.amount) || 1,
       quantity: Number(item.amount) || 1
     }));
@@ -503,7 +504,6 @@
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
   
-  /* Grid 1/3 zu 2/3 Aufteilung */
   .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; }
   
   @media (max-width: 768px) {
