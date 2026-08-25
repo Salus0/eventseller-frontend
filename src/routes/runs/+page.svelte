@@ -149,7 +149,12 @@
   // --- DROPS / ITEMS EDITIEREN ---
   function enableItemEditing(run) {
     itemInputs[run.id] = {
-      list: run.items ? JSON.parse(JSON.stringify(run.items)) : [],
+      list: run.items ? run.items.map(item => ({
+        item_id: item.item_id || item.master_item_id || null,
+        item_name: item.item_name || item.name,
+        name: item.item_name || item.name,
+        quantity: item.quantity || item.amount || 1
+      })) : [],
       newNameOrId: '',
       newQuantity: 1
     };
@@ -162,18 +167,18 @@
 
     const query = input.newNameOrId.trim().toLowerCase();
 
-    // Suche in der Masterliste nach ID oder Name
+    // Greife primär auf item_id (oder ersatzweise id) des Master-Items zu
     const matchedMasterItem = masterItems.find(
-      i => String(i.id) === query ||
+      i => String(i.item_id || i.id) === query ||
            i.name.toLowerCase() === query ||
-           `${i.name} (${i.id})`.toLowerCase() === query
+           `${i.name} (${i.item_id || i.id})`.toLowerCase() === query
     );
 
     let finalItemId = null;
     let finalName = input.newNameOrId.trim();
 
     if (matchedMasterItem) {
-      finalItemId = matchedMasterItem.id;
+      finalItemId = matchedMasterItem.item_id ?? matchedMasterItem.id;
       finalName = matchedMasterItem.name;
     } else if (!isNaN(query)) {
       finalItemId = Number(query);
@@ -276,8 +281,8 @@
 <!-- Autocomplete Masterliste -->
 <datalist id="master-items-list">
   {#each masterItems as item}
-    <option value={item.name}>{item.name} (ID: {item.id})</option>
-    <option value={String(item.id)}>{item.name} (ID: {item.id})</option>
+    <option value={item.name}>{item.name} (ID: {item.item_id || item.id})</option>
+    <option value={String(item.item_id || item.id)}>{item.name} (ID: {item.item_id || item.id})</option>
   {/each}
 </datalist>
 
@@ -493,7 +498,6 @@
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
   
-  /* Nebeneinander-Ansicht für Teilnehmer & Items */
   .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
   .detail-block { background-color: #1e293b; padding: 0.8rem; border-radius: 6px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
   
@@ -518,7 +522,6 @@
   
   .id-tag { color: #38bdf8; font-size: 0.75rem; font-weight: 500; }
 
-  /* Item + Sales Styling */
   .items-sales-list { margin-bottom: 0.5rem !important; }
   .item-sale-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
   .item-info { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
