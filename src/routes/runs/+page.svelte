@@ -27,7 +27,9 @@
 
   // Hilfsfunktion: Wandelt eine Item-ID in den Namen aus masterItems um
   function getItemName(itemId, fallbackName) {
-    if (fallbackName && fallbackName !== 'Unbekannt') return fallbackName;
+    if (fallbackName && fallbackName !== 'Unbekannt' && !fallbackName.startsWith('Item #')) {
+      return fallbackName;
+    }
     const found = masterItems.find(m => Number(m.item_id || m.id) === Number(itemId));
     return found ? found.name : (fallbackName || `Item #${itemId}`);
   }
@@ -61,7 +63,7 @@
         return {
           ...item,
           item_id: id,
-          name: item.name || getItemName(id, item.item_name)
+          name: getItemName(id, item.name || item.item_name)
         };
       });
 
@@ -84,8 +86,8 @@
     isLoading = true;
     errorMessage = '';
     try {
-      const [runsRes, partsRes, itemsRes] = await Promise.all([
-        fetch(`${backendUrl}/runs/`),
+      // 1. Erst die Stammdaten vollständig laden
+      const [partsRes, itemsRes] = await Promise.all([
         fetch(`${backendUrl}/participants/`),
         fetch(`${backendUrl}/items/`)
       ]);
@@ -93,11 +95,14 @@
       if (itemsRes.ok) masterItems = await itemsRes.json();
       if (partsRes.ok) availableParticipants = await partsRes.json();
 
+      // 2. Erst DANACH die Runs holen und Details mappen
+      const runsRes = await fetch(`${backendUrl}/runs/`);
       if (runsRes.ok) {
-        runs = await runsRes.json();
-        for (const run of runs) {
-          loadRunDetails(run.id);
-        }
+        const loadedRuns = await runsRes.json();
+        runs = loadedRuns;
+        
+        // Alle Details nacheinander abrufen
+        await Promise.all(loadedRuns.map(r => loadRunDetails(r.id)));
       } else {
         errorMessage = `Fehler beim Laden der Runs (Status: ${runsRes.status})`;
       }
@@ -167,8 +172,8 @@
   function enableItemEditing(run) {
     itemInputs[run.id] = {
       list: run.items ? run.items.map(item => {
-        const id = item.item_id || item.master_item_id;
-        const resolvedName = item.name || getItemName(id, item.item_name);
+        const id = item.item_id || item.master_item_id || item.id;
+        const resolvedName = getItemName(id, item.name || item.item_name);
         return {
           item_id: id,
           name: resolvedName,
@@ -226,9 +231,7 @@
 
   async function saveItems(runId) {
     const updatedList = itemInputs[runId].list.map(item => {
-      const resolvedName = item.name && item.name !== 'Unbekannt' 
-        ? item.name 
-        : getItemName(item.item_id, `Item #${item.item_id}`);
+      const resolvedName = getItemName(item.item_id, item.name);
 
       return {
         item_id: item.item_id ? Number(item.item_id) : null,
