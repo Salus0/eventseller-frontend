@@ -21,18 +21,30 @@
   async function loadItems() {
     isLoading = true;
     errorMessage = '';
+    
+    // Wir bauen die URL absolut und ohne Missverständnisse
+    const directBackendUrl = 'https://yggdrasil-eventseller-backend.up.railway.app/items/';
+    console.log('--- STARTE FETCH AN:', directBackendUrl);
+
     try {
-      // Nutzt direkt die oben definierte Variable
-      const res = await fetch(`${backendUrl}/items/`);
+      const res = await fetch(directBackendUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      console.log('--- RESPONSE STATUS:', res.status);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('--- GELADENE DATEN:', data);
         items = Array.isArray(data) ? data : [];
       } else {
-        errorMessage = `Fehler beim Laden (Status: ${res.status})`;
+        errorMessage = `Backend Fehler (Status: ${res.status})`;
       }
     } catch (err) {
-      console.error(err);
-      errorMessage = 'Verbindungsfehler zum Backend!';
+      console.error('--- FETCH ABSTURZ:', err);
+      errorMessage = 'Verbindungsfehler!';
     } finally {
       isLoading = false;
     }
