@@ -55,6 +55,16 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
+      // Mappe den Item-Namen direkt beim Laden mit den Master-Items ab
+      loadedItems = loadedItems.map(item => {
+        const id = item.item_id || item.master_item_id || item.id;
+        return {
+          ...item,
+          item_id: id,
+          name: item.name || getItemName(id, item.item_name)
+        };
+      });
+
       runs = runs.map(r => {
         if (r.id === runId) {
           return {
@@ -156,11 +166,15 @@
   // --- DROPS / ITEMS EDITIEREN ---
   function enableItemEditing(run) {
     itemInputs[run.id] = {
-      list: run.items ? run.items.map(item => ({
-        item_id: item.item_id || item.master_item_id || null,
-        name: getItemName(item.item_id, item.name || item.item_name),
-        amount: item.amount || item.quantity || 1
-      })) : [],
+      list: run.items ? run.items.map(item => {
+        const id = item.item_id || item.master_item_id;
+        const resolvedName = item.name || getItemName(id, item.item_name);
+        return {
+          item_id: id,
+          name: resolvedName,
+          amount: item.amount || item.quantity || 1
+        };
+      }) : [],
       newNameOrId: '',
       newAmount: 1
     };
@@ -211,13 +225,18 @@
   }
 
   async function saveItems(runId) {
-    // Sende 'name', 'item_id', 'amount' und 'quantity', um FastAPI/Pydantic-Validierung zu bestehen
-    const updatedList = itemInputs[runId].list.map(item => ({
-      item_id: item.item_id ? Number(item.item_id) : null,
-      name: item.name || getItemName(item.item_id, 'Unbekannt'),
-      amount: Number(item.amount) || 1,
-      quantity: Number(item.amount) || 1
-    }));
+    const updatedList = itemInputs[runId].list.map(item => {
+      const resolvedName = item.name && item.name !== 'Unbekannt' 
+        ? item.name 
+        : getItemName(item.item_id, `Item #${item.item_id}`);
+
+      return {
+        item_id: item.item_id ? Number(item.item_id) : null,
+        name: resolvedName,
+        amount: Number(item.amount) || 1,
+        quantity: Number(item.amount) || 1
+      };
+    });
 
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/items`, {
