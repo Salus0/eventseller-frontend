@@ -6,14 +6,14 @@
 
   let runs = [];
   let availableParticipants = [];
-  let masterItems = []; // Für Autocomplete (ID & Name)
+  let masterItems = []; 
   let isLoading = true;
   let errorMessage = '';
   
   let expandedRunIds = new Set();
   let editingParticipants = {};
   let editingItems = {};
-  let addingSaleForItemId = {}; // Steuert, für welches Item gerade ein Verkauf eingetragen wird
+  let addingSaleForItemId = {};
 
   let participantInputs = {};
   let itemInputs = {};
@@ -146,11 +146,11 @@
     }
   }
 
-  // --- DROPS / ITEMS EDITIEREN (SCHRITT 1) ---
+  // --- DROPS / ITEMS EDITIEREN ---
   function enableItemEditing(run) {
     itemInputs[run.id] = {
       list: run.items ? JSON.parse(JSON.stringify(run.items)) : [],
-      newName: '',
+      newNameOrId: '',
       newQuantity: 1
     };
     editingItems[run.id] = true;
@@ -158,27 +158,38 @@
 
   function addItemToBuffer(runId) {
     const input = itemInputs[runId];
-    if (!input.newName.trim()) return;
+    if (!input.newNameOrId.trim()) return;
 
-    const rawInput = input.newName.trim();
+    const query = input.newNameOrId.trim().toLowerCase();
 
-    // Abgleich gegen masterItems über Name ODER ID
+    // Suche in der Masterliste nach ID oder Name
     const matchedMasterItem = masterItems.find(
-      i => i.name.toLowerCase() === rawInput.toLowerCase() ||
-           String(i.id) === rawInput ||
-           `${i.name} (ID: ${i.id})`.toLowerCase() === rawInput.toLowerCase()
+      i => String(i.id) === query ||
+           i.name.toLowerCase() === query ||
+           `${i.name} (${i.id})`.toLowerCase() === query
     );
+
+    let finalItemId = null;
+    let finalName = input.newNameOrId.trim();
+
+    if (matchedMasterItem) {
+      finalItemId = matchedMasterItem.id;
+      finalName = matchedMasterItem.name;
+    } else if (!isNaN(query)) {
+      finalItemId = Number(query);
+    }
 
     input.list = [
       ...input.list, 
       { 
-        item_id: matchedMasterItem ? matchedMasterItem.id : (isNaN(rawInput) ? null : Number(rawInput)),
-        name: matchedMasterItem ? matchedMasterItem.name : rawInput, 
-        quantity: input.newQuantity || 1 
+        item_id: finalItemId,
+        item_name: finalName, 
+        name: finalName,
+        quantity: Number(input.newQuantity) || 1 
       }
     ];
 
-    input.newName = '';
+    input.newNameOrId = '';
     input.newQuantity = 1;
     itemInputs = { ...itemInputs };
   }
@@ -190,7 +201,12 @@
   }
 
   async function saveItems(runId) {
-    const updatedList = itemInputs[runId].list;
+    const updatedList = itemInputs[runId].list.map(item => ({
+      item_id: item.item_id || null,
+      name: item.item_name || item.name,
+      quantity: Number(item.quantity) || 1
+    }));
+
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/items`, {
         method: 'PUT',
@@ -201,6 +217,8 @@
       if (res.ok) {
         editingItems[runId] = false;
         await loadRunDetails(runId);
+      } else {
+        alert('Fehler beim Speichern der Items.');
       }
     } catch (err) {
       console.error(err);
@@ -222,7 +240,7 @@
 
     const payload = {
       run_item_id: runItem.id,
-      item_id: runItem.item_id || runItem.id,
+      item_id: runItem.item_id || null,
       quantity: runItem.quantity || 1,
       price: Number(input.price),
       is_shop: Boolean(input.isShop)
@@ -255,9 +273,11 @@
   });
 </script>
 
+<!-- Autocomplete Masterliste -->
 <datalist id="master-items-list">
   {#each masterItems as item}
     <option value={item.name}>{item.name} (ID: {item.id})</option>
+    <option value={String(item.id)}>{item.name} (ID: {item.id})</option>
   {/each}
 </datalist>
 
@@ -348,8 +368,8 @@
                   {/if}
                 </div>
 
-                <!-- 2. DROPS / ITEMS EINTRAGEN & VERKÄUFE -->
-                <div class="detail-block full-width">
+                <!-- 2. DROPS / ITEMS EINTRAGEN & VERKÄUFE (STEHT NEBEN TEILNEHMERN) -->
+                <div class="detail-block">
                   <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
                   
                   {#if !editingItems[run.id]}
@@ -359,6 +379,9 @@
                           <li class="item-sale-row">
                             <div class="item-info">
                               <span class="item-name">{item.item_name || item.name}</span>
+                              {#if item.item_id}
+                                <small class="id-tag">(ID: {item.item_id})</small>
+                              {/if}
                               <span class="item-qty">x{item.quantity || item.amount || 1}</span>
                             </div>
 
@@ -370,7 +393,6 @@
                                   <span class="shop-badge">Shop (-2%)</span>
                                 {/if}
                               {:else if addingSaleForItemId[item.id]}
-                                <!-- Eingabemaske: Verkauf hinzufügen -->
                                 <div class="inline-sale-form">
                                   <input 
                                     type="number" 
@@ -403,15 +425,12 @@
                     </button>
 
                   {:else}
-                    <!-- Editier-Ansicht: Anzahl (1) & Name / Item ID Autocomplete -->
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
                         <li class="edit-row">
                           <span>
-                            {item.name || item.item_name} 
-                            {#if item.item_id || item.id}
-                              <small class="id-tag">(ID: {item.item_id || item.id})</small>
-                            {/if}
+                            {item.item_name || item.name} 
+                            {#if item.item_id}<small class="id-tag">(ID: {item.item_id})</small>{/if} 
                             (x{item.quantity || 1})
                           </span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
@@ -431,7 +450,7 @@
                         type="text" 
                         placeholder="Item Name oder ID" 
                         list="master-items-list"
-                        bind:value={itemInputs[run.id].newName}
+                        bind:value={itemInputs[run.id].newNameOrId}
                         class="small-input"
                       />
                       <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
@@ -473,11 +492,11 @@
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
-  .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+  
+  /* Nebeneinander-Ansicht für Teilnehmer & Items */
+  .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
   .detail-block { background-color: #1e293b; padding: 0.8rem; border-radius: 6px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
   
-  .full-width { grid-column: 1 / -1; }
-
   .detail-block h3 { font-size: 0.9rem; color: #fbbf24; margin-top: 0; margin-bottom: 0.5rem; }
   .detail-block ul { list-style: none; padding: 0; margin: 0 0 0.8rem 0; }
   .detail-block li { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; color: #e2e8f0; padding: 0.4rem 0; border-bottom: 1px dashed #334155; }
@@ -497,12 +516,12 @@
   .qty-field { width: 65px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
   .mini-add-btn { background-color: #d97706; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
   
-  .id-tag { color: #64748b; font-size: 0.75rem; }
+  .id-tag { color: #38bdf8; font-size: 0.75rem; font-weight: 500; }
 
   /* Item + Sales Styling */
   .items-sales-list { margin-bottom: 0.5rem !important; }
-  .item-sale-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-  .item-info { display: flex; align-items: center; gap: 0.5rem; }
+  .item-sale-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+  .item-info { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
   .item-name { font-weight: 500; }
   .item-qty { color: #94a3b8; font-size: 0.8rem; }
   
@@ -512,7 +531,7 @@
   .add-sale-btn:hover { background-color: #047857; color: white; }
 
   .inline-sale-form { display: flex; align-items: center; gap: 0.3rem; }
-  .price-input { width: 90px; padding: 0.2rem 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.75rem; }
+  .price-input { width: 80px; padding: 0.2rem 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.75rem; }
   .checkbox-label { font-size: 0.75rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.2rem; cursor: pointer; }
   .save-mini-btn { background: #059669; color: white; border: none; padding: 0.2rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; }
   .cancel-mini-btn { background: #475569; color: white; border: none; padding: 0.2rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; }
