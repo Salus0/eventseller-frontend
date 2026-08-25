@@ -1,13 +1,11 @@
 <script>
   import { onMount } from 'svelte';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
-  import RunSalesManager from '$lib/RunSalesManager.svelte';
 
   const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 
   let runs = [];
   let availableParticipants = [];
-  let allMasterItems = []; // Für Autocomplete im RunSalesManager
   let isLoading = true;
   let errorMessage = '';
   
@@ -18,32 +16,13 @@
   let participantInputs = {};
   let itemInputs = {};
 
+  // Formular-State für Schritt 2 (Verkäufe) pro Run
+  let saleInputs = {};
+
   const roClasses = [
-    // Transcended 2-1 Classes
-    'Lord Knight',
-    'High Wizard',
-    'Sniper',
-    'High Priest',
-    'Whitesmith',
-    'Assassin Cross',
-    
-    // Transcended 2-2 Classes
-    'Paladin',
-    'Professor',
-    'Clown',
-    'Gypsy',
-    'Champion',
-    'Creator',
-    'Stalker',
-    
-    // Expanded Classes
-    'Gunslinger',
-    'Ninja',
-    'Star Gladiator',
-    'Super Novice',
-    
-    // Fallback
-    'Sonstiges'
+    'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
+    'Paladin', 'Professor', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
+    'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
   async function toggleExpand(id) {
@@ -58,27 +37,36 @@
 
   async function loadRunDetails(runId) {
     try {
-      const [partsRes, itemsRes] = await Promise.all([
+      const [partsRes, itemsRes, salesRes] = await Promise.all([
         fetch(`${backendUrl}/runs/${runId}/participants`),
+        fetch(`${backendUrl}/runs/${runId}/items`),
         fetch(`${backendUrl}/runs/${runId}/sales`)
       ]);
 
       let loadedParticipants = [];
       let loadedItems = [];
+      let loadedSales = [];
 
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
+      if (salesRes.ok) loadedSales = await salesRes.json();
 
       runs = runs.map(r => {
         if (r.id === runId) {
           return {
             ...r,
             participants: loadedParticipants,
-            items: loadedItems
+            items: loadedItems,
+            sales: loadedSales
           };
         }
         return r;
       });
+
+      // Initiiere das Verkaufs-Formular für diesen Run falls noch nicht geschehen
+      if (!saleInputs[runId]) {
+        saleInputs[runId] = { selectedItemId: '', quantity: 1, price: '', isShop: false };
+      }
     } catch (err) {
       console.error(`Fehler beim Nachladen der Details für Run ${runId}:`, err);
     }
@@ -88,10 +76,9 @@
     isLoading = true;
     errorMessage = '';
     try {
-      const [runsRes, partsRes, masterItemsRes] = await Promise.all([
+      const [runsRes, partsRes] = await Promise.all([
         fetch(`${backendUrl}/runs/`),
-        fetch(`${backendUrl}/participants/`),
-        fetch(`${backendUrl}/items/`)
+        fetch(`${backendUrl}/participants/`)
       ]);
 
       if (runsRes.ok) {
@@ -104,18 +91,12 @@
       }
 
       if (partsRes.ok) availableParticipants = await partsRes.json();
-      if (masterItemsRes.ok) allMasterItems = await masterItemsRes.json();
     } catch (err) {
       errorMessage = 'Verbindungsfehler zum Backend!';
       console.error(err);
     } finally {
       isLoading = false;
     }
-  }
-
-  // Helper zum Formatieren von Zeny-Preisen
-  function formatZeny(amount) {
-    return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
   }
 
   // --- TEILNEHMER EDITIEREN ---
@@ -133,25 +114,13 @@
     if (!input.newParticipantId) return;
 
     const selectedId = Number(input.newParticipantId);
-
-    const isAlreadyInList = input.list.some(p => Number(p.participant_id) === selectedId);
-    if (isAlreadyInList) {
+    if (input.list.some(p => Number(p.participant_id) === selectedId)) {
       alert('Dieser Teilnehmer befindet sich bereits in der Liste!');
       return;
     }
 
     const pObj = availableParticipants.find(p => Number(p.id) === selectedId);
-    const pName = pObj ? pObj.name : 'Unbekannt';
-
-    input.list = [
-      ...input.list,
-      {
-        participant_id: selectedId,
-        name: pName,
-        class_name: input.newClass || 'Unbekannt'
-      }
-    ];
-
+    input.list = [...input.list, { participant_id: selectedId, name: pObj ? pObj.name : 'Unbekannt', class_name: input.newClass || 'Unbekannt' }];
     input.newParticipantId = '';
     input.newClass = '';
     participantInputs = { ...participantInputs };
@@ -175,20 +144,16 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedList)
       });
-
       if (res.ok) {
         editingParticipants[runId] = false;
         await loadRunDetails(runId);
-      } else {
-        alert('Teilnehmer konnten nicht gespeichert werden.');
       }
     } catch (err) {
       console.error(err);
-      alert('Fehler beim Speichern der Teilnehmer.');
     }
   }
 
-  // --- ITEMS / DROPS EDITIEREN ---
+  // --- DROPS / ITEMS EDITIEREN (SCHRITT 1) ---
   function enableItemEditing(run) {
     itemInputs[run.id] = {
       list: run.items ? JSON.parse(JSON.stringify(run.items)) : [],
@@ -202,14 +167,7 @@
     const input = itemInputs[runId];
     if (!input.newName.trim()) return;
 
-    input.list = [
-      ...input.list,
-      {
-        name: input.newName.trim(),
-        quantity: input.newQuantity || 1
-      }
-    ];
-
+    input.list = [...input.list, { name: input.newName.trim(), quantity: input.newQuantity || 1 }];
     input.newName = '';
     input.newQuantity = 1;
     itemInputs = { ...itemInputs };
@@ -233,13 +191,48 @@
       if (res.ok) {
         editingItems[runId] = false;
         await loadRunDetails(runId);
-      } else {
-        alert('Items konnten nicht gespeichert werden.');
       }
     } catch (err) {
       console.error(err);
-      alert('Fehler beim Speichern der Items.');
     }
+  }
+
+  // --- SCHRITT 2: VERKAUF FÜR EIN EXISTIERENDES ITEM HINZUFÜGEN ---
+  async function addSale(runId) {
+    const input = saleInputs[runId];
+    if (!input.selectedItemId || !input.price || input.price <= 0) {
+      alert('Bitte wähle ein Item aus und gib einen gültigen Preis ein.');
+      return;
+    }
+
+    const payload = {
+      item_id: Number(input.selectedItemId),
+      quantity: Number(input.quantity) || 1,
+      price: Number(input.price),
+      is_shop: Boolean(input.isShop)
+    };
+
+    try {
+      const res = await fetch(`${backendUrl}/runs/${runId}/sales`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        // Reset Formular
+        saleInputs[runId] = { selectedItemId: '', quantity: 1, price: '', isShop: false };
+        await loadRunDetails(runId);
+      } else {
+        alert('Verkauf konnte nicht gespeichert werden.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function formatZeny(amount) {
+    return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
   }
 
   onMount(() => {
@@ -266,7 +259,6 @@
       {#each runs as run}
         {@const isExpanded = expandedRunIds.has(run.id)}
         <li class="run-item">
-          <!-- Header -->
           <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
             <div class="run-info">
               <span class="run-name">{run.name}</span>
@@ -274,7 +266,6 @@
                 <span class="run-meta">📌 {run.run_type}</span>
               {/if}
             </div>
-
             <div class="header-right">
               <span class="badge">{run.status || 'Aktiv'}</span>
               <button class="expand-btn" type="button">
@@ -283,51 +274,39 @@
             </div>
           </div>
 
-          <!-- Detailbereich -->
           {#if isExpanded}
             <div class="run-details">
               <div class="details-grid">
                 
-                <!-- BEREICH 1: TEILNEHMER -->
+                <!-- 1. TEILNEHMER -->
                 <div class="detail-block">
                   <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
-
                   {#if !editingParticipants[run.id]}
                     {#if run.participants && run.participants.length > 0}
                       <ul>
                         {#each run.participants as p, i}
                           <li>
                             <span><strong class="num-prefix">{i + 1}.</strong> {p.name}</span>
-                            {#if p.class_name}
-                              <span class="class-tag">{p.class_name}</span>
-                            {/if}
+                            {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
                           </li>
                         {/each}
                       </ul>
                     {:else}
                       <p class="empty-text">Keine Teilnehmer eingetragen</p>
                     {/if}
-
-                    <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>
-                      ✏️ Edit
-                    </button>
-
+                    <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
                   {:else}
-                    <!-- Editier-Ansicht -->
                     <ul class="edit-list">
                       {#each participantInputs[run.id].list as p, idx}
                         <li class="edit-row">
                           <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
                           <select bind:value={p.class_name} class="small-select inline-select">
-                            {#each roClasses as roClass}
-                              <option value={roClass}>{roClass}</option>
-                            {/each}
+                            {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                           </select>
                           <button type="button" class="del-btn" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
                         </li>
                       {/each}
                     </ul>
-
                     <div class="add-row">
                       <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
                         <option value="">-- Spieler wählen --</option>
@@ -335,17 +314,12 @@
                           <option value={ap.id}>{ap.name}</option>
                         {/each}
                       </select>
-
                       <select bind:value={participantInputs[run.id].newClass} class="small-select">
                         <option value="">-- Klasse --</option>
-                        {#each roClasses as roClass}
-                          <option value={roClass}>{roClass}</option>
-                        {/each}
+                        {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                       </select>
-
                       <button type="button" class="mini-add-btn" on:click={() => addParticipantToBuffer(run.id)}>+</button>
                     </div>
-
                     <div class="btn-group">
                       <button type="button" class="save-btn" on:click={() => saveParticipants(run.id)}>Speichern</button>
                       <button type="button" class="cancel-btn" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
@@ -353,10 +327,9 @@
                   {/if}
                 </div>
 
-                <!-- BEREICH 2: DROPS / ITEMS -->
+                <!-- 2. SCHRITT 1: DROPS / ITEMS EINTRAGEN -->
                 <div class="detail-block">
-                  <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
-
+                  <h3>📦 1. Drops / Items im Run ({run.items ? run.items.length : 0})</h3>
                   {#if !editingItems[run.id]}
                     {#if run.items && run.items.length > 0}
                       <ul>
@@ -370,11 +343,7 @@
                     {:else}
                       <p class="empty-text">Keine Items eingetragen</p>
                     {/if}
-
-                    <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
-                      ➕ Add/Edit
-                    </button>
-
+                    <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>➕ Items verwalten</button>
                   {:else}
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
@@ -384,24 +353,11 @@
                         </li>
                       {/each}
                     </ul>
-
                     <div class="add-row">
-                      <input 
-                        type="text" 
-                        placeholder="Item Name" 
-                        bind:value={itemInputs[run.id].newName}
-                        class="small-input"
-                      />
-                      <input 
-                        type="number" 
-                        min="1" 
-                        placeholder="Anzahl" 
-                        bind:value={itemInputs[run.id].newQuantity}
-                        class="qty-field"
-                      />
+                      <input type="text" placeholder="Item Name" bind:value={itemInputs[run.id].newName} class="small-input"/>
+                      <input type="number" min="1" placeholder="Anzahl" bind:value={itemInputs[run.id].newQuantity} class="qty-field"/>
                       <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
                     </div>
-
                     <div class="btn-group">
                       <button type="button" class="save-btn" on:click={() => saveItems(run.id)}>Speichern</button>
                       <button type="button" class="cancel-btn" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
@@ -409,40 +365,63 @@
                   {/if}
                 </div>
 
-                <!-- BEREICH 3: VERKÄUFE / SALES (NEU) -->
+                <!-- 3. SCHRITT 2: VERKÄUFE ERFASSEN (BASIEREND AUF SCHRITT 1) -->
                 <div class="detail-block sales-block">
-                  <h3>💰 Verkäufe erfassen</h3>
+                  <h3>💰 2. Verkäufe erfassen</h3>
+                  
+                  {#if !run.items || run.items.length === 0}
+                    <p class="empty-text warning">⚠️ Bitte trage zuerst oben unter "1. Drops / Items" die gedroppten Gegenstände ein!</p>
+                  {:else if saleInputs[run.id]}
+                    <div class="sale-form">
+                      <!-- Dropdown wählt AUSSCHLIESSLICH aus den oben eingetragenen Run-Items aus -->
+                      <select bind:value={saleInputs[run.id].selectedItemId} class="small-select flex-2">
+                        <option value="">-- Verkauftes Item wählen --</option>
+                        {#each run.items as item}
+                          <option value={item.id || item.item_id}>
+                            {item.item_name || item.name} (Gedroppt: x{item.quantity || 1})
+                          </option>
+                        {/each}
+                      </select>
 
-                  <!-- Verkaufs-Formular mit Autocomplete & Shop-Logik -->
-                  <RunSalesManager 
-                    runId={run.id} 
-                    bind:allItems={allMasterItems} 
-                    onSaleAdded={() => loadRunDetails(run.id)} 
-                  />
+                      <input 
+                        type="number" 
+                        min="1" 
+                        placeholder="Menge" 
+                        bind:value={saleInputs[run.id].quantity} 
+                        class="qty-field"
+                      />
 
-                  <!-- Liste der getätigten Verkäufe für diesen Run -->
+                      <input 
+                        type="number" 
+                        placeholder="Preis (Zeny)" 
+                        bind:value={saleInputs[run.id].price} 
+                        class="small-input"
+                      />
+
+                      <label class="checkbox-label">
+                        <input type="checkbox" bind:checked={saleInputs[run.id].isShop} />
+                        Shop (-2%)
+                      </label>
+
+                      <button type="button" class="mini-add-btn" on:click={() => addSale(run.id)}>
+                        Verkauf eintragen
+                      </button>
+                    </div>
+                  {/if}
+
+                  <!-- Liste der getätigten Verkäufe -->
                   <div class="sales-list-wrapper">
-                    <h4>Eingetragene Verkäufe ({run.items ? run.items.length : 0})</h4>
-                    {#if run.items && run.items.length > 0}
+                    <h4>Erfasste Verkäufe ({run.sales ? run.sales.length : 0})</h4>
+                    {#if run.sales && run.sales.length > 0}
                       <ul class="sales-history">
-                        {#each run.items as sale}
+                        {#each run.sales as sale}
                           <li class="sale-row">
                             <div class="sale-item-info">
-                              <img 
-                                src={`/items/${sale.item_id || sale.id}.png`} 
-                                alt="Icon" 
-                                class="sale-icon"
-                                on:error={(e) => {
-                                  const img = e.target;
-                                  if (img.src.endsWith('.png')) img.src = `/items/${sale.item_id || sale.id}.gif`;
-                                  else { img.onerror = null; img.src = '/items/default.png'; }
-                                }}
-                              />
-                              <span class="sale-name">{sale.item_name || sale.name}</span>
+                              <span class="sale-name">{sale.item_name || `#${sale.item_id}`}</span>
                               <span class="sale-qty">x{sale.quantity || 1}</span>
                             </div>
                             <div class="sale-price-info">
-                              <span class="sale-price">{formatZeny(sale.actual_price)}</span>
+                              <span class="sale-price">{formatZeny(sale.actual_price || sale.price)}</span>
                               {#if sale.is_shop}
                                 <span class="shop-badge">Shop (-2%)</span>
                               {/if}
@@ -485,15 +464,12 @@
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
-  .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
   .detail-block { background-color: #1e293b; padding: 0.8rem; border-radius: 6px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
-  .sales-block { grid-column: span 1; }
-  @media (min-width: 1024px) {
-    .sales-block { grid-column: span 2; } /* Gibt dem Verkaufsbereich etwas mehr Breite auf Desktop */
-  }
+  
+  .sales-block { grid-column: 1 / -1; } /* Nimmt die volle Breite ein für eine komfortable Eingabe zeile */
 
   .detail-block h3 { font-size: 0.9rem; color: #fbbf24; margin-top: 0; margin-bottom: 0.5rem; }
-  
   .detail-block ul { list-style: none; padding: 0; margin: 0 0 0.8rem 0; }
   .detail-block li { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; color: #e2e8f0; padding: 0.3rem 0; border-bottom: 1px dashed #334155; }
   .num-prefix { color: #fbbf24; font-weight: 600; margin-right: 0.3rem; }
@@ -508,23 +484,25 @@
   .inline-select { flex: 1; max-width: 140px; }
   .del-btn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; }
   
-  .add-row { display: flex; gap: 0.3rem; margin-bottom: 0.6rem; }
-  .small-select, .small-input { flex: 1; padding: 0.3rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
-  .qty-field { width: 50px; padding: 0.3rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
-  .mini-add-btn { background-color: #d97706; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
+  .add-row, .sale-form { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .flex-2 { flex: 2; min-width: 180px; }
+  .small-select, .small-input { flex: 1; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
+  .qty-field { width: 65px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
+  .mini-add-btn { background-color: #d97706; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
   
+  .checkbox-label { font-size: 0.8rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+
   .btn-group { display: flex; gap: 0.4rem; }
   .save-btn { background-color: #059669; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
   .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
-  /* Verkaufsliste Styles */
-  .sales-list-wrapper { margin-top: 1rem; border-top: 1px solid #334155; padding-top: 0.8rem; }
+  /* Verkaufsliste */
+  .sales-list-wrapper { margin-top: 0.8rem; border-top: 1px solid #334155; padding-top: 0.8rem; }
   .sales-list-wrapper h4 { color: #cbd5e1; font-size: 0.85rem; margin: 0 0 0.5rem 0; }
   .sales-history { display: flex; flex-direction: column; gap: 0.3rem; }
   .sale-row { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 0.4rem 0.6rem; border-radius: 4px; }
   .sale-item-info { display: flex; align-items: center; gap: 0.5rem; }
-  .sale-icon { width: 18px; height: 18px; object-fit: contain; }
-  .sale-name { font-size: 0.85rem; font-weight: 500; }
+  .sale-name { font-size: 0.85rem; font-weight: 500; color: #f8fafc; }
   .sale-qty { font-size: 0.75rem; color: #94a3b8; }
   .sale-price-info { display: flex; align-items: center; gap: 0.4rem; }
   .sale-price { color: #34d399; font-weight: 600; font-size: 0.85rem; }
@@ -532,5 +510,6 @@
 
   .status-text { color: #94a3b8; }
   .empty-text { font-size: 0.85rem; color: #64748b; font-style: italic; margin-bottom: 0.5rem; }
+  .empty-text.warning { color: #f59e0b; font-style: normal; }
   .error { color: #ef4444; }
 </style>
