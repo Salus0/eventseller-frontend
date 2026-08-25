@@ -25,6 +25,13 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
+  // Hilfsfunktion: Wandelt eine Item-ID in den Namen aus masterItems um
+  function getItemName(itemId, fallbackName) {
+    if (fallbackName && fallbackName !== 'Unbekannt') return fallbackName;
+    const found = masterItems.find(m => Number(m.item_id || m.id) === Number(itemId));
+    return found ? found.name : (fallbackName || `Item #${itemId}`);
+  }
+
   async function toggleExpand(id) {
     if (expandedRunIds.has(id)) {
       expandedRunIds.delete(id);
@@ -73,6 +80,9 @@
         fetch(`${backendUrl}/items/`)
       ]);
 
+      if (itemsRes.ok) masterItems = await itemsRes.json();
+      if (partsRes.ok) availableParticipants = await partsRes.json();
+
       if (runsRes.ok) {
         runs = await runsRes.json();
         for (const run of runs) {
@@ -81,9 +91,6 @@
       } else {
         errorMessage = `Fehler beim Laden der Runs (Status: ${runsRes.status})`;
       }
-
-      if (partsRes.ok) availableParticipants = await partsRes.json();
-      if (itemsRes.ok) masterItems = await itemsRes.json();
     } catch (err) {
       errorMessage = 'Verbindungsfehler zum Backend!';
       console.error(err);
@@ -151,11 +158,11 @@
     itemInputs[run.id] = {
       list: run.items ? run.items.map(item => ({
         item_id: item.item_id || item.master_item_id || null,
-        name: item.name || item.item_name || '',
-        quantity: item.quantity || item.amount || 1
+        name: getItemName(item.item_id, item.name || item.item_name),
+        amount: item.amount || item.quantity || 1
       })) : [],
       newNameOrId: '',
-      newQuantity: 1
+      newAmount: 1
     };
     editingItems[run.id] = true;
   }
@@ -180,6 +187,7 @@
       finalName = matchedMasterItem.name;
     } else if (!isNaN(query)) {
       finalItemId = Number(query);
+      finalName = getItemName(finalItemId, finalName);
     }
 
     input.list = [
@@ -187,12 +195,12 @@
       { 
         item_id: finalItemId,
         name: finalName,
-        quantity: Number(input.newQuantity) || 1 
+        amount: Number(input.newAmount) || 1 
       }
     ];
 
     input.newNameOrId = '';
-    input.newQuantity = 1;
+    input.newAmount = 1;
     itemInputs = { ...itemInputs };
   }
 
@@ -203,13 +211,11 @@
   }
 
   async function saveItems(runId) {
-    // Sende alle Feld-Varianten mit, damit Backend-Schemas (Pydantic) flexibel bedient werden
+    // Exakte Mapping-Anpassung für deine run_drops Tabelle (item_id, amount)
     const updatedList = itemInputs[runId].list.map(item => ({
       item_id: item.item_id ? Number(item.item_id) : null,
-      name: item.name || item.item_name || '',
-      item_name: item.name || item.item_name || '',
-      quantity: Number(item.quantity) || 1,
-      amount: Number(item.quantity) || 1
+      amount: Number(item.amount) || 1,
+      quantity: Number(item.amount) || 1
     }));
 
     try {
@@ -224,12 +230,10 @@
         await loadRunDetails(runId);
       } else {
         const errDetails = await res.json().catch(() => null);
-        console.error('Backend Fehler-Details:', errDetails);
-        const detailMsg = errDetails ? JSON.stringify(errDetails.detail || errDetails) : res.statusText;
-        alert(`Fehler beim Speichern der Items (HTTP ${res.status}):\n${detailMsg}`);
+        alert(`Fehler beim Speichern (HTTP ${res.status}):\n${JSON.stringify(errDetails || res.statusText)}`);
       }
     } catch (err) {
-      console.error('Netzwerkfehler:', err);
+      console.error(err);
       alert('Netzwerkfehler beim Speichern der Items.');
     }
   }
@@ -250,7 +254,7 @@
     const payload = {
       run_item_id: runItem.id,
       item_id: runItem.item_id || null,
-      quantity: runItem.quantity || 1,
+      amount: runItem.amount || runItem.quantity || 1,
       price: Number(input.price),
       is_shop: Boolean(input.isShop)
     };
@@ -282,6 +286,7 @@
   });
 </script>
 
+<!-- Template / HTML Section -->
 <datalist id="master-items-list">
   {#each masterItems as item}
     <option value={item.name}>{item.name} (ID: {item.item_id || item.id})</option>
@@ -385,17 +390,17 @@
                         {#each run.items as item}
                           <li class="item-sale-row">
                             <div class="item-info">
-                              <span class="item-name">{item.item_name || item.name}</span>
+                              <span class="item-name">{getItemName(item.item_id, item.name || item.item_name)}</span>
                               {#if item.item_id}
                                 <small class="id-tag">(ID: {item.item_id})</small>
                               {/if}
-                              <span class="item-qty">x{item.quantity || item.amount || 1}</span>
+                              <span class="item-qty">x{item.amount || item.quantity || 1}</span>
                             </div>
 
                             <div class="sale-action-area">
-                              {#if item.price || item.actual_price}
-                                <span class="price-tag">{formatZeny(item.actual_price || item.price)}</span>
-                                {#if item.is_shop}
+                              {#if item.sale_price || item.price || item.actual_price}
+                                <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
+                                {#if item.is_shop || item.sale_type === 'Shop'}
                                   <span class="shop-badge">Shop (-2%)</span>
                                 {/if}
                               {:else if addingSaleForItemId[item.id]}
@@ -435,9 +440,9 @@
                       {#each itemInputs[run.id].list as item, idx}
                         <li class="edit-row">
                           <span>
-                            {item.name || item.item_name} 
+                            {getItemName(item.item_id, item.name)} 
                             {#if item.item_id}<small class="id-tag">(ID: {item.item_id})</small>{/if} 
-                            (x{item.quantity || 1})
+                            (x{item.amount || 1})
                           </span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                         </li>
@@ -449,7 +454,7 @@
                         type="number" 
                         min="1" 
                         placeholder="Anzahl" 
-                        bind:value={itemInputs[run.id].newQuantity}
+                        bind:value={itemInputs[run.id].newAmount}
                         class="qty-field"
                       />
                       <input 
