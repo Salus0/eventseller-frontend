@@ -241,11 +241,11 @@
               <tr class="edit-row">
                 <td class="icon-cell">
                   <img 
-                    src={editImageUrl || `/items/${editItemId || 501}.gif`} 
+                    src={editImageUrl || `/items/${editItemId || 501}.png`} 
                     alt="Preview"
                     on:error={(e) => {
                       e.target.onerror = null;
-                      e.target.src = '/items/default.gif';
+                      e.target.src = '/items/default.png';
                     }}
                   />
                 </td>
@@ -283,12 +283,12 @@
               <tr>
                 <td class="icon-cell">
                   <img 
-                    src={item.image_url || `/items/${item.item_id}.gif`} 
+                    src={item.image_url || `/items/${item.item_id}.png`} 
                     alt={item.name}
                     on:error={(e) => {
-                      // Fallback, falls weder custom image_url noch die lokale /items/ID.gif existiert
+                      // Fallback, falls weder custom image_url noch die lokale /items/ID.png existiert
                       e.target.onerror = null; 
-                      e.target.src = '/items/default.gif'; // Oder ein existierendes Bild wie /items/501.gif
+                      e.target.src = '/items/default.png'; // Oder ein existierendes Bild wie /items/501.png
                     }}
                   />
                 </td>
