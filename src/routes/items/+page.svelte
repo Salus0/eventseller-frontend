@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
   const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
@@ -7,12 +8,12 @@
   let isLoading = true;
   let errorMessage = '';
 
-  // Formular-Felder
+  // Formular-Zustand
   let newItemId = '';
   let newItemName = '';
   let customImageUrl = '';
 
-  // Filter & Detailansicht
+  // Filter & Detail-Zustand
   let searchQuery = '';
   let selectedItemHistory = null;
   let historyLoading = false;
@@ -21,30 +22,17 @@
   async function loadItems() {
     isLoading = true;
     errorMessage = '';
-    
-    // Wir bauen die URL absolut und ohne Missverständnisse
-    const directBackendUrl = 'https://yggdrasil-eventseller-backend.up.railway.app/items/';
-    console.log('--- STARTE FETCH AN:', directBackendUrl);
-
     try {
-      const res = await fetch(directBackendUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      console.log('--- RESPONSE STATUS:', res.status);
-      
+      const res = await fetch(`${backendUrl}/items/`);
       if (res.ok) {
         const data = await res.json();
-        console.log('--- GELADENE DATEN:', data);
         items = Array.isArray(data) ? data : [];
       } else {
-        errorMessage = `Backend Fehler (Status: ${res.status})`;
+        errorMessage = `Fehler beim Laden der Items (Status: ${res.status})`;
       }
     } catch (err) {
-      console.error('--- FETCH ABSTURZ:', err);
-      errorMessage = 'Verbindungsfehler!';
+      console.error('Fetch Fehler:', err);
+      errorMessage = 'Verbindungsfehler zum Backend!';
     } finally {
       isLoading = false;
     }
@@ -121,17 +109,24 @@
     return new Intl.NumberFormat('de-DE').format(amount) + ' z';
   }
 
-  $: filteredItems = items.filter(i => 
-    i.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    String(i.item_id).includes(searchQuery)
-  );
+  // Automatischer Filter für die Suchleiste
+  $: filteredItems = items.filter(i => {
+    const name = i.name ? String(i.name).toLowerCase() : '';
+    const id = i.item_id ? String(i.item_id) : '';
+    const q = searchQuery.toLowerCase();
+    return name.includes(q) || id.includes(q);
+  });
+
+  // WICHTIG: Das Triggern des Ladevorgangs beim Aufrufen der Seite
+  onMount(() => {
+    loadItems();
+  });
 </script>
 
 <div class="header-action">
   <h1>Item Datenbank</h1>
 </div>
 
-<!-- FORMULAR: NEUES ITEM -->
 <section class="card">
   <h2>Neues Item anlegen</h2>
   <form on:submit|preventDefault={addItem} class="add-form">
@@ -159,7 +154,6 @@
   </form>
 </section>
 
-<!-- LISTE / TABELLE DER ITEMS -->
 <section class="card margin-top">
   <div class="list-header">
     <h2>Alle Items ({filteredItems.length})</h2>
@@ -176,7 +170,7 @@
   {:else if errorMessage}
     <p class="error">{errorMessage}</p>
   {:else if filteredItems.length === 0}
-    <p class="status-text">Keine Items gefunden.</p>
+    <p class="status-text">Keine Items vorhanden.</p>
   {:else}
     <div class="table-container">
       <table class="item-table">
@@ -215,7 +209,6 @@
               </td>
             </tr>
 
-            <!-- HISTORIE / DETAILBEREICH -->
             {#if activeHistoryItemId === item.item_id}
               <tr class="history-row">
                 <td colspan="6">
@@ -279,7 +272,6 @@
   .history-btn { background-color: #334155; color: white; border: none; padding: 0.35rem 0.7rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
   .history-btn:hover { background-color: #475569; }
 
-  /* DETAIL BEREICH */
   .history-row td { background-color: #090d16; padding: 1rem; }
   .history-box { background-color: #0f172a; border: 1px solid #334155; padding: 1rem; border-radius: 6px; }
   .history-box h4 { margin: 0 0 0.8rem 0; color: #fbbf24; font-size: 0.95rem; }
