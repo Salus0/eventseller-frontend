@@ -160,17 +160,20 @@
     const input = itemInputs[runId];
     if (!input.newName.trim()) return;
 
-    // Suche das Item in masterItems (falls per Name oder ID/Name gewählt)
+    const rawInput = input.newName.trim();
+
+    // Abgleich gegen masterItems über Name ODER ID
     const matchedMasterItem = masterItems.find(
-      i => i.name.toLowerCase() === input.newName.trim().toLowerCase() ||
-           `${i.name} (ID: ${i.id})`.toLowerCase() === input.newName.trim().toLowerCase()
+      i => i.name.toLowerCase() === rawInput.toLowerCase() ||
+           String(i.id) === rawInput ||
+           `${i.name} (ID: ${i.id})`.toLowerCase() === rawInput.toLowerCase()
     );
 
     input.list = [
       ...input.list, 
       { 
-        item_id: matchedMasterItem ? matchedMasterItem.id : null,
-        name: matchedMasterItem ? matchedMasterItem.name : input.newName.trim(), 
+        item_id: matchedMasterItem ? matchedMasterItem.id : (isNaN(rawInput) ? null : Number(rawInput)),
+        name: matchedMasterItem ? matchedMasterItem.name : rawInput, 
         quantity: input.newQuantity || 1 
       }
     ];
@@ -406,7 +409,9 @@
                         <li class="edit-row">
                           <span>
                             {item.name || item.item_name} 
-                            {#if item.item_id}<small class="id-tag">(ID: {item.item_id})</small>{/if} 
+                            {#if item.item_id || item.id}
+                              <small class="id-tag">(ID: {item.item_id || item.id})</small>
+                            {/if}
                             (x{item.quantity || 1})
                           </span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
