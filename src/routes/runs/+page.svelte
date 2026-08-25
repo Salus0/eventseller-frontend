@@ -167,7 +167,6 @@
 
     const query = input.newNameOrId.trim().toLowerCase();
 
-    // Greife primär auf item_id (oder ersatzweise id) des Master-Items zu
     const matchedMasterItem = masterItems.find(
       i => String(i.item_id || i.id) === query ||
            i.name.toLowerCase() === query ||
@@ -278,11 +277,10 @@
   });
 </script>
 
-<!-- Autocomplete Masterliste -->
+<!-- Einziger Option-Eintrag pro Item für ein sauberes Dropdown -->
 <datalist id="master-items-list">
   {#each masterItems as item}
     <option value={item.name}>{item.name} (ID: {item.item_id || item.id})</option>
-    <option value={String(item.item_id || item.id)}>{item.name} (ID: {item.item_id || item.id})</option>
   {/each}
 </datalist>
 
@@ -373,7 +371,7 @@
                   {/if}
                 </div>
 
-                <!-- 2. DROPS / ITEMS EINTRAGEN & VERKÄUFE (STEHT NEBEN TEILNEHMERN) -->
+                <!-- 2. DROPS / ITEMS EINTRAGEN & VERKÄUFE -->
                 <div class="detail-block">
                   <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
                   
@@ -390,7 +388,6 @@
                               <span class="item-qty">x{item.quantity || item.amount || 1}</span>
                             </div>
 
-                            <!-- Verkaufspreis & Status -->
                             <div class="sale-action-area">
                               {#if item.price || item.actual_price}
                                 <span class="price-tag">{formatZeny(item.actual_price || item.price)}</span>
