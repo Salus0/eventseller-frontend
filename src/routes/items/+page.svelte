@@ -8,10 +8,16 @@
   let isLoading = true;
   let errorMessage = '';
 
-  // Formular-Zustand
+  // Formular-Zustand (Neues Item)
   let newItemId = '';
   let newItemName = '';
   let customImageUrl = '';
+
+  // Zustand für den Edit-Modus
+  let editingId = null;
+  let editItemId = '';
+  let editName = '';
+  let editImageUrl = '';
 
   // Filter & Detail-Zustand
   let searchQuery = '';
@@ -71,6 +77,52 @@
     }
   }
 
+  // Edit-Modus Steuerung
+  function startEditing(item) {
+    editingId = item.id;
+    editItemId = item.item_id;
+    editName = item.name;
+    editImageUrl = item.image_url || '';
+  }
+
+  function cancelEditing() {
+    editingId = null;
+    editItemId = '';
+    editName = '';
+    editImageUrl = '';
+  }
+
+  async function saveItem(id) {
+    if (!editItemId || !editName.trim()) {
+      alert('Item-ID und Name dürfen nicht leer sein.');
+      return;
+    }
+
+    const payload = {
+      item_id: Number(editItemId),
+      name: editName.trim(),
+      image_url: editImageUrl.trim() || `https://file5s.ratemyserver.net/items/small/${editItemId}.gif`
+    };
+
+    try {
+      const res = await fetch(`${backendUrl}/items/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        cancelEditing();
+        await loadItems();
+      } else {
+        alert('Änderung konnte nicht gespeichert werden.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Fehler beim Aktualisieren des Items.');
+    }
+  }
+
   async function toggleHistory(itemId) {
     if (activeHistoryItemId === itemId) {
       activeHistoryItemId = null;
@@ -109,7 +161,6 @@
     return new Intl.NumberFormat('de-DE').format(amount) + ' z';
   }
 
-  // Automatischer Filter für die Suchleiste
   $: filteredItems = items.filter(i => {
     const name = i.name ? String(i.name).toLowerCase() : '';
     const id = i.item_id ? String(i.item_id) : '';
@@ -117,7 +168,6 @@
     return name.includes(q) || id.includes(q);
   });
 
-  // WICHTIG: Das Triggern des Ladevorgangs beim Aufrufen der Seite
   onMount(() => {
     loadItems();
   });
@@ -186,28 +236,73 @@
         </thead>
         <tbody>
           {#each filteredItems as item}
-            <tr>
-              <td class="icon-cell">
-                <img 
-                  src={item.image_url || `https://file5s.ratemyserver.net/items/small/${item.item_id}.gif`} 
-                  alt={item.name}
-                  on:error={(e) => e.target.src = 'https://file5s.ratemyserver.net/items/small/501.gif'}
-                />
-              </td>
-              <td class="id-cell">#{item.item_id}</td>
-              <td class="name-cell">{item.name}</td>
-              <td class="price-cell">{formatZeny(item.last_price)}</td>
-              <td class="date-cell">{formatDate(item.last_sold_at)}</td>
-              <td>
-                <button 
-                  type="button" 
-                  class="history-btn" 
-                  on:click={() => toggleHistory(item.item_id)}
-                >
-                  {activeHistoryItemId === item.item_id ? '▲ Verbergen' : '📊 Preishistorie'}
-                </button>
-              </td>
-            </tr>
+            {#if editingId === item.id}
+              <!-- BEARBEITUNGS-ZEILE -->
+              <tr class="edit-row">
+                <td class="icon-cell">
+                  <img 
+                    src={editImageUrl || `https://file5s.ratemyserver.net/items/small/${editItemId || 501}.gif`} 
+                    alt="Preview"
+                    on:error={(e) => e.target.src = 'https://file5s.ratemyserver.net/items/small/501.gif'}
+                  />
+                </td>
+                <td>
+                  <input 
+                    type="number" 
+                    bind:value={editItemId} 
+                    class="input-field edit-input-sm"
+                  />
+                </td>
+                <td>
+                  <input 
+                    type="text" 
+                    bind:value={editName} 
+                    class="input-field edit-input-lg"
+                  />
+                  <input 
+                    type="url" 
+                    placeholder="Bild-URL" 
+                    bind:value={editImageUrl} 
+                    class="input-field edit-input-lg margin-top-xs"
+                  />
+                </td>
+                <td class="price-cell">{formatZeny(item.last_price)}</td>
+                <td class="date-cell">{formatDate(item.last_sold_at)}</td>
+                <td>
+                  <div class="btn-group">
+                    <button type="button" class="save-btn" on:click={() => saveItem(item.id)}>Speichern</button>
+                    <button type="button" class="cancel-btn" on:click={cancelEditing}>Abbrechen</button>
+                  </div>
+                </td>
+              </tr>
+            {:else}
+              <!-- NORMALZEILE -->
+              <tr>
+                <td class="icon-cell">
+                  <img 
+                    src={item.image_url || `https://file5s.ratemyserver.net/items/small/${item.item_id}.gif`} 
+                    alt={item.name}
+                    on:error={(e) => e.target.src = 'https://file5s.ratemyserver.net/items/small/501.gif'}
+                  />
+                </td>
+                <td class="id-cell">#{item.item_id}</td>
+                <td class="name-cell">{item.name}</td>
+                <td class="price-cell">{formatZeny(item.last_price)}</td>
+                <td class="date-cell">{formatDate(item.last_sold_at)}</td>
+                <td>
+                  <div class="btn-group">
+                    <button type="button" class="action-btn" on:click={() => startEditing(item)}>✏️ Edit</button>
+                    <button 
+                      type="button" 
+                      class="history-btn" 
+                      on:click={() => toggleHistory(item.item_id)}
+                    >
+                      {activeHistoryItemId === item.item_id ? '▲ Verbergen' : '📊 Preishistorie'}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {/if}
 
             {#if activeHistoryItemId === item.item_id}
               <tr class="history-row">
@@ -246,12 +341,16 @@
   h1 { color: #fbbf24; margin: 0; }
   .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
   .margin-top { margin-top: 1.5rem; }
+  .margin-top-xs { margin-top: 0.3rem; }
   h2 { color: #f8fafc; font-size: 1.1rem; margin: 0 0 1rem 0; }
 
   .add-form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .input-field { padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
   .small-input { width: 140px; }
   .search-input { width: 250px; }
+  
+  .edit-input-sm { width: 90px; }
+  .edit-input-lg { width: 100%; box-sizing: border-box; }
 
   .create-btn { background-color: #d97706; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
   .create-btn:hover { background-color: #b45309; }
@@ -263,11 +362,20 @@
   .item-table th { background-color: #0f172a; color: #fbbf24; padding: 0.75rem; border-bottom: 2px solid #334155; }
   .item-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #334155; color: #f8fafc; vertical-align: middle; }
 
+  .edit-row { background-color: #111827; }
+
   .icon-cell img { width: 24px; height: 24px; object-fit: contain; }
   .id-cell { color: #94a3b8; font-family: monospace; }
   .name-cell { font-weight: 600; }
   .price-cell { color: #34d399; font-weight: 600; }
   .date-cell { color: #94a3b8; font-size: 0.85rem; }
+
+  .btn-group { display: flex; gap: 0.4rem; align-items: center; }
+  .action-btn { background-color: #334155; color: white; border: none; padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+  .action-btn:hover { background-color: #475569; }
+
+  .save-btn { background-color: #059669; color: white; border: none; padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+  .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .history-btn { background-color: #334155; color: white; border: none; padding: 0.35rem 0.7rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
   .history-btn:hover { background-color: #475569; }
