@@ -1,11 +1,13 @@
 <script>
   import { onMount } from 'svelte';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
+  import RunSalesManager from '$lib/RunSalesManager.svelte';
 
   const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 
   let runs = [];
   let availableParticipants = [];
+  let allMasterItems = []; // Für Autocomplete im RunSalesManager
   let isLoading = true;
   let errorMessage = '';
   
@@ -16,7 +18,7 @@
   let participantInputs = {};
   let itemInputs = {};
 
-const roClasses = [
+  const roClasses = [
     // Transcended 2-1 Classes
     'Lord Knight',
     'High Wizard',
@@ -86,9 +88,10 @@ const roClasses = [
     isLoading = true;
     errorMessage = '';
     try {
-      const [runsRes, partsRes] = await Promise.all([
+      const [runsRes, partsRes, masterItemsRes] = await Promise.all([
         fetch(`${backendUrl}/runs/`),
-        fetch(`${backendUrl}/participants/`)
+        fetch(`${backendUrl}/participants/`),
+        fetch(`${backendUrl}/items/`)
       ]);
 
       if (runsRes.ok) {
@@ -101,12 +104,18 @@ const roClasses = [
       }
 
       if (partsRes.ok) availableParticipants = await partsRes.json();
+      if (masterItemsRes.ok) allMasterItems = await masterItemsRes.json();
     } catch (err) {
       errorMessage = 'Verbindungsfehler zum Backend!';
       console.error(err);
     } finally {
       isLoading = false;
     }
+  }
+
+  // Helper zum Formatieren von Zeny-Preisen
+  function formatZeny(amount) {
+    return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
   }
 
   // --- TEILNEHMER EDITIEREN ---
@@ -125,7 +134,6 @@ const roClasses = [
 
     const selectedId = Number(input.newParticipantId);
 
-    // Duplikat-Sicherheitsprüfung
     const isAlreadyInList = input.list.some(p => Number(p.participant_id) === selectedId);
     if (isAlreadyInList) {
       alert('Dieser Teilnehmer befindet sich bereits in der Liste!');
@@ -135,7 +143,6 @@ const roClasses = [
     const pObj = availableParticipants.find(p => Number(p.id) === selectedId);
     const pName = pObj ? pObj.name : 'Unbekannt';
 
-    // Garantiert UNTEN anhängen (Reihenfolge 1, 2, 3... bleibt erhalten)
     input.list = [
       ...input.list,
       {
@@ -322,7 +329,6 @@ const roClasses = [
                     </ul>
 
                     <div class="add-row">
-                      <!-- Dropdown filtert bereits ausgewählte Teilnehmer automatisch heraus -->
                       <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
                         <option value="">-- Spieler wählen --</option>
                         {#each availableParticipants.filter(ap => !participantInputs[run.id].list.some(p => Number(p.participant_id) === Number(ap.id))) as ap}
@@ -347,7 +353,7 @@ const roClasses = [
                   {/if}
                 </div>
 
-                <!-- BEREICH 2: ITEMS / DROPS -->
+                <!-- BEREICH 2: DROPS / ITEMS -->
                 <div class="detail-block">
                   <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
 
@@ -403,6 +409,53 @@ const roClasses = [
                   {/if}
                 </div>
 
+                <!-- BEREICH 3: VERKÄUFE / SALES (NEU) -->
+                <div class="detail-block sales-block">
+                  <h3>💰 Verkäufe erfassen</h3>
+
+                  <!-- Verkaufs-Formular mit Autocomplete & Shop-Logik -->
+                  <RunSalesManager 
+                    runId={run.id} 
+                    bind:allItems={allMasterItems} 
+                    onSaleAdded={() => loadRunDetails(run.id)} 
+                  />
+
+                  <!-- Liste der getätigten Verkäufe für diesen Run -->
+                  <div class="sales-list-wrapper">
+                    <h4>Eingetragene Verkäufe ({run.items ? run.items.length : 0})</h4>
+                    {#if run.items && run.items.length > 0}
+                      <ul class="sales-history">
+                        {#each run.items as sale}
+                          <li class="sale-row">
+                            <div class="sale-item-info">
+                              <img 
+                                src={`/items/${sale.item_id || sale.id}.png`} 
+                                alt="Icon" 
+                                class="sale-icon"
+                                on:error={(e) => {
+                                  const img = e.target;
+                                  if (img.src.endsWith('.png')) img.src = `/items/${sale.item_id || sale.id}.gif`;
+                                  else { img.onerror = null; img.src = '/items/default.png'; }
+                                }}
+                              />
+                              <span class="sale-name">{sale.item_name || sale.name}</span>
+                              <span class="sale-qty">x{sale.quantity || 1}</span>
+                            </div>
+                            <div class="sale-price-info">
+                              <span class="sale-price">{formatZeny(sale.actual_price)}</span>
+                              {#if sale.is_shop}
+                                <span class="shop-badge">Shop (-2%)</span>
+                              {/if}
+                            </div>
+                          </li>
+                        {/each}
+                      </ul>
+                    {:else}
+                      <p class="empty-text">Noch keine Verkäufe registriert.</p>
+                    {/if}
+                  </div>
+                </div>
+
               </div>
             </div>
           {/if}
@@ -432,8 +485,13 @@ const roClasses = [
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
-  .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
   .detail-block { background-color: #1e293b; padding: 0.8rem; border-radius: 6px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
+  .sales-block { grid-column: span 1; }
+  @media (min-width: 1024px) {
+    .sales-block { grid-column: span 2; } /* Gibt dem Verkaufsbereich etwas mehr Breite auf Desktop */
+  }
+
   .detail-block h3 { font-size: 0.9rem; color: #fbbf24; margin-top: 0; margin-bottom: 0.5rem; }
   
   .detail-block ul { list-style: none; padding: 0; margin: 0 0 0.8rem 0; }
@@ -458,6 +516,19 @@ const roClasses = [
   .btn-group { display: flex; gap: 0.4rem; }
   .save-btn { background-color: #059669; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
   .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+
+  /* Verkaufsliste Styles */
+  .sales-list-wrapper { margin-top: 1rem; border-top: 1px solid #334155; padding-top: 0.8rem; }
+  .sales-list-wrapper h4 { color: #cbd5e1; font-size: 0.85rem; margin: 0 0 0.5rem 0; }
+  .sales-history { display: flex; flex-direction: column; gap: 0.3rem; }
+  .sale-row { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 0.4rem 0.6rem; border-radius: 4px; }
+  .sale-item-info { display: flex; align-items: center; gap: 0.5rem; }
+  .sale-icon { width: 18px; height: 18px; object-fit: contain; }
+  .sale-name { font-size: 0.85rem; font-weight: 500; }
+  .sale-qty { font-size: 0.75rem; color: #94a3b8; }
+  .sale-price-info { display: flex; align-items: center; gap: 0.4rem; }
+  .sale-price { color: #34d399; font-weight: 600; font-size: 0.85rem; }
+  .shop-badge { background: #7c2d12; color: #fdba74; font-size: 0.7rem; padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 600; }
 
   .status-text { color: #94a3b8; }
   .empty-text { font-size: 0.85rem; color: #64748b; font-style: italic; margin-bottom: 0.5rem; }
