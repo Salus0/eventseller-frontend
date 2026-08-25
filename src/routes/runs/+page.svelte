@@ -207,6 +207,7 @@
   async function saveItems(runId) {
     const updatedList = itemInputs[runId].list.map(item => ({
       item_id: item.item_id || null,
+      item_name: item.item_name || item.name,
       name: item.item_name || item.name,
       quantity: Number(item.quantity) || 1
     }));
@@ -222,10 +223,12 @@
         editingItems[runId] = false;
         await loadRunDetails(runId);
       } else {
-        alert('Fehler beim Speichern der Items.');
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Fehler beim Speichern der Items: ${errorData.detail || res.statusText}`);
       }
     } catch (err) {
       console.error(err);
+      alert('Netzwerkfehler beim Speichern der Items.');
     }
   }
 
@@ -277,7 +280,6 @@
   });
 </script>
 
-<!-- Einziger Option-Eintrag pro Item für ein sauberes Dropdown -->
 <datalist id="master-items-list">
   {#each masterItems as item}
     <option value={item.name}>{item.name} (ID: {item.item_id || item.id})</option>
@@ -322,8 +324,8 @@
             <div class="run-details">
               <div class="details-grid">
                 
-                <!-- 1. TEILNEHMER -->
-                <div class="detail-block">
+                <!-- 1. TEILNEHMER (1/3 BREITE) -->
+                <div class="detail-block participant-block">
                   <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
                   {#if !editingParticipants[run.id]}
                     {#if run.participants && run.participants.length > 0}
@@ -371,8 +373,8 @@
                   {/if}
                 </div>
 
-                <!-- 2. DROPS / ITEMS EINTRAGEN & VERKÄUFE -->
-                <div class="detail-block">
+                <!-- 2. DROPS / ITEMS (2/3 BREITE) -->
+                <div class="detail-block item-block">
                   <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
                   
                   {#if !editingItems[run.id]}
@@ -495,7 +497,13 @@
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
   
-  .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  /* Aufteilung 1/3 zu 2/3 */
+  .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; }
+  
+  @media (max-width: 768px) {
+    .details-grid { grid-template-columns: 1fr; }
+  }
+
   .detail-block { background-color: #1e293b; padding: 0.8rem; border-radius: 6px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
   
   .detail-block h3 { font-size: 0.9rem; color: #fbbf24; margin-top: 0; margin-bottom: 0.5rem; }
