@@ -151,8 +151,7 @@
     itemInputs[run.id] = {
       list: run.items ? run.items.map(item => ({
         item_id: item.item_id || item.master_item_id || null,
-        item_name: item.item_name || item.name,
-        name: item.item_name || item.name,
+        name: item.name || item.item_name || '',
         quantity: item.quantity || item.amount || 1
       })) : [],
       newNameOrId: '',
@@ -187,7 +186,6 @@
       ...input.list, 
       { 
         item_id: finalItemId,
-        item_name: finalName, 
         name: finalName,
         quantity: Number(input.newQuantity) || 1 
       }
@@ -205,11 +203,13 @@
   }
 
   async function saveItems(runId) {
+    // Sende alle Feld-Varianten mit, damit Backend-Schemas (Pydantic) flexibel bedient werden
     const updatedList = itemInputs[runId].list.map(item => ({
-      item_id: item.item_id || null,
-      item_name: item.item_name || item.name,
-      name: item.item_name || item.name,
-      quantity: Number(item.quantity) || 1
+      item_id: item.item_id ? Number(item.item_id) : null,
+      name: item.name || item.item_name || '',
+      item_name: item.name || item.item_name || '',
+      quantity: Number(item.quantity) || 1,
+      amount: Number(item.quantity) || 1
     }));
 
     try {
@@ -223,11 +223,13 @@
         editingItems[runId] = false;
         await loadRunDetails(runId);
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Fehler beim Speichern der Items: ${errorData.detail || res.statusText}`);
+        const errDetails = await res.json().catch(() => null);
+        console.error('Backend Fehler-Details:', errDetails);
+        const detailMsg = errDetails ? JSON.stringify(errDetails.detail || errDetails) : res.statusText;
+        alert(`Fehler beim Speichern der Items (HTTP ${res.status}):\n${detailMsg}`);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Netzwerkfehler:', err);
       alert('Netzwerkfehler beim Speichern der Items.');
     }
   }
@@ -433,7 +435,7 @@
                       {#each itemInputs[run.id].list as item, idx}
                         <li class="edit-row">
                           <span>
-                            {item.item_name || item.name} 
+                            {item.name || item.item_name} 
                             {#if item.item_id}<small class="id-tag">(ID: {item.item_id})</small>{/if} 
                             (x{item.quantity || 1})
                           </span>
@@ -497,7 +499,7 @@
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
   
-  /* Aufteilung 1/3 zu 2/3 */
+  /* Aufteilung 1/3 (1fr) zu 2/3 (2fr) */
   .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; }
   
   @media (max-width: 768px) {
