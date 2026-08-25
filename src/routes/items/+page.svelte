@@ -8,16 +8,14 @@
   let isLoading = true;
   let errorMessage = '';
 
-  // Formular-Zustand (Neues Item)
+  // Formular-Zustand (Neues Item - ohne URL)
   let newItemId = '';
   let newItemName = '';
-  let customImageUrl = '';
 
-  // Zustand für den Edit-Modus
+  // Zustand für den Edit-Modus (ohne URL)
   let editingId = null;
   let editItemId = '';
   let editName = '';
-  let editImageUrl = '';
 
   // Filter & Detail-Zustand
   let searchQuery = '';
@@ -53,7 +51,7 @@
     const payload = {
       item_id: Number(newItemId),
       name: newItemName.trim(),
-      image_url: customImageUrl.trim() || `https://file5s.ratemyserver.net/items/small/${newItemId}.gif`
+      image_url: `/items/${newItemId}.png`
     };
 
     try {
@@ -66,7 +64,6 @@
       if (res.ok) {
         newItemId = '';
         newItemName = '';
-        customImageUrl = '';
         await loadItems();
       } else {
         alert('Item konnte nicht gespeichert werden.');
@@ -77,19 +74,16 @@
     }
   }
 
-  // Edit-Modus Steuerung
   function startEditing(item) {
     editingId = item.id;
     editItemId = item.item_id;
     editName = item.name;
-    editImageUrl = item.image_url || '';
   }
 
   function cancelEditing() {
     editingId = null;
     editItemId = '';
     editName = '';
-    editImageUrl = '';
   }
 
   async function saveItem(id) {
@@ -101,7 +95,7 @@
     const payload = {
       item_id: Number(editItemId),
       name: editName.trim(),
-      image_url: editImageUrl.trim() || `https://file5s.ratemyserver.net/items/small/${editItemId}.gif`
+      image_url: `/items/${editItemId}.png`
     };
 
     try {
@@ -182,23 +176,17 @@
   <form on:submit|preventDefault={addItem} class="add-form">
     <input 
       type="number" 
-      placeholder="Item-ID (z.B. 1026)" 
+      placeholder="Item-ID (z.B. 2554)" 
       bind:value={newItemId} 
       class="input-field small-input" 
       required
     />
     <input 
       type="text" 
-      placeholder="Item Name (z.B. Elunium)" 
+      placeholder="Item Name (z.B. Nydhorgg's Shadow Garb)" 
       bind:value={newItemName} 
       class="input-field" 
       required
-    />
-    <input 
-      type="url" 
-      placeholder="Bild-URL (Optional)" 
-      bind:value={customImageUrl} 
-      class="input-field" 
     />
     <button type="submit" class="create-btn">+ Speichern</button>
   </form>
@@ -241,12 +229,9 @@
               <tr class="edit-row">
                 <td class="icon-cell">
                   <img 
-                    src={editImageUrl || `/items/${editItemId || 501}.png`} 
+                    src={`/items/${editItemId || 501}.png`} 
                     alt="Preview"
-                    on:error={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = '/items/default.png';
-                    }}
+                    on:error={(e) => { e.target.onerror = null; e.target.src = '/items/default.png'; }}
                   />
                 </td>
                 <td>
@@ -261,12 +246,6 @@
                     type="text" 
                     bind:value={editName} 
                     class="input-field edit-input-lg"
-                  />
-                  <input 
-                    type="url" 
-                    placeholder="Bild-URL" 
-                    bind:value={editImageUrl} 
-                    class="input-field edit-input-lg margin-top-xs"
                   />
                 </td>
                 <td class="price-cell">{formatZeny(item.last_price)}</td>
@@ -283,13 +262,9 @@
               <tr>
                 <td class="icon-cell">
                   <img 
-                    src={item.image_url || `/items/${item.item_id}.png`} 
+                    src={`/items/${item.item_id}.png`} 
                     alt={item.name}
-                    on:error={(e) => {
-                      // Fallback, falls weder custom image_url noch die lokale /items/ID.png existiert
-                      e.target.onerror = null; 
-                      e.target.src = '/items/default.png'; // Oder ein existierendes Bild wie /items/501.png
-                    }}
+                    on:error={(e) => { e.target.onerror = null; e.target.src = '/items/default.png'; }}
                   />
                 </td>
                 <td class="id-cell">#{item.item_id}</td>
