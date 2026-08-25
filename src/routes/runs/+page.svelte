@@ -6,17 +6,17 @@
 
   let runs = [];
   let availableParticipants = [];
+  let masterItems = []; // Für Autocomplete (ID & Name)
   let isLoading = true;
   let errorMessage = '';
   
   let expandedRunIds = new Set();
   let editingParticipants = {};
   let editingItems = {};
+  let addingSaleForItemId = {}; // Steuert, für welches Item gerade ein Verkauf eingetragen wird
 
   let participantInputs = {};
   let itemInputs = {};
-
-  // Formular-State für Schritt 2 (Verkäufe) pro Run
   let saleInputs = {};
 
   const roClasses = [
@@ -37,36 +37,27 @@
 
   async function loadRunDetails(runId) {
     try {
-      const [partsRes, itemsRes, salesRes] = await Promise.all([
+      const [partsRes, itemsRes] = await Promise.all([
         fetch(`${backendUrl}/runs/${runId}/participants`),
-        fetch(`${backendUrl}/runs/${runId}/items`),
-        fetch(`${backendUrl}/runs/${runId}/sales`)
+        fetch(`${backendUrl}/runs/${runId}/items`)
       ]);
 
       let loadedParticipants = [];
       let loadedItems = [];
-      let loadedSales = [];
 
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
-      if (salesRes.ok) loadedSales = await salesRes.json();
 
       runs = runs.map(r => {
         if (r.id === runId) {
           return {
             ...r,
             participants: loadedParticipants,
-            items: loadedItems,
-            sales: loadedSales
+            items: loadedItems
           };
         }
         return r;
       });
-
-      // Initiiere das Verkaufs-Formular für diesen Run falls noch nicht geschehen
-      if (!saleInputs[runId]) {
-        saleInputs[runId] = { selectedItemId: '', quantity: 1, price: '', isShop: false };
-      }
     } catch (err) {
       console.error(`Fehler beim Nachladen der Details für Run ${runId}:`, err);
     }
@@ -76,9 +67,10 @@
     isLoading = true;
     errorMessage = '';
     try {
-      const [runsRes, partsRes] = await Promise.all([
+      const [runsRes, partsRes, itemsRes] = await Promise.all([
         fetch(`${backendUrl}/runs/`),
-        fetch(`${backendUrl}/participants/`)
+        fetch(`${backendUrl}/participants/`),
+        fetch(`${backendUrl}/items/`)
       ]);
 
       if (runsRes.ok) {
@@ -91,6 +83,7 @@
       }
 
       if (partsRes.ok) availableParticipants = await partsRes.json();
+      if (itemsRes.ok) masterItems = await itemsRes.json();
     } catch (err) {
       errorMessage = 'Verbindungsfehler zum Backend!';
       console.error(err);
@@ -157,17 +150,47 @@
   function enableItemEditing(run) {
     itemInputs[run.id] = {
       list: run.items ? JSON.parse(JSON.stringify(run.items)) : [],
+      newId: '',
       newName: '',
       newQuantity: 1
     };
     editingItems[run.id] = true;
   }
 
+  // Auto-Fill Mechanik bei ID-Eingabe
+  function handleItemIdInput(runId) {
+    const input = itemInputs[runId];
+    if (!input.newId) return;
+    const match = masterItems.find(i => String(i.id) === String(input.newId));
+    if (match) {
+      input.newName = match.name;
+    }
+  }
+
+  // Auto-Fill Mechanik bei Namens-Eingabe
+  function handleItemNameInput(runId) {
+    const input = itemInputs[runId];
+    if (!input.newName) return;
+    const match = masterItems.find(i => i.name.toLowerCase() === input.newName.toLowerCase());
+    if (match) {
+      input.newId = match.id;
+    }
+  }
+
   function addItemToBuffer(runId) {
     const input = itemInputs[runId];
     if (!input.newName.trim()) return;
 
-    input.list = [...input.list, { name: input.newName.trim(), quantity: input.newQuantity || 1 }];
+    input.list = [
+      ...input.list, 
+      { 
+        item_id: input.newId ? Number(input.newId) : null,
+        name: input.newName.trim(), 
+        quantity: input.newQuantity || 1 
+      }
+    ];
+
+    input.newId = '';
     input.newName = '';
     input.newQuantity = 1;
     itemInputs = { ...itemInputs };
@@ -197,17 +220,23 @@
     }
   }
 
-  // --- SCHRITT 2: VERKAUF FÜR EIN EXISTIERENDES ITEM HINZUFÜGEN ---
-  async function addSale(runId) {
-    const input = saleInputs[runId];
-    if (!input.selectedItemId || !input.price || input.price <= 0) {
-      alert('Bitte wähle ein Item aus und gib einen gültigen Preis ein.');
+  // --- VERKAUF FÜR EIN ITEM HINZUFÜGEN ---
+  function openSaleForm(runItemId) {
+    saleInputs[runItemId] = { price: '', isShop: false };
+    addingSaleForItemId[runItemId] = true;
+  }
+
+  async function saveSaleForItem(runId, runItem) {
+    const input = saleInputs[runItem.id];
+    if (!input || !input.price || input.price <= 0) {
+      alert('Bitte gib einen gültigen Verkaufspreis ein.');
       return;
     }
 
     const payload = {
-      item_id: Number(input.selectedItemId),
-      quantity: Number(input.quantity) || 1,
+      run_item_id: runItem.id,
+      item_id: runItem.item_id || runItem.id,
+      quantity: runItem.quantity || 1,
       price: Number(input.price),
       is_shop: Boolean(input.isShop)
     };
@@ -220,8 +249,7 @@
       });
 
       if (res.ok) {
-        // Reset Formular
-        saleInputs[runId] = { selectedItemId: '', quantity: 1, price: '', isShop: false };
+        addingSaleForItemId[runItem.id] = false;
         await loadRunDetails(runId);
       } else {
         alert('Verkauf konnte nicht gespeichert werden.');
@@ -239,6 +267,12 @@
     fetchData();
   });
 </script>
+
+<datalist id="master-items-list">
+  {#each masterItems as item}
+    <option value={item.name}>{item.name} (ID: {item.id})</option>
+  {/each}
+</datalist>
 
 <div class="header-action">
   <h1>Event Runs</h1>
@@ -327,112 +361,106 @@
                   {/if}
                 </div>
 
-                <!-- 2. SCHRITT 1: DROPS / ITEMS EINTRAGEN -->
-                <div class="detail-block">
-                  <h3>📦 1. Drops / Items im Run ({run.items ? run.items.length : 0})</h3>
+                <!-- 2. DROPS / ITEMS EINTRAGEN & VERKÄUFE -->
+                <div class="detail-block full-width">
+                  <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
+                  
                   {#if !editingItems[run.id]}
                     {#if run.items && run.items.length > 0}
-                      <ul>
+                      <ul class="items-sales-list">
                         {#each run.items as item}
-                          <li>
-                            <span class="item-name">{item.item_name || item.name}</span>
-                            <span class="item-qty">x{item.quantity || item.amount || 1}</span>
-                          </li>
-                        {/each}
-                      </ul>
-                    {:else}
-                      <p class="empty-text">Keine Items eingetragen</p>
-                    {/if}
-                    <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>➕ Items verwalten</button>
-                  {:else}
-                    <ul class="edit-list">
-                      {#each itemInputs[run.id].list as item, idx}
-                        <li class="edit-row">
-                          <span>{item.name || item.item_name} (x{item.quantity || 1})</span>
-                          <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
-                        </li>
-                      {/each}
-                    </ul>
-                    <div class="add-row">
-                      <input type="text" placeholder="Item Name" bind:value={itemInputs[run.id].newName} class="small-input"/>
-                      <input type="number" min="1" placeholder="Anzahl" bind:value={itemInputs[run.id].newQuantity} class="qty-field"/>
-                      <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
-                    </div>
-                    <div class="btn-group">
-                      <button type="button" class="save-btn" on:click={() => saveItems(run.id)}>Speichern</button>
-                      <button type="button" class="cancel-btn" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
-                    </div>
-                  {/if}
-                </div>
-
-                <!-- 3. SCHRITT 2: VERKÄUFE ERFASSEN (BASIEREND AUF SCHRITT 1) -->
-                <div class="detail-block sales-block">
-                  <h3>💰 2. Verkäufe erfassen</h3>
-                  
-                  {#if !run.items || run.items.length === 0}
-                    <p class="empty-text warning">⚠️ Bitte trage zuerst oben unter "1. Drops / Items" die gedroppten Gegenstände ein!</p>
-                  {:else if saleInputs[run.id]}
-                    <div class="sale-form">
-                      <!-- Dropdown wählt AUSSCHLIESSLICH aus den oben eingetragenen Run-Items aus -->
-                      <select bind:value={saleInputs[run.id].selectedItemId} class="small-select flex-2">
-                        <option value="">-- Verkauftes Item wählen --</option>
-                        {#each run.items as item}
-                          <option value={item.id || item.item_id}>
-                            {item.item_name || item.name} (Gedroppt: x{item.quantity || 1})
-                          </option>
-                        {/each}
-                      </select>
-
-                      <input 
-                        type="number" 
-                        min="1" 
-                        placeholder="Menge" 
-                        bind:value={saleInputs[run.id].quantity} 
-                        class="qty-field"
-                      />
-
-                      <input 
-                        type="number" 
-                        placeholder="Preis (Zeny)" 
-                        bind:value={saleInputs[run.id].price} 
-                        class="small-input"
-                      />
-
-                      <label class="checkbox-label">
-                        <input type="checkbox" bind:checked={saleInputs[run.id].isShop} />
-                        Shop (-2%)
-                      </label>
-
-                      <button type="button" class="mini-add-btn" on:click={() => addSale(run.id)}>
-                        Verkauf eintragen
-                      </button>
-                    </div>
-                  {/if}
-
-                  <!-- Liste der getätigten Verkäufe -->
-                  <div class="sales-list-wrapper">
-                    <h4>Erfasste Verkäufe ({run.sales ? run.sales.length : 0})</h4>
-                    {#if run.sales && run.sales.length > 0}
-                      <ul class="sales-history">
-                        {#each run.sales as sale}
-                          <li class="sale-row">
-                            <div class="sale-item-info">
-                              <span class="sale-name">{sale.item_name || `#${sale.item_id}`}</span>
-                              <span class="sale-qty">x{sale.quantity || 1}</span>
+                          <li class="item-sale-row">
+                            <div class="item-info">
+                              <span class="item-name">{item.item_name || item.name}</span>
+                              <span class="item-qty">x{item.quantity || item.amount || 1}</span>
                             </div>
-                            <div class="sale-price-info">
-                              <span class="sale-price">{formatZeny(sale.actual_price || sale.price)}</span>
-                              {#if sale.is_shop}
-                                <span class="shop-badge">Shop (-2%)</span>
+
+                            <!-- Verkaufspreis & Status -->
+                            <div class="sale-action-area">
+                              {#if item.price || item.actual_price}
+                                <span class="price-tag">{formatZeny(item.actual_price || item.price)}</span>
+                                {#if item.is_shop}
+                                  <span class="shop-badge">Shop (-2%)</span>
+                                {/if}
+                              {:else if addingSaleForItemId[item.id]}
+                                <!-- Eingabemaske: Verkauf hinzufügen -->
+                                <div class="inline-sale-form">
+                                  <input 
+                                    type="number" 
+                                    placeholder="Preis" 
+                                    bind:value={saleInputs[item.id].price} 
+                                    class="price-input" 
+                                  />
+                                  <label class="checkbox-label">
+                                    <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
+                                    Shop
+                                  </label>
+                                  <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
+                                  <button type="button" class="cancel-mini-btn" on:click={() => addingSaleForItemId[item.id] = false}>✕</button>
+                                </div>
+                              {:else}
+                                <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
+                                  + Verkauf hinzufügen
+                                </button>
                               {/if}
                             </div>
                           </li>
                         {/each}
                       </ul>
                     {:else}
-                      <p class="empty-text">Noch keine Verkäufe registriert.</p>
+                      <p class="empty-text">Keine Items eingetragen</p>
                     {/if}
-                  </div>
+
+                    <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
+                      ➕ Add/Edit
+                    </button>
+
+                  {:else}
+                    <!-- Editier-Ansicht: Anzahl (1), Item ID, Name -->
+                    <ul class="edit-list">
+                      {#each itemInputs[run.id].list as item, idx}
+                        <li class="edit-row">
+                          <span>
+                            {item.name || item.item_name} 
+                            {#if item.item_id}<small class="id-tag">(ID: {item.item_id})</small>{/if} 
+                            (x{item.quantity || 1})
+                          </span>
+                          <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
+                        </li>
+                      {/each}
+                    </ul>
+
+                    <div class="add-row">
+                      <input 
+                        type="number" 
+                        min="1" 
+                        placeholder="Anzahl" 
+                        bind:value={itemInputs[run.id].newQuantity}
+                        class="qty-field"
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="Item ID" 
+                        bind:value={itemInputs[run.id].newId}
+                        on:input={() => handleItemIdInput(run.id)}
+                        class="id-field"
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="Item Name" 
+                        list="master-items-list"
+                        bind:value={itemInputs[run.id].newName}
+                        on:input={() => handleItemNameInput(run.id)}
+                        class="small-input"
+                      />
+                      <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
+                    </div>
+
+                    <div class="btn-group">
+                      <button type="button" class="save-btn" on:click={() => saveItems(run.id)}>Speichern</button>
+                      <button type="button" class="cancel-btn" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
+                    </div>
+                  {/if}
                 </div>
 
               </div>
@@ -467,11 +495,12 @@
   .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
   .detail-block { background-color: #1e293b; padding: 0.8rem; border-radius: 6px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
   
-  .sales-block { grid-column: 1 / -1; } /* Nimmt die volle Breite ein für eine komfortable Eingabe zeile */
+  .full-width { grid-column: 1 / -1; }
 
   .detail-block h3 { font-size: 0.9rem; color: #fbbf24; margin-top: 0; margin-bottom: 0.5rem; }
   .detail-block ul { list-style: none; padding: 0; margin: 0 0 0.8rem 0; }
-  .detail-block li { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; color: #e2e8f0; padding: 0.3rem 0; border-bottom: 1px dashed #334155; }
+  .detail-block li { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; color: #e2e8f0; padding: 0.4rem 0; border-bottom: 1px dashed #334155; }
+  
   .num-prefix { color: #fbbf24; font-weight: 600; margin-right: 0.3rem; }
   .class-tag { background-color: #334155; color: #38bdf8; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 4px; }
   
@@ -480,36 +509,40 @@
 
   .edit-list { margin-bottom: 0.5rem !important; }
   .edit-row { background-color: #0f172a; padding: 0.3rem 0.5rem !important; border-radius: 4px; margin-bottom: 0.2rem; display: flex; gap: 0.5rem; align-items: center; }
-  .edit-name { flex: 1; }
-  .inline-select { flex: 1; max-width: 140px; }
   .del-btn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; }
   
-  .add-row, .sale-form { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; align-items: center; flex-wrap: wrap; }
-  .flex-2 { flex: 2; min-width: 180px; }
-  .small-select, .small-input { flex: 1; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
-  .qty-field { width: 65px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
+  .add-row { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .small-select, .small-input { flex: 2; min-width: 140px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
+  .id-field { width: 80px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
+  .qty-field { width: 60px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
   .mini-add-btn { background-color: #d97706; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
   
-  .checkbox-label { font-size: 0.8rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+  .id-tag { color: #64748b; font-size: 0.75rem; }
+
+  /* Item + Sales Styling */
+  .items-sales-list { margin-bottom: 0.5rem !important; }
+  .item-sale-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  .item-info { display: flex; align-items: center; gap: 0.5rem; }
+  .item-name { font-weight: 500; }
+  .item-qty { color: #94a3b8; font-size: 0.8rem; }
+  
+  .sale-action-area { display: flex; align-items: center; gap: 0.5rem; }
+  .price-tag { color: #34d399; font-weight: 600; font-size: 0.85rem; }
+  .add-sale-btn { background-color: #064e3b; color: #6ee7b7; border: 1px solid #047857; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
+  .add-sale-btn:hover { background-color: #047857; color: white; }
+
+  .inline-sale-form { display: flex; align-items: center; gap: 0.3rem; }
+  .price-input { width: 90px; padding: 0.2rem 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.75rem; }
+  .checkbox-label { font-size: 0.75rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.2rem; cursor: pointer; }
+  .save-mini-btn { background: #059669; color: white; border: none; padding: 0.2rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; }
+  .cancel-mini-btn { background: #475569; color: white; border: none; padding: 0.2rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; }
+  .shop-badge { background: #7c2d12; color: #fdba74; font-size: 0.7rem; padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 600; }
 
   .btn-group { display: flex; gap: 0.4rem; }
   .save-btn { background-color: #059669; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
   .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
-  /* Verkaufsliste */
-  .sales-list-wrapper { margin-top: 0.8rem; border-top: 1px solid #334155; padding-top: 0.8rem; }
-  .sales-list-wrapper h4 { color: #cbd5e1; font-size: 0.85rem; margin: 0 0 0.5rem 0; }
-  .sales-history { display: flex; flex-direction: column; gap: 0.3rem; }
-  .sale-row { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 0.4rem 0.6rem; border-radius: 4px; }
-  .sale-item-info { display: flex; align-items: center; gap: 0.5rem; }
-  .sale-name { font-size: 0.85rem; font-weight: 500; color: #f8fafc; }
-  .sale-qty { font-size: 0.75rem; color: #94a3b8; }
-  .sale-price-info { display: flex; align-items: center; gap: 0.4rem; }
-  .sale-price { color: #34d399; font-weight: 600; font-size: 0.85rem; }
-  .shop-badge { background: #7c2d12; color: #fdba74; font-size: 0.7rem; padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 600; }
-
   .status-text { color: #94a3b8; }
   .empty-text { font-size: 0.85rem; color: #64748b; font-style: italic; margin-bottom: 0.5rem; }
-  .empty-text.warning { color: #f59e0b; font-style: normal; }
   .error { color: #ef4444; }
 </style>
