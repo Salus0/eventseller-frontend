@@ -39,22 +39,30 @@
     return itemId ? `Item #${itemId}` : 'Unbekanntes Item';
   }
 
-  // Ermittelt die Bild-URL analog zur Item-Seite
-  function getItemIconUrl(itemId) {
-    const master = getMasterItem(itemId);
+  // Ermittelt die Bild-URL analog zur Item-Seite mit Fallbacks für Property-Namen
+  function getItemIconUrl(item) {
+    if (!item) return '/items/default.png';
+    
+    const rawId = item.item_id ?? item.master_item_id ?? item.id;
+    const master = getMasterItem(rawId);
+    
     if (master && (master.image_url || master.icon_url || master.icon)) {
       return master.image_url || master.icon_url || master.icon;
     }
-    return itemId ? `/items/${itemId}.png` : '/items/default.png';
+    
+    const finalId = rawId || (master ? (master.item_id ?? master.id) : null);
+    return finalId ? `/items/${finalId}.png` : '/items/default.png';
   }
 
-  // Error-Handling für Bilder genau wie auf der Item-Seite
-  function handleImgError(e, itemId) {
+  // Error-Handling für Bilder (PNG -> GIF -> Default)
+  function handleImgError(e, item) {
     const img = e.target;
+    const rawId = item?.item_id ?? item?.master_item_id ?? item?.id ?? 501;
+
     if (img.src.endsWith('.png')) {
-      img.src = `/items/${itemId || 501}.gif`;
+      img.src = `/items/${rawId}.gif`;
     } else if (img.src.endsWith('.gif')) {
-      img.onerror = null;
+      img.onerror = null; // Verhindert Endlosschleifen
       img.src = '/items/default.png';
     }
   }
@@ -375,6 +383,7 @@
             <div class="run-details">
               <div class="details-grid">
                 
+                <!-- 1. TEILNEHMER -->
                 <div class="detail-block participant-block">
                   <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
                   {#if !editingParticipants[run.id]}
@@ -423,6 +432,7 @@
                   {/if}
                 </div>
 
+                <!-- 2. DROPS / ITEMS -->
                 <div class="detail-block item-block">
                   <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
                   
@@ -430,7 +440,7 @@
                     {#if run.items && run.items.length > 0}
                       <ul class="items-sales-list">
                         {#each run.items as item}
-                          {@const iconSrc = getItemIconUrl(item.item_id)}
+                          {@const iconSrc = getItemIconUrl(item)}
                           <li class="item-sale-row">
                             <div class="item-info">
                               <span class="item-qty">{item.amount || item.quantity || 1}x</span>
@@ -439,7 +449,7 @@
                                 src={iconSrc} 
                                 alt={item.name} 
                                 class="item-icon-img"
-                                on:error={(e) => handleImgError(e, item.item_id)} 
+                                on:error={(e) => handleImgError(e, item)} 
                               />
 
                               <span class="item-name">{getItemName(item.item_id, item.name || item.item_name)}</span>
@@ -486,7 +496,7 @@
                   {:else}
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
-                        {@const iconSrc = getItemIconUrl(item.item_id)}
+                        {@const iconSrc = getItemIconUrl(item)}
                         <li class="edit-row">
                           <span class="item-info">
                             <span class="item-qty">{item.amount || 1}x</span>
@@ -494,7 +504,7 @@
                               src={iconSrc} 
                               alt={item.name} 
                               class="item-icon-img" 
-                              on:error={(e) => handleImgError(e, item.item_id)} 
+                              on:error={(e) => handleImgError(e, item)} 
                             />
                             <span>{getItemName(item.item_id, item.name)}</span>
                           </span>
@@ -558,14 +568,12 @@
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
   
-  /* Top-Ausrichtung für das Grid */
   .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; align-items: start; }
   
   @media (max-width: 768px) {
     .details-grid { grid-template-columns: 1fr; }
   }
 
-  /* Blöcke richten Inhalte oben aus */
   .detail-block { 
     background-color: #1e293b; 
     padding: 0.8rem; 
@@ -599,7 +607,6 @@
   .items-sales-list { margin-bottom: 0.5rem !important; }
   .item-sale-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
   
-  /* Reihenfolge: Menge -> Icon -> Name */
   .item-info { display: flex; align-items: center; gap: 0.5rem; }
   .item-qty { color: #fbbf24; font-weight: 600; font-size: 0.85rem; min-width: 24px; }
   .item-icon-img { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
