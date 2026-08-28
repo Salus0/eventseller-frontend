@@ -460,10 +460,13 @@
                       <ul class="items-sales-list">
                         {#each run.items as item}
                           {@const iconSrc = getItemIconUrl(item)}
+                          {@const itemIdVal = item.item_id ?? item.master_item_id ?? item.id}
                           <li class="item-sale-row">
                             <div class="item-info">
+                              <!-- 1. Stückzahl -->
                               <span class="item-qty">{item.amount || item.quantity || 1}x</span>
                               
+                              <!-- 2. Item Icon -->
                               <img 
                                 src={iconSrc} 
                                 alt={item.name} 
@@ -471,6 +474,12 @@
                                 on:error={(e) => handleImgError(e, item)} 
                               />
 
+                              <!-- 3. Item ID -->
+                              {#if itemIdVal}
+                                <span class="item-id-badge">#{itemIdVal}</span>
+                              {/if}
+
+                              <!-- 4. Item Name -->
                               <span class="item-name">{getItemName(item.item_id, item.name || item.item_name)}</span>
                             </div>
 
@@ -516,6 +525,7 @@
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
                         {@const iconSrc = getItemIconUrl(item)}
+                        {@const itemIdVal = item.item_id ?? item.master_item_id ?? item.id}
                         <li class="edit-row">
                           <span class="item-info">
                             <span class="item-qty">{item.amount || 1}x</span>
@@ -525,6 +535,9 @@
                               class="item-icon-img" 
                               on:error={(e) => handleImgError(e, item)} 
                             />
+                            {#if itemIdVal}
+                              <span class="item-id-badge">#{itemIdVal}</span>
+                            {/if}
                             <span>{getItemName(item.item_id, item.name)}</span>
                           </span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
@@ -629,6 +642,7 @@
   .item-info { display: flex; align-items: center; gap: 0.5rem; }
   .item-qty { color: #fbbf24; font-weight: 600; font-size: 0.85rem; min-width: 24px; }
   .item-icon-img { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
+  .item-id-badge { color: #64748b; font-size: 0.75rem; font-family: monospace; font-weight: 600; }
   .item-name { font-weight: 500; }
   
   .sale-action-area { display: flex; align-items: center; gap: 0.5rem; }
