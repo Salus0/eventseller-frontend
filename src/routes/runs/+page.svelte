@@ -25,13 +25,11 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Hilfsfunktion zum Abrufen von Item-Objekten aus den Master-Items
   function getMasterItem(itemId) {
     if (!itemId) return null;
     return masterItems.find(m => Number(m.item_id || m.id) === Number(itemId)) || null;
   }
 
-  // Wandelt eine Item-ID verlässlich in den Namen um
   function getItemName(itemId, fallbackName) {
     const master = getMasterItem(itemId);
     if (master && master.name) return master.name;
@@ -41,13 +39,24 @@
     return itemId ? `Item #${itemId}` : 'Unbekanntes Item';
   }
 
-  // Holt das Icon eines Items (falls im Master-Item vorhanden)
-  function getItemIcon(itemId) {
+  // Ermittelt die Bild-URL analog zur Item-Seite
+  function getItemIconUrl(itemId) {
     const master = getMasterItem(itemId);
-    if (master && (master.icon_url || master.icon)) {
-      return master.icon_url || master.icon;
+    if (master && (master.image_url || master.icon_url || master.icon)) {
+      return master.image_url || master.icon_url || master.icon;
     }
-    return null;
+    return itemId ? `/items/${itemId}.png` : '/items/default.png';
+  }
+
+  // Error-Handling für Bilder genau wie auf der Item-Seite
+  function handleImgError(e, itemId) {
+    const img = e.target;
+    if (img.src.endsWith('.png')) {
+      img.src = `/items/${itemId || 501}.gif`;
+    } else if (img.src.endsWith('.gif')) {
+      img.onerror = null;
+      img.src = '/items/default.png';
+    }
   }
 
   async function toggleExpand(id) {
@@ -366,7 +375,6 @@
             <div class="run-details">
               <div class="details-grid">
                 
-                <!-- 1. TEILNEHMER -->
                 <div class="detail-block participant-block">
                   <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
                   {#if !editingParticipants[run.id]}
@@ -415,7 +423,6 @@
                   {/if}
                 </div>
 
-                <!-- 2. DROPS / ITEMS -->
                 <div class="detail-block item-block">
                   <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
                   
@@ -423,20 +430,18 @@
                     {#if run.items && run.items.length > 0}
                       <ul class="items-sales-list">
                         {#each run.items as item}
-                          {@const iconUrl = getItemIcon(item.item_id)}
+                          {@const iconSrc = getItemIconUrl(item.item_id)}
                           <li class="item-sale-row">
                             <div class="item-info">
-                              <!-- 1. Stückzahl -->
                               <span class="item-qty">{item.amount || item.quantity || 1}x</span>
                               
-                              <!-- 2. Item-Icon -->
-                              {#if iconUrl}
-                                <img src={iconUrl} alt="Icon" class="item-icon-img" />
-                              {:else}
-                                <span class="item-icon-fallback">📦</span>
-                              {/if}
+                              <img 
+                                src={iconSrc} 
+                                alt={item.name} 
+                                class="item-icon-img"
+                                on:error={(e) => handleImgError(e, item.item_id)} 
+                              />
 
-                              <!-- 3. Item-Name -->
                               <span class="item-name">{getItemName(item.item_id, item.name || item.item_name)}</span>
                             </div>
 
@@ -481,15 +486,16 @@
                   {:else}
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
-                        {@const iconUrl = getItemIcon(item.item_id)}
+                        {@const iconSrc = getItemIconUrl(item.item_id)}
                         <li class="edit-row">
                           <span class="item-info">
                             <span class="item-qty">{item.amount || 1}x</span>
-                            {#if iconUrl}
-                              <img src={iconUrl} alt="Icon" class="item-icon-img" />
-                            {:else}
-                              <span class="item-icon-fallback">📦</span>
-                            {/if}
+                            <img 
+                              src={iconSrc} 
+                              alt={item.name} 
+                              class="item-icon-img" 
+                              on:error={(e) => handleImgError(e, item.item_id)} 
+                            />
                             <span>{getItemName(item.item_id, item.name)}</span>
                           </span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
@@ -552,14 +558,14 @@
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
   
-  /* Layout von oben ausgerichtet */
+  /* Top-Ausrichtung für das Grid */
   .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; align-items: start; }
   
   @media (max-width: 768px) {
     .details-grid { grid-template-columns: 1fr; }
   }
 
-  /* Blöcke von oben ausrichten */
+  /* Blöcke richten Inhalte oben aus */
   .detail-block { 
     background-color: #1e293b; 
     padding: 0.8rem; 
@@ -593,11 +599,10 @@
   .items-sales-list { margin-bottom: 0.5rem !important; }
   .item-sale-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
   
-  /* Darstellung: Menge -> Icon -> Name */
+  /* Reihenfolge: Menge -> Icon -> Name */
   .item-info { display: flex; align-items: center; gap: 0.5rem; }
   .item-qty { color: #fbbf24; font-weight: 600; font-size: 0.85rem; min-width: 24px; }
   .item-icon-img { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
-  .item-icon-fallback { font-size: 1rem; line-height: 1; }
   .item-name { font-weight: 500; }
   
   .sale-action-area { display: flex; align-items: center; gap: 0.5rem; }
