@@ -25,9 +25,24 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
+  // Hilfsfunktion: Ermittelt die echte RO-ID eines Items
+  function getROItemId(item) {
+    if (!item) return null;
+    
+    // Zuerst im verknüpften Master-Item nach der echten RO-ID suchen
+    const master = getMasterItem(item.item_id ?? item.ro_item_id ?? item.master_item_id ?? item.id);
+    if (master) {
+      const masterRoId = master.ro_item_id ?? master.item_id;
+      if (masterRoId) return masterRoId;
+    }
+
+    // Wenn direkt im Item-Objekt vorhanden
+    return item.ro_item_id ?? item.item_id ?? item.master_item_id ?? item.id ?? null;
+  }
+
   function getMasterItem(itemId) {
     if (!itemId) return null;
-    return masterItems.find(m => Number(m.item_id || m.id) === Number(itemId)) || null;
+    return masterItems.find(m => Number(m.ro_item_id || m.item_id || m.id) === Number(itemId)) || null;
   }
 
   function getItemName(itemId, fallbackName) {
@@ -39,40 +54,38 @@
     return itemId ? `Item #${itemId}` : 'Unbekanntes Item';
   }
 
-  // Ermittelt die Bild-URL mit explizitem ID-Mapping
+  // Ermittelt die Bild-URL basierend auf der RO-Item-ID
   function getItemIconUrl(item) {
     if (!item) return '/items/default.png';
     
-    // Direct-URL bevorzugen (falls im Master-Item hinterlegt)
-    if (item.image_url || item.icon_url || item.icon) {
-      return item.image_url || item.icon_url || item.icon;
-    }
+    const roId = getROItemId(item);
+    const master = getMasterItem(roId);
     
-    // ID auflösen
-    const rawId = item.item_id ?? item.master_item_id ?? item.id;
-    const master = getMasterItem(rawId);
-    
+    // Direct-URL bevorzugen (falls im Master hinterlegt)
     if (master && (master.image_url || master.icon_url || master.icon)) {
       return master.image_url || master.icon_url || master.icon;
     }
-    
-    const finalId = rawId || (master ? (master.item_id ?? master.id) : null);
-    return finalId ? `/items/${finalId}.png` : '/items/default.png';
+    if (item.image_url || item.icon_url || item.icon) {
+      return item.image_url || item.icon_url || item.icon;
+    }
+
+    // Standard-Pfad über die RO-Item-ID generieren
+    return roId ? `/items/${roId}.png` : '/items/default.png';
   }
 
   // Error-Handling für Bilder (PNG -> GIF -> Default)
   function handleImgError(e, item) {
     const img = e.target;
-    const rawId = item?.item_id ?? item?.master_item_id ?? item?.id;
+    const roId = getROItemId(item);
 
-    if (!rawId) {
+    if (!roId) {
       img.onerror = null;
       img.src = '/items/default.png';
       return;
     }
 
     if (img.src.endsWith('.png')) {
-      img.src = `/items/${rawId}.gif`;
+      img.src = `/items/${roId}.gif`;
     } else if (img.src.endsWith('.gif')) {
       img.onerror = null; // Verhindert Endlosschleifen
       img.src = '/items/default.png';
@@ -102,14 +115,15 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
-      // EXPLIZITES MAPPING DER ITEM-ID & MASTER-DATEN
+      // MAPPING FÜR RO-ITEM-ID HERSTELLEN
       loadedItems = loadedItems.map(item => {
-        const rawId = item.item_id ?? item.master_item_id ?? item.id;
-        const numericId = rawId ? Number(rawId) : null;
+        const roId = item.ro_item_id ?? item.item_id ?? item.master_item_id ?? item.id;
+        const numericId = roId ? Number(roId) : null;
         const master = getMasterItem(numericId);
 
         return {
           ...item,
+          ro_item_id: numericId,
           item_id: numericId,
           image_url: master?.image_url || master?.icon_url || item.image_url || null,
           name: getItemName(numericId, item.name || item.item_name)
@@ -220,10 +234,11 @@
   function enableItemEditing(run) {
     itemInputs[run.id] = {
       list: run.items ? run.items.map(item => {
-        const id = item.item_id ?? item.master_item_id ?? item.id;
+        const roId = getROItemId(item);
         return {
-          item_id: id ? Number(id) : null,
-          name: getItemName(id, item.name || item.item_name),
+          item_id: roId ? Number(roId) : null,
+          ro_item_id: roId ? Number(roId) : null,
+          name: getItemName(roId, item.name || item.item_name),
           amount: item.amount || item.quantity || 1
         };
       }) : [],
@@ -241,16 +256,16 @@
     const query = rawInput.toLowerCase();
 
     const matchedMasterItem = masterItems.find(
-      i => String(i.item_id || i.id) === query ||
+      i => String(i.ro_item_id || i.item_id || i.id) === query ||
            i.name.toLowerCase() === query ||
-           `${i.name} (id: ${i.item_id || i.id})`.toLowerCase() === query
+           `${i.name} (id: ${i.ro_item_id || i.item_id || i.id})`.toLowerCase() === query
     );
 
     let finalItemId = null;
     let finalName = rawInput;
 
     if (matchedMasterItem) {
-      finalItemId = Number(matchedMasterItem.item_id ?? matchedMasterItem.id);
+      finalItemId = Number(matchedMasterItem.ro_item_id ?? matchedMasterItem.item_id ?? matchedMasterItem.id);
       finalName = matchedMasterItem.name;
     } else if (!isNaN(query)) {
       finalItemId = Number(query);
@@ -261,6 +276,7 @@
       ...input.list, 
       { 
         item_id: finalItemId,
+        ro_item_id: finalItemId,
         name: finalName,
         amount: Number(input.newAmount) || 1 
       }
@@ -279,11 +295,12 @@
 
   async function saveItems(runId) {
     const updatedList = itemInputs[runId].list.map(item => {
-      const resolvedId = item.item_id ? Number(item.item_id) : null;
+      const resolvedId = getROItemId(item);
       const resolvedName = getItemName(resolvedId, item.name);
 
       return {
-        item_id: resolvedId,
+        item_id: resolvedId ? Number(resolvedId) : null,
+        ro_item_id: resolvedId ? Number(resolvedId) : null,
         name: resolvedName,
         amount: Number(item.amount) || 1,
         quantity: Number(item.amount) || 1
@@ -325,7 +342,7 @@
 
     const payload = {
       run_item_id: runItem.id,
-      item_id: runItem.item_id || null,
+      item_id: getROItemId(runItem),
       amount: runItem.amount || runItem.quantity || 1,
       price: Number(input.price),
       is_shop: Boolean(input.isShop)
@@ -460,7 +477,7 @@
                       <ul class="items-sales-list">
                         {#each run.items as item}
                           {@const iconSrc = getItemIconUrl(item)}
-                          {@const itemIdVal = item.item_id ?? item.master_item_id ?? item.id}
+                          {@const roId = getROItemId(item)}
                           <li class="item-sale-row">
                             <div class="item-info">
                               <!-- 1. Stückzahl -->
@@ -474,13 +491,13 @@
                                 on:error={(e) => handleImgError(e, item)} 
                               />
 
-                              <!-- 3. Item ID -->
-                              {#if itemIdVal}
-                                <span class="item-id-badge">#{itemIdVal}</span>
+                              <!-- 3. Echte RO Item-ID -->
+                              {#if roId}
+                                <span class="item-id-badge">#{roId}</span>
                               {/if}
 
                               <!-- 4. Item Name -->
-                              <span class="item-name">{getItemName(item.item_id, item.name || item.item_name)}</span>
+                              <span class="item-name">{getItemName(roId, item.name || item.item_name)}</span>
                             </div>
 
                             <div class="sale-action-area">
@@ -525,7 +542,7 @@
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
                         {@const iconSrc = getItemIconUrl(item)}
-                        {@const itemIdVal = item.item_id ?? item.master_item_id ?? item.id}
+                        {@const roId = getROItemId(item)}
                         <li class="edit-row">
                           <span class="item-info">
                             <span class="item-qty">{item.amount || 1}x</span>
@@ -535,10 +552,10 @@
                               class="item-icon-img" 
                               on:error={(e) => handleImgError(e, item)} 
                             />
-                            {#if itemIdVal}
-                              <span class="item-id-badge">#{itemIdVal}</span>
+                            {#if roId}
+                              <span class="item-id-badge">#{roId}</span>
                             {/if}
-                            <span>{getItemName(item.item_id, item.name)}</span>
+                            <span>{getItemName(roId, item.name)}</span>
                           </span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                         </li>
@@ -555,7 +572,7 @@
                       />
                       <input 
                         type="text" 
-                        placeholder="Item Name oder ID" 
+                        placeholder="Item Name oder RO-ID" 
                         list="master-items-list"
                         bind:value={itemInputs[run.id].newNameOrId}
                         class="small-input"
