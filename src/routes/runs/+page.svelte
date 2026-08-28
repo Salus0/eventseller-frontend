@@ -25,36 +25,44 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Hilfsfunktion: Ermittelt die echte RO-ID eines Items
+  // Sucht das Master-Item gezielt nach der echtem RO-Item-ID
+  function getMasterItem(rawId) {
+    if (!rawId) return null;
+    const num = Number(rawId);
+    return masterItems.find(m => 
+      Number(m.item_id) === num || 
+      Number(m.ro_item_id) === num || 
+      Number(m.id) === num
+    ) || null;
+  }
+
+  // Liefert GARANTIERT die Ragnarok Item-ID (und ignoriert item.id des Run-Eintrags)
   function getROItemId(item) {
     if (!item) return null;
-    
-    // Zuerst im verknüpften Master-Item nach der echten RO-ID suchen
-    const master = getMasterItem(item.item_id ?? item.ro_item_id ?? item.master_item_id ?? item.id);
+
+    // 1. Zuerst im zugehörigen Master-Item nachschauen
+    const master = getMasterItem(item.item_id ?? item.ro_item_id ?? item.master_item_id);
     if (master) {
-      const masterRoId = master.ro_item_id ?? master.item_id;
-      if (masterRoId) return masterRoId;
+      const masterRoId = master.item_id ?? master.ro_item_id;
+      if (masterRoId) return Number(masterRoId);
     }
 
-    // Wenn direkt im Item-Objekt vorhanden
-    return item.ro_item_id ?? item.item_id ?? item.master_item_id ?? item.id ?? null;
+    // 2. Explizite Felder im Run-Item prüfen (id ignorieren, da das die Zeilen-ID der DB ist)
+    const directId = item.item_id ?? item.ro_item_id ?? item.master_item_id;
+    return directId ? Number(directId) : null;
   }
 
-  function getMasterItem(itemId) {
-    if (!itemId) return null;
-    return masterItems.find(m => Number(m.ro_item_id || m.item_id || m.id) === Number(itemId)) || null;
-  }
-
-  function getItemName(itemId, fallbackName) {
-    const master = getMasterItem(itemId);
+  function getItemName(item, fallbackName) {
+    const roId = getROItemId(item);
+    const master = getMasterItem(roId);
     if (master && master.name) return master.name;
     if (fallbackName && fallbackName !== 'Unbekannt' && !fallbackName.startsWith('Item #')) {
       return fallbackName;
     }
-    return itemId ? `Item #${itemId}` : 'Unbekanntes Item';
+    return roId ? `Item #${roId}` : 'Unbekanntes Item';
   }
 
-  // Ermittelt die Bild-URL basierend auf der RO-Item-ID
+  // Ermittelt die Bild-URL basierend auf der echten RO-Item-ID
   function getItemIconUrl(item) {
     if (!item) return '/items/default.png';
     
@@ -115,18 +123,19 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
-      // MAPPING FÜR RO-ITEM-ID HERSTELLEN
+      // MAPPING FÜR RO-ITEM-ID STRICKT HERSTELLEN
       loadedItems = loadedItems.map(item => {
-        const roId = item.ro_item_id ?? item.item_id ?? item.master_item_id ?? item.id;
-        const numericId = roId ? Number(roId) : null;
-        const master = getMasterItem(numericId);
+        const rawRoId = item.item_id ?? item.ro_item_id ?? item.master_item_id;
+        const master = getMasterItem(rawRoId);
+        const finalRoId = master ? (master.item_id ?? master.ro_item_id) : rawRoId;
+        const numericRoId = finalRoId ? Number(finalRoId) : null;
 
         return {
           ...item,
-          ro_item_id: numericId,
-          item_id: numericId,
+          ro_item_id: numericRoId,
+          item_id: numericRoId,
           image_url: master?.image_url || master?.icon_url || item.image_url || null,
-          name: getItemName(numericId, item.name || item.item_name)
+          name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item')
         };
       });
 
@@ -236,9 +245,10 @@
       list: run.items ? run.items.map(item => {
         const roId = getROItemId(item);
         return {
-          item_id: roId ? Number(roId) : null,
-          ro_item_id: roId ? Number(roId) : null,
-          name: getItemName(roId, item.name || item.item_name),
+          id: item.id, // DB Row ID für Backend behalten
+          item_id: roId,
+          ro_item_id: roId,
+          name: getItemName(item, item.name || item.item_name),
           amount: item.amount || item.quantity || 1
         };
       }) : [],
@@ -256,20 +266,20 @@
     const query = rawInput.toLowerCase();
 
     const matchedMasterItem = masterItems.find(
-      i => String(i.ro_item_id || i.item_id || i.id) === query ||
+      i => String(i.item_id || i.ro_item_id || i.id) === query ||
            i.name.toLowerCase() === query ||
-           `${i.name} (id: ${i.ro_item_id || i.item_id || i.id})`.toLowerCase() === query
+           `${i.name} (id: ${i.item_id || i.ro_item_id || i.id})`.toLowerCase() === query
     );
 
     let finalItemId = null;
     let finalName = rawInput;
 
     if (matchedMasterItem) {
-      finalItemId = Number(matchedMasterItem.ro_item_id ?? matchedMasterItem.item_id ?? matchedMasterItem.id);
+      finalItemId = Number(matchedMasterItem.item_id ?? matchedMasterItem.ro_item_id ?? matchedMasterItem.id);
       finalName = matchedMasterItem.name;
     } else if (!isNaN(query)) {
       finalItemId = Number(query);
-      finalName = getItemName(finalItemId, finalName);
+      finalName = getItemName({ item_id: finalItemId }, finalName);
     }
 
     input.list = [
@@ -296,7 +306,7 @@
   async function saveItems(runId) {
     const updatedList = itemInputs[runId].list.map(item => {
       const resolvedId = getROItemId(item);
-      const resolvedName = getItemName(resolvedId, item.name);
+      const resolvedName = getItemName(item, item.name);
 
       return {
         item_id: resolvedId ? Number(resolvedId) : null,
@@ -497,7 +507,7 @@
                               {/if}
 
                               <!-- 4. Item Name -->
-                              <span class="item-name">{getItemName(roId, item.name || item.item_name)}</span>
+                              <span class="item-name">{getItemName(item, item.name || item.item_name)}</span>
                             </div>
 
                             <div class="sale-action-area">
@@ -555,7 +565,7 @@
                             {#if roId}
                               <span class="item-id-badge">#{roId}</span>
                             {/if}
-                            <span>{getItemName(roId, item.name)}</span>
+                            <span>{getItemName(item, item.name)}</span>
                           </span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                         </li>
