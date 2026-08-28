@@ -25,16 +25,29 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Wandelt eine Item-ID verlässlich in den Namen aus masterItems um
+  // Hilfsfunktion zum Abrufen von Item-Objekten aus den Master-Items
+  function getMasterItem(itemId) {
+    if (!itemId) return null;
+    return masterItems.find(m => Number(m.item_id || m.id) === Number(itemId)) || null;
+  }
+
+  // Wandelt eine Item-ID verlässlich in den Namen um
   function getItemName(itemId, fallbackName) {
-    if (itemId) {
-      const found = masterItems.find(m => Number(m.item_id || m.id) === Number(itemId));
-      if (found && found.name) return found.name;
-    }
+    const master = getMasterItem(itemId);
+    if (master && master.name) return master.name;
     if (fallbackName && fallbackName !== 'Unbekannt' && !fallbackName.startsWith('Item #')) {
       return fallbackName;
     }
     return itemId ? `Item #${itemId}` : 'Unbekanntes Item';
+  }
+
+  // Holt das Icon eines Items (falls im Master-Item vorhanden)
+  function getItemIcon(itemId) {
+    const master = getMasterItem(itemId);
+    if (master && (master.icon_url || master.icon)) {
+      return master.icon_url || master.icon;
+    }
+    return null;
   }
 
   async function toggleExpand(id) {
@@ -60,7 +73,6 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
-      // Mappe Item-IDs und Namen direkt beim Laden
       loadedItems = loadedItems.map(item => {
         const id = item.item_id ?? item.master_item_id ?? item.id;
         return {
@@ -89,7 +101,6 @@
     isLoading = true;
     errorMessage = '';
     try {
-      // 1. Stammdaten laden
       const [partsRes, itemsRes] = await Promise.all([
         fetch(`${backendUrl}/participants/`),
         fetch(`${backendUrl}/items/`)
@@ -98,7 +109,6 @@
       if (itemsRes.ok) masterItems = await itemsRes.json();
       if (partsRes.ok) availableParticipants = await partsRes.json();
 
-      // 2. Runs laden
       const runsRes = await fetch(`${backendUrl}/runs/`);
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
@@ -194,7 +204,6 @@
     const rawInput = input.newNameOrId.trim();
     const query = rawInput.toLowerCase();
 
-    // Suche in Master-Items nach Name, ID oder formatierter Anzeige
     const matchedMasterItem = masterItems.find(
       i => String(i.item_id || i.id) === query ||
            i.name.toLowerCase() === query ||
@@ -315,7 +324,7 @@
 
 <datalist id="master-items-list">
   {#each masterItems as item}
-    <option value={item.name}>{item.name} (ID: {item.item_id || item.id})</option>
+    <option value={item.name}>{item.name}</option>
   {/each}
 </datalist>
 
@@ -414,13 +423,21 @@
                     {#if run.items && run.items.length > 0}
                       <ul class="items-sales-list">
                         {#each run.items as item}
+                          {@const iconUrl = getItemIcon(item.item_id)}
                           <li class="item-sale-row">
                             <div class="item-info">
-                              <span class="item-name">{getItemName(item.item_id, item.name || item.item_name)}</span>
-                              {#if item.item_id}
-                                <small class="id-tag">(ID: {item.item_id})</small>
+                              <!-- 1. Stückzahl -->
+                              <span class="item-qty">{item.amount || item.quantity || 1}x</span>
+                              
+                              <!-- 2. Item-Icon -->
+                              {#if iconUrl}
+                                <img src={iconUrl} alt="Icon" class="item-icon-img" />
+                              {:else}
+                                <span class="item-icon-fallback">📦</span>
                               {/if}
-                              <span class="item-qty">x{item.amount || item.quantity || 1}</span>
+
+                              <!-- 3. Item-Name -->
+                              <span class="item-name">{getItemName(item.item_id, item.name || item.item_name)}</span>
                             </div>
 
                             <div class="sale-action-area">
@@ -464,11 +481,16 @@
                   {:else}
                     <ul class="edit-list">
                       {#each itemInputs[run.id].list as item, idx}
+                        {@const iconUrl = getItemIcon(item.item_id)}
                         <li class="edit-row">
-                          <span>
-                            {getItemName(item.item_id, item.name)} 
-                            {#if item.item_id}<small class="id-tag">(ID: {item.item_id})</small>{/if} 
-                            (x{item.amount || 1})
+                          <span class="item-info">
+                            <span class="item-qty">{item.amount || 1}x</span>
+                            {#if iconUrl}
+                              <img src={iconUrl} alt="Icon" class="item-icon-img" />
+                            {:else}
+                              <span class="item-icon-fallback">📦</span>
+                            {/if}
+                            <span>{getItemName(item.item_id, item.name)}</span>
                           </span>
                           <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                         </li>
@@ -530,16 +552,27 @@
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
   
-  .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; }
+  /* Layout von oben ausgerichtet */
+  .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; align-items: start; }
   
   @media (max-width: 768px) {
     .details-grid { grid-template-columns: 1fr; }
   }
 
-  .detail-block { background-color: #1e293b; padding: 0.8rem; border-radius: 6px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; }
+  /* Blöcke von oben ausrichten */
+  .detail-block { 
+    background-color: #1e293b; 
+    padding: 0.8rem; 
+    border-radius: 6px; 
+    border: 1px solid #334155; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: flex-start;
+    align-items: stretch;
+  }
   
   .detail-block h3 { font-size: 0.9rem; color: #fbbf24; margin-top: 0; margin-bottom: 0.5rem; }
-  .detail-block ul { list-style: none; padding: 0; margin: 0 0 0.8rem 0; }
+  .detail-block ul { list-style: none; padding: 0; margin: 0 0 0.8rem 0; width: 100%; }
   .detail-block li { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; color: #e2e8f0; padding: 0.4rem 0; border-bottom: 1px dashed #334155; }
   
   .num-prefix { color: #fbbf24; font-weight: 600; margin-right: 0.3rem; }
@@ -549,21 +582,23 @@
   .action-btn:hover { background-color: #475569; }
 
   .edit-list { margin-bottom: 0.5rem !important; }
-  .edit-row { background-color: #0f172a; padding: 0.3rem 0.5rem !important; border-radius: 4px; margin-bottom: 0.2rem; display: flex; gap: 0.5rem; align-items: center; }
+  .edit-row { background-color: #0f172a; padding: 0.3rem 0.5rem !important; border-radius: 4px; margin-bottom: 0.2rem; display: flex; justify-content: space-between; align-items: center; }
   .del-btn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; }
   
   .add-row { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; align-items: center; flex-wrap: wrap; }
   .small-select, .small-input { flex: 2; min-width: 140px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
   .qty-field { width: 65px; padding: 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.8rem; }
   .mini-add-btn { background-color: #d97706; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
-  
-  .id-tag { color: #38bdf8; font-size: 0.75rem; font-weight: 500; }
 
   .items-sales-list { margin-bottom: 0.5rem !important; }
   .item-sale-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
-  .item-info { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+  
+  /* Darstellung: Menge -> Icon -> Name */
+  .item-info { display: flex; align-items: center; gap: 0.5rem; }
+  .item-qty { color: #fbbf24; font-weight: 600; font-size: 0.85rem; min-width: 24px; }
+  .item-icon-img { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
+  .item-icon-fallback { font-size: 1rem; line-height: 1; }
   .item-name { font-weight: 500; }
-  .item-qty { color: #94a3b8; font-size: 0.8rem; }
   
   .sale-action-area { display: flex; align-items: center; gap: 0.5rem; }
   .price-tag { color: #34d399; font-weight: 600; font-size: 0.85rem; }
@@ -577,7 +612,7 @@
   .cancel-mini-btn { background: #475569; color: white; border: none; padding: 0.2rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; }
   .shop-badge { background: #7c2d12; color: #fdba74; font-size: 0.7rem; padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 600; }
 
-  .btn-group { display: flex; gap: 0.4rem; }
+  .btn-group { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
   .save-btn { background-color: #059669; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
   .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
