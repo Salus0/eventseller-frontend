@@ -25,13 +25,16 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Hilfsfunktion: Wandelt eine Item-ID in den Namen aus masterItems um
+  // Wandelt eine Item-ID verlässlich in den Namen aus masterItems um
   function getItemName(itemId, fallbackName) {
+    if (itemId) {
+      const found = masterItems.find(m => Number(m.item_id || m.id) === Number(itemId));
+      if (found && found.name) return found.name;
+    }
     if (fallbackName && fallbackName !== 'Unbekannt' && !fallbackName.startsWith('Item #')) {
       return fallbackName;
     }
-    const found = masterItems.find(m => Number(m.item_id || m.id) === Number(itemId));
-    return found ? found.name : (fallbackName || `Item #${itemId}`);
+    return itemId ? `Item #${itemId}` : 'Unbekanntes Item';
   }
 
   async function toggleExpand(id) {
@@ -57,12 +60,12 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
-      // Mappe den Item-Namen direkt beim Laden mit den Master-Items ab
+      // Mappe Item-IDs und Namen direkt beim Laden
       loadedItems = loadedItems.map(item => {
-        const id = item.item_id || item.master_item_id || item.id;
+        const id = item.item_id ?? item.master_item_id ?? item.id;
         return {
           ...item,
-          item_id: id,
+          item_id: id ? Number(id) : null,
           name: getItemName(id, item.name || item.item_name)
         };
       });
@@ -86,7 +89,7 @@
     isLoading = true;
     errorMessage = '';
     try {
-      // 1. Erst die Stammdaten vollständig laden
+      // 1. Stammdaten laden
       const [partsRes, itemsRes] = await Promise.all([
         fetch(`${backendUrl}/participants/`),
         fetch(`${backendUrl}/items/`)
@@ -95,13 +98,12 @@
       if (itemsRes.ok) masterItems = await itemsRes.json();
       if (partsRes.ok) availableParticipants = await partsRes.json();
 
-      // 2. Erst DANACH die Runs holen und Details mappen
+      // 2. Runs laden
       const runsRes = await fetch(`${backendUrl}/runs/`);
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
         runs = loadedRuns;
         
-        // Alle Details nacheinander abrufen
         await Promise.all(loadedRuns.map(r => loadRunDetails(r.id)));
       } else {
         errorMessage = `Fehler beim Laden der Runs (Status: ${runsRes.status})`;
@@ -172,11 +174,10 @@
   function enableItemEditing(run) {
     itemInputs[run.id] = {
       list: run.items ? run.items.map(item => {
-        const id = item.item_id || item.master_item_id || item.id;
-        const resolvedName = getItemName(id, item.name || item.item_name);
+        const id = item.item_id ?? item.master_item_id ?? item.id;
         return {
-          item_id: id,
-          name: resolvedName,
+          item_id: id ? Number(id) : null,
+          name: getItemName(id, item.name || item.item_name),
           amount: item.amount || item.quantity || 1
         };
       }) : [],
@@ -190,19 +191,21 @@
     const input = itemInputs[runId];
     if (!input.newNameOrId.trim()) return;
 
-    const query = input.newNameOrId.trim().toLowerCase();
+    const rawInput = input.newNameOrId.trim();
+    const query = rawInput.toLowerCase();
 
+    // Suche in Master-Items nach Name, ID oder formatierter Anzeige
     const matchedMasterItem = masterItems.find(
       i => String(i.item_id || i.id) === query ||
            i.name.toLowerCase() === query ||
-           `${i.name} (${i.item_id || i.id})`.toLowerCase() === query
+           `${i.name} (id: ${i.item_id || i.id})`.toLowerCase() === query
     );
 
     let finalItemId = null;
-    let finalName = input.newNameOrId.trim();
+    let finalName = rawInput;
 
     if (matchedMasterItem) {
-      finalItemId = matchedMasterItem.item_id ?? matchedMasterItem.id;
+      finalItemId = Number(matchedMasterItem.item_id ?? matchedMasterItem.id);
       finalName = matchedMasterItem.name;
     } else if (!isNaN(query)) {
       finalItemId = Number(query);
@@ -231,10 +234,11 @@
 
   async function saveItems(runId) {
     const updatedList = itemInputs[runId].list.map(item => {
-      const resolvedName = getItemName(item.item_id, item.name);
+      const resolvedId = item.item_id ? Number(item.item_id) : null;
+      const resolvedName = getItemName(resolvedId, item.name);
 
       return {
-        item_id: item.item_id ? Number(item.item_id) : null,
+        item_id: resolvedId,
         name: resolvedName,
         amount: Number(item.amount) || 1,
         quantity: Number(item.amount) || 1
@@ -353,7 +357,7 @@
             <div class="run-details">
               <div class="details-grid">
                 
-                <!-- 1. TEILNEHMER (1/3 BREITE) -->
+                <!-- 1. TEILNEHMER -->
                 <div class="detail-block participant-block">
                   <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
                   {#if !editingParticipants[run.id]}
@@ -402,7 +406,7 @@
                   {/if}
                 </div>
 
-                <!-- 2. DROPS / ITEMS (2/3 BREITE) -->
+                <!-- 2. DROPS / ITEMS -->
                 <div class="detail-block item-block">
                   <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
                   
