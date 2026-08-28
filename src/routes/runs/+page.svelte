@@ -39,10 +39,16 @@
     return itemId ? `Item #${itemId}` : 'Unbekanntes Item';
   }
 
-  // Ermittelt die Bild-URL analog zur Item-Seite mit Fallbacks für Property-Namen
+  // Ermittelt die Bild-URL mit explizitem ID-Mapping
   function getItemIconUrl(item) {
     if (!item) return '/items/default.png';
     
+    // Direct-URL bevorzugen (falls im Master-Item hinterlegt)
+    if (item.image_url || item.icon_url || item.icon) {
+      return item.image_url || item.icon_url || item.icon;
+    }
+    
+    // ID auflösen
     const rawId = item.item_id ?? item.master_item_id ?? item.id;
     const master = getMasterItem(rawId);
     
@@ -57,7 +63,13 @@
   // Error-Handling für Bilder (PNG -> GIF -> Default)
   function handleImgError(e, item) {
     const img = e.target;
-    const rawId = item?.item_id ?? item?.master_item_id ?? item?.id ?? 501;
+    const rawId = item?.item_id ?? item?.master_item_id ?? item?.id;
+
+    if (!rawId) {
+      img.onerror = null;
+      img.src = '/items/default.png';
+      return;
+    }
 
     if (img.src.endsWith('.png')) {
       img.src = `/items/${rawId}.gif`;
@@ -90,12 +102,17 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
+      // EXPLIZITES MAPPING DER ITEM-ID & MASTER-DATEN
       loadedItems = loadedItems.map(item => {
-        const id = item.item_id ?? item.master_item_id ?? item.id;
+        const rawId = item.item_id ?? item.master_item_id ?? item.id;
+        const numericId = rawId ? Number(rawId) : null;
+        const master = getMasterItem(numericId);
+
         return {
           ...item,
-          item_id: id ? Number(id) : null,
-          name: getItemName(id, item.name || item.item_name)
+          item_id: numericId,
+          image_url: master?.image_url || master?.icon_url || item.image_url || null,
+          name: getItemName(numericId, item.name || item.item_name)
         };
       });
 
@@ -118,6 +135,7 @@
     isLoading = true;
     errorMessage = '';
     try {
+      // 1. Zuerst Stamm-Daten (Master-Items und Teilnehmer) laden
       const [partsRes, itemsRes] = await Promise.all([
         fetch(`${backendUrl}/participants/`),
         fetch(`${backendUrl}/items/`)
@@ -126,6 +144,7 @@
       if (itemsRes.ok) masterItems = await itemsRes.json();
       if (partsRes.ok) availableParticipants = await partsRes.json();
 
+      // 2. Danach Runs laden und Details anreichern
       const runsRes = await fetch(`${backendUrl}/runs/`);
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
