@@ -357,45 +357,67 @@
     };
   }
 
-  async function saveSaleForItem(runId, runItem) {
+async function saveSaleForItem(runId, runItem) {
     const input = saleInputs[runItem.id];
     if (!input || !input.price || Number(input.price) <= 0) {
       alert('Bitte gib einen gültigen Verkaufspreis ein.');
       return;
     }
 
+    // Standard-Payload für Verkäufe
     const payload = {
-      run_drop_id: runItem.id,
+      run_drop_id: Number(runItem.id),
+      drop_id: Number(runItem.id),
       sale_price: Number(input.price),
-      sale_type: Boolean(input.isShop) ? 'Shop' : 'Direkt',
+      sale_type: input.isShop ? 'Shop' : 'Direkt',
       is_sold: true
     };
 
     try {
-      const res = await fetch(`${backendUrl}/runs/${runId}/drops/${runItem.id}`, {
+      // 1. Versuch: PUT direkt auf das Run-Item
+      let res = await fetch(`${backendUrl}/runs/${runId}/drops/${runItem.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
+      // 2. Fallback: POST auf /sales/ falls das Backend Verkäufe separat verwaltet
+      if (!res.ok) {
+        res = await fetch(`${backendUrl}/sales/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            run_id: Number(runId),
+            run_drop_id: Number(runItem.id),
+            price: Number(input.price),
+            sale_price: Number(input.price),
+            sale_type: input.isShop ? 'Shop' : 'Direkt'
+          })
+        });
+      }
+
+      // 3. Fallback: PUT auf /items/{id}
+      if (!res.ok) {
+        res = await fetch(`${backendUrl}/runs/${runId}/items/${runItem.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+
       if (res.ok) {
         closeSaleForm(runItem.id);
         await loadRunDetails(runId);
       } else {
-        alert('Verkauf konnte nicht gespeichert werden.');
+        const errorData = await res.json().catch(() => null);
+        console.error('API Error:', res.status, errorData);
+        alert(`Verkauf konnte nicht gespeichert werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
       }
     } catch (err) {
       console.error(err);
+      alert('Netzwerkfehler beim Speichern des Verkaufs.');
     }
   }
-
-  function formatZeny(amount) {
-    return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
-  }
-
-  onMount(() => {
-    fetchData();
-  });
 </script>
 
 <datalist id="master-items-list">
