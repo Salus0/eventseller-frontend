@@ -65,9 +65,9 @@
     }
   }
 
-  // Discord-Name aus einem Raid-Helper Event anhand der Discord-ID ziehen
+// Discord-Name aus einlesen
   async function fetchNameFromRaidHelper(discordIdToFind, targetMode = 'create') {
-    const trimmedDiscordId = discordIdToFind.trim();
+    const trimmedDiscordId = discordIdToFind ? discordIdToFind.trim() : '';
     const trimmedEventId = raidHelperEventId.trim();
 
     if (!trimmedDiscordId) {
@@ -81,9 +81,13 @@
 
     isFetchingDiscordName = true;
     try {
-      const res = await fetch(`${backendUrl}/raidhelper/event/${trimmedId}`);
+      // WICHTIG: Ruft deinen Backend-Proxy auf statt direkt raid-helper.dev
+      const res = await fetch(`${backendUrl}/raidhelper/event/${trimmedEventId}`);
+      
       if (!res.ok) {
-        alert(`Raid-Helper Event konnte nicht geladen werden (Status ${res.status}).`);
+        const errDetail = await res.json().catch(() => null);
+        console.error('Backend-Fehler:', errDetail);
+        alert(`Event konnte nicht geladen werden (Status ${res.status}). Bitte Event-ID und Server-Logs prüfen.`);
         return;
       }
 
@@ -104,7 +108,7 @@
           } else if (targetMode === 'edit') {
             editName = fetchedName;
           }
-          alert(`Name "${fetchedName}" erfolgreich aus Raid-Helper übernommen!`);
+          alert(`Name "${fetchedName}" erfolgreich übernommen!`);
         } else {
           alert('Spieler gefunden, aber es konnte kein Name ausgelesen werden.');
         }
@@ -112,8 +116,8 @@
         alert('Kein Spieler mit dieser Discord ID in diesem Raid-Helper Event gefunden.');
       }
     } catch (err) {
-      console.error(err);
-      alert('Fehler beim Abrufen der Raid-Helper Daten.');
+      console.error('Netzwerk- oder Parsing-Fehler:', err);
+      alert(`Netzwerkfehler: ${err.message}`);
     } finally {
       isFetchingDiscordName = false;
     }
@@ -247,9 +251,8 @@
       <button 
         type="button" 
         class="sync-btn" 
-        on:click={() => fetchNameFromRaidHelper(newDiscordId, 'create')}
+        on:click|preventDefault={() => fetchNameFromRaidHelper(newDiscordId, 'create')}
         disabled={isFetchingDiscordName}
-        title="Namen aus Raid-Helper Event anhand der ID abfragen"
       >
         🔍 Name ziehen
       </button>
