@@ -8,11 +8,11 @@
   let isLoading = true;
   let errorMessage = '';
 
-  // Formular-Zustand (Neues Item)
+  // Formular-Zustand
   let newItemId = '';
   let newItemName = '';
 
-  // Zustand für den Edit-Modus
+  // Edit-Zustand
   let editingId = null;
   let editItemId = '';
   let editName = '';
@@ -23,8 +23,8 @@
   let historyLoading = false;
   let activeHistoryItemId = null;
 
-  // Cache für nachgeladene Verkaufsdaten pro Item
-  let itemSalesMap = {};
+  // Speicher für Historien-Daten (itemId -> Array von Verkäufen)
+  let historyCache = {};
 
   async function loadItems() {
     isLoading = true;
@@ -35,8 +35,8 @@
         const data = await res.json();
         items = Array.isArray(data) ? data : [];
         
-        // Lädt die Historien im Hintergrund, um Datums- und Preis-Fallbacks zu füllen
-        fetchHistoriesForItems(items);
+        // Nach dem Laden der Items direkt die Verkaufsdaten für alle laden
+        loadAllHistories(items);
       } else {
         errorMessage = `Fehler beim Laden der Items (Status: ${res.status})`;
       }
@@ -48,26 +48,28 @@
     }
   }
 
-  // Hilfsfunktion: Holt im Hintergrund die Preishistorien für alle Items
-  async function fetchHistoriesForItems(itemList) {
-    for (const item of itemList) {
-      const targetId = item.item_id || item.ro_item_id;
-      if (!targetId || itemSalesMap[targetId]) continue;
+  // Lädt parallel alle Verläufe für die Tabelle
+  async function loadAllHistories(itemList) {
+    const promises = itemList.map(async (item) => {
+      const targetId = item.item_id || item.id;
+      if (!targetId) return;
 
       try {
         const res = await fetch(`${backendUrl}/items/${targetId}/history`);
         if (res.ok) {
-          const history = await res.json();
-          if (Array.isArray(history) && history.length > 0) {
-            itemSalesMap[targetId] = history;
+          const hist = await res.json();
+          if (Array.isArray(hist) && hist.length > 0) {
+            historyCache[item.item_id] = hist;
+            historyCache[item.id] = hist; // Beide Keys sichern
           }
         }
-      } catch (err) {
-        console.error(`Fehler beim Laden der Historie für Item #${targetId}`, err);
+      } catch (e) {
+        // Stillschweigend ignorieren
       }
-    }
-    // Reaktivität auslösen
-    itemSalesMap = { ...itemSalesMap };
+    });
+
+    await Promise.all(promises);
+    historyCache = { ...historyCache }; // Reaktivität auslösen
   }
 
   async function addItem() {
@@ -145,22 +147,25 @@
     }
   }
 
-  async function toggleHistory(itemId) {
-    if (activeHistoryItemId === itemId) {
+  async function toggleHistory(item) {
+    const targetId = item.item_id || item.id;
+
+    if (activeHistoryItemId === targetId) {
       activeHistoryItemId = null;
       selectedItemHistory = null;
       return;
     }
 
-    activeHistoryItemId = itemId;
+    activeHistoryItemId = targetId;
     historyLoading = true;
     try {
-      const res = await fetch(`${backendUrl}/items/${itemId}/history`);
+      const res = await fetch(`${backendUrl}/items/${targetId}/history`);
       if (res.ok) {
         selectedItemHistory = await res.json();
         if (Array.isArray(selectedItemHistory)) {
-          itemSalesMap[itemId] = selectedItemHistory;
-          itemSalesMap = { ...itemSalesMap };
+          historyCache[item.item_id] = selectedItemHistory;
+          historyCache[item.id] = selectedItemHistory;
+          historyCache = { ...historyCache };
         }
       } else {
         selectedItemHistory = [];
@@ -173,39 +178,31 @@
     }
   }
 
-  // Ermittelt das aktuellste Verkaufsdatum aus dem Item oder der Preishistorie
-  function getItemSoldAt(item) {
-    if (item.last_sold_at || item.sold_at || item.created_at) {
-      return item.last_sold_at || item.sold_at || item.created_at;
-    }
+  // Hilfsfunktion zur Ermittlung des Datums aus Item ODER Cache
+  function getBestSoldDate(item, cache) {
+    // 1. Wenn im Item selbst ein Wert steht
+    if (item.last_sold_at) return item.last_sold_at;
+    if (item.sold_at) return item.sold_at;
 
-    const history = itemSalesMap[item.item_id];
-    if (Array.isArray(history) && history.length > 0) {
-      const dates = history
-        .map(h => h.run_date || h.created_at || h.sold_at || h.date)
-        .filter(Boolean)
-        .sort((a, b) => new Date(b) - new Date(a));
-      
-      if (dates.length > 0) {
-        return dates[0];
-      }
+    // 2. Suche in der Preishistorie aus dem Cache
+    const hist = cache[item.item_id] || cache[item.id];
+    if (Array.isArray(hist) && hist.length > 0) {
+      // Nehme den ersten Eintrag (oder durchsuche nach dem neuesten Datum)
+      const first = hist[0];
+      return first.run_date || first.created_at || first.sold_at || first.date || null;
     }
 
     return null;
   }
 
-  // Ermittelt den aktuellsten Preis aus dem Item oder der Preishistorie
-  function getItemLastPrice(item) {
-    if (item.last_price !== undefined && item.last_price !== null) {
-      return item.last_price;
-    }
+  // Hilfsfunktion zur Ermittlung des Preises aus Item ODER Cache
+  function getBestPrice(item, cache) {
+    if (item.last_price !== undefined && item.last_price !== null) return item.last_price;
 
-    const history = itemSalesMap[item.item_id];
-    if (Array.isArray(history) && history.length > 0) {
-      const validSales = history.filter(h => h.price !== undefined || h.actual_price !== undefined);
-      if (validSales.length > 0) {
-        return validSales[0].price ?? validSales[0].actual_price;
-      }
+    const hist = cache[item.item_id] || cache[item.id];
+    if (Array.isArray(hist) && hist.length > 0) {
+      const first = hist[0];
+      return first.price ?? first.actual_price ?? first.sale_price ?? null;
     }
 
     return null;
@@ -296,9 +293,10 @@
           </tr>
         </thead>
         <tbody>
-          {#each filteredItems as item}
-            {@const realSoldAt = getItemSoldAt(item)}
-            {@const realLastPrice = getItemLastPrice(item)}
+          {#each filteredItems as item (item.id || item.item_id)}
+            {@const displayDate = getBestSoldDate(item, historyCache)}
+            {@const displayPrice = getBestPrice(item, historyCache)}
+            {@const targetId = item.item_id || item.id}
 
             {#if editingId === item.id}
               <!-- BEARBEITUNGS-ZEILE -->
@@ -332,8 +330,8 @@
                     class="input-field edit-input-lg"
                   />
                 </td>
-                <td class="price-cell">{formatZeny(realLastPrice)}</td>
-                <td class="date-cell">{formatDate(realSoldAt)}</td>
+                <td class="price-cell">{formatZeny(displayPrice)}</td>
+                <td class="date-cell">{formatDate(displayDate)}</td>
                 <td>
                   <div class="btn-group">
                     <button type="button" class="save-btn" on:click={() => saveItem(item.id)}>Speichern</button>
@@ -361,24 +359,24 @@
                 </td>
                 <td class="id-cell">#{item.item_id}</td>
                 <td class="name-cell">{item.name}</td>
-                <td class="price-cell">{formatZeny(realLastPrice)}</td>
-                <td class="date-cell">{formatDate(realSoldAt)}</td>
+                <td class="price-cell">{formatZeny(displayPrice)}</td>
+                <td class="date-cell">{formatDate(displayDate)}</td>
                 <td>
                   <div class="btn-group">
                     <button type="button" class="action-btn" on:click={() => startEditing(item)}>✏️ Edit</button>
                     <button 
                       type="button" 
                       class="history-btn" 
-                      on:click={() => toggleHistory(item.item_id)}
+                      on:click={() => toggleHistory(item)}
                     >
-                      {activeHistoryItemId === item.item_id ? '▲ Verbergen' : '📊 Preishistorie'}
+                      {activeHistoryItemId === targetId ? '▲ Verbergen' : '📊 Preishistorie'}
                     </button>
                   </div>
                 </td>
               </tr>
             {/if}
 
-            {#if activeHistoryItemId === item.item_id}
+            {#if activeHistoryItemId === targetId}
               <tr class="history-row">
                 <td colspan="6">
                   <div class="history-box">
@@ -389,10 +387,10 @@
                       <ul class="history-list">
                         {#each selectedItemHistory as h}
                           <li>
-                            <span class="run-name">🏰 {h.run_name}</span>
+                            <span class="run-name">🏰 {h.run_name || 'Event Run'}</span>
                             <span class="run-date">📅 {formatDate(h.run_date || h.created_at || h.sold_at || h.date)}</span>
                             <span class="item-qty">Menge: x{h.quantity || 1}</span>
-                            <span class="hist-price">{formatZeny(h.price ?? h.actual_price)}</span>
+                            <span class="hist-price">{formatZeny(h.price ?? h.actual_price ?? h.sale_price)}</span>
                           </li>
                         {/each}
                       </ul>
