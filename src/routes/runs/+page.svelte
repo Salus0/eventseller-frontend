@@ -95,6 +95,44 @@
     }
   }
 
+  // --- DYNAMISCHE STATUS-BERECHNUNG ---
+  function getRunStatusInfo(run) {
+    const items = run.items || [];
+    const participants = run.participants || [];
+
+    const totalItems = items.length;
+    const soldItems = items.filter(i => Boolean(i.sale_price || i.price || i.actual_price)).length;
+    const allItemsSold = totalItems > 0 && soldItems === totalItems;
+
+    const totalParticipants = participants.length;
+    const paidParticipants = participants.filter(p => p.is_paid).length;
+    const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
+
+    if (allItemsSold && allPaidOut) {
+      return { label: 'Close', cssClass: 'status-close' };
+    }
+    if (allItemsSold) {
+      return { label: 'Payout', cssClass: 'status-payout' };
+    }
+    if (soldItems > 0) {
+      return { label: 'On Sale', cssClass: 'status-onsale' };
+    }
+    return { label: 'Open', cssClass: 'status-open' };
+  }
+
+  // --- 1000er TRENNPUNKTE FORMATIERUNG BEIM EINGEBEN ---
+  function handlePriceInput(runItemId, e) {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    if (!rawValue) {
+      saleInputs[runItemId].priceDisplay = '';
+      saleInputs[runItemId].price = 0;
+      return;
+    }
+    const num = parseInt(rawValue, 10);
+    saleInputs[runItemId].price = num;
+    saleInputs[runItemId].priceDisplay = new Intl.NumberFormat('de-DE').format(num);
+  }
+
   async function toggleExpand(id) {
     if (expandedRunIds.has(id)) {
       expandedRunIds.delete(id);
@@ -370,7 +408,7 @@
   function openSaleForm(runItemId) {
     saleInputs = {
       ...saleInputs,
-      [runItemId]: { price: '', isShop: false }
+      [runItemId]: { price: 0, priceDisplay: '', isShop: false }
     };
     addingSaleForItemId = {
       ...addingSaleForItemId,
@@ -462,6 +500,7 @@
     <ul class="runs-list">
       {#each runs as run (run.id)}
         {@const isExpanded = expandedRunIds.has(run.id)}
+        {@const statusInfo = getRunStatusInfo(run)}
         <li class="run-item">
           <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
             <div class="run-info">
@@ -471,7 +510,8 @@
               {/if}
             </div>
             <div class="header-right">
-              <span class="badge">{run.status || 'Aktiv'}</span>
+              <!-- Dynamischer Status-Badge mit passender Farbe -->
+              <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
               <button class="expand-btn" type="button">
                 {isExpanded ? '▲ Verbergen' : '▼ Details'}
               </button>
@@ -600,11 +640,13 @@
                               {:else if addingSaleForItemId[item.id]}
                                 <div class="inline-sale-form">
                                   {#if saleInputs[item.id]}
+                                    <!-- Breiteres Eingabefeld mit Live-1000er-Trennzeichen -->
                                     <input 
-                                      type="number" 
-                                      placeholder="Preis" 
-                                      bind:value={saleInputs[item.id].price} 
-                                      class="price-input" 
+                                      type="text" 
+                                      placeholder="Preis (z.B. 1.000.000)" 
+                                      value={saleInputs[item.id].priceDisplay || ''} 
+                                      on:input={(e) => handlePriceInput(item.id, e)}
+                                      class="price-input wide-price-input" 
                                     />
                                     <label class="checkbox-label">
                                       <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
@@ -705,7 +747,14 @@
   .run-name { font-weight: 600; color: #f8fafc; font-size: 1.05rem; }
   .run-meta { font-size: 0.85rem; color: #94a3b8; }
   .header-right { display: flex; align-items: center; gap: 0.75rem; }
-  .badge { background-color: #059669; color: white; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 4px; }
+  
+  /* FARBDISPLAY FÜR DYNAMISCHE RUN-STATUS */
+  .badge { color: white; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 4px; text-transform: capitalize; }
+  .status-open { background-color: #059669; }     /* Grün */
+  .status-onsale { background-color: #d97706; }   /* Gelb/Orange */
+  .status-payout { background-color: #ca8a04; }   /* Gelb */
+  .status-close { background-color: #dc2626; }    /* Rot */
+
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
@@ -789,10 +838,13 @@
   .add-sale-btn:hover { background-color: #047857; color: white; }
 
   .inline-sale-form { display: flex; align-items: center; gap: 0.3rem; }
-  .price-input { width: 80px; padding: 0.2rem 0.4rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: white; font-size: 0.75rem; }
+  
+  /* VERBREITERTES PREISFELD */
+  .wide-price-input { width: 140px; padding: 0.3rem 0.5rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: #34d399; font-weight: 600; font-size: 0.85rem; text-align: right; }
+  
   .checkbox-label { font-size: 0.75rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.2rem; cursor: pointer; }
-  .save-mini-btn { background: #059669; color: white; border: none; padding: 0.2rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; }
-  .cancel-mini-btn { background: #475569; color: white; border: none; padding: 0.2rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; }
+  .save-mini-btn { background: #059669; color: white; border: none; padding: 0.3rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
+  .cancel-mini-btn { background: #475569; color: white; border: none; padding: 0.3rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; }
   .shop-badge { background: #7c2d12; color: #fdba74; font-size: 0.7rem; padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 600; }
 
   .btn-group { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
