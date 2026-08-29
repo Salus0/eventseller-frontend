@@ -25,7 +25,6 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Sucht das Master-Item gezielt nach der echten RO-Item-ID
   function getMasterItem(rawId) {
     if (rawId === null || rawId === undefined || rawId === '') return null;
     const num = Number(rawId);
@@ -38,7 +37,6 @@
     ) || null;
   }
 
-  // Liefert GARANTIERT die Ragnarok Item-ID
   function getROItemId(item) {
     if (!item) return null;
 
@@ -120,19 +118,19 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
-      // MAPPING MIT FALLBACK-KEYS FÜR MEHRERE ITEMS
       loadedItems = (Array.isArray(loadedItems) ? loadedItems : []).map((item, index) => {
-        const rawRoId = item.item_id ?? item.ro_item_id ?? item.master_item_id;
+        const rawRoId = item.ro_item_id ?? item.item_id ?? item.master_item_id;
         const master = getMasterItem(rawRoId);
         const finalRoId = master ? (master.item_id ?? master.ro_item_id) : rawRoId;
         const numericRoId = finalRoId && !isNaN(Number(finalRoId)) ? Number(finalRoId) : null;
 
-        // Eindeutige Zeilen-ID garantieren (Fallback auf Index, falls Backend id nicht liefert)
-        const uniqueId = item.id ?? item.run_drop_id ?? `tmp-${runId}-${index}`;
+        // Echte DB-ID für den Drop abgreifen
+        const realDbId = item.run_drop_id ?? item.drop_id ?? item.id;
 
         return {
           ...item,
-          id: uniqueId,
+          id: realDbId ?? numericRoId ?? index,
+          real_db_id: realDbId ? Number(realDbId) : null,
           ro_item_id: numericRoId,
           image_url: master?.image_url || master?.icon_url || item.image_url || null,
           name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item'),
@@ -357,38 +355,37 @@
     };
   }
 
-async function saveSaleForItem(runId, runItem) {
+  async function saveSaleForItem(runId, runItem) {
     const input = saleInputs[runItem.id];
     if (!input || !input.price || Number(input.price) <= 0) {
       alert('Bitte gib einen gültigen Verkaufspreis ein.');
       return;
     }
 
-    // Standard-Payload für Verkäufe
+    const targetDropId = runItem.real_db_id ?? runItem.id;
     const payload = {
-      run_drop_id: Number(runItem.id),
-      drop_id: Number(runItem.id),
       sale_price: Number(input.price),
       sale_type: input.isShop ? 'Shop' : 'Direkt',
       is_sold: true
     };
 
     try {
-      // 1. Versuch: PUT direkt auf das Run-Item
-      let res = await fetch(`${backendUrl}/runs/${runId}/drops/${runItem.id}`, {
+      // 1. Versuch: Standard-Endpunkt PUT /runs/{runId}/drops/{dropId}
+      let res = await fetch(`${backendUrl}/runs/${runId}/drops/${targetDropId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      // 2. Fallback: POST auf /sales/ falls das Backend Verkäufe separat verwaltet
+      // 2. Fallback: Verkäufe-Endpunkt POST /sales/
       if (!res.ok) {
         res = await fetch(`${backendUrl}/sales/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             run_id: Number(runId),
-            run_drop_id: Number(runItem.id),
+            run_drop_id: Number(targetDropId),
+            item_id: Number(runItem.ro_item_id || targetDropId),
             price: Number(input.price),
             sale_price: Number(input.price),
             sale_type: input.isShop ? 'Shop' : 'Direkt'
@@ -396,9 +393,9 @@ async function saveSaleForItem(runId, runItem) {
         });
       }
 
-      // 3. Fallback: PUT auf /items/{id}
+      // 3. Fallback: PUT auf /items/{targetDropId}
       if (!res.ok) {
-        res = await fetch(`${backendUrl}/runs/${runId}/items/${runItem.id}`, {
+        res = await fetch(`${backendUrl}/runs/${runId}/items/${targetDropId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -410,14 +407,21 @@ async function saveSaleForItem(runId, runItem) {
         await loadRunDetails(runId);
       } else {
         const errorData = await res.json().catch(() => null);
-        console.error('API Error:', res.status, errorData);
-        alert(`Verkauf konnte nicht gespeichert werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
+        alert(`Verkauf konnte nicht gespeichert werden (HTTP ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
       }
     } catch (err) {
       console.error(err);
       alert('Netzwerkfehler beim Speichern des Verkaufs.');
     }
   }
+
+  function formatZeny(amount) {
+    return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
+  }
+
+  onMount(() => {
+    fetchData();
+  });
 </script>
 
 <datalist id="master-items-list">
