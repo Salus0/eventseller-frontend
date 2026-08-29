@@ -28,7 +28,7 @@
   // Mapping von Raid-Helper Klassennamen auf RO-Klassen (unterstützt Unterstriche & Varianten)
   const classMapping = {
     'lord knight': 'Lord Knight', 'lord_knight': 'Lord Knight', 'lk': 'Lord Knight',
-    'high wizard': 'High Wizard', 'high_wizzard': 'High Wizard', 'high_wizard': 'High Wizard', 'hw': 'High Wizard', 'wizard': 'High Wizard',
+    'high wizard': 'High Wizard', 'high_wizzard': 'High Wizard', 'high_wizard': 'High Wizard', 'high wizzard': 'High Wizard', 'wizard': 'High Wizard',
     'sniper': 'Sniper', 'hunter': 'Sniper',
     'high priest': 'High Priest', 'high_priest': 'High Priest', 'hp': 'High Priest', 'priest': 'High Priest',
     'whitesmith': 'Whitesmith', 'whitesmith': 'Whitesmith', 'ws': 'Whitesmith', 'blacksmith': 'Whitesmith',
