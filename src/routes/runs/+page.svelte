@@ -107,28 +107,29 @@
 
   async function loadRunDetails(runId) {
     try {
-      const [partsRes, itemsRes, salesRes] = await Promise.all([
+      const [partsRes, itemsRes, salesRes, summaryRes] = await Promise.all([
         fetch(`${backendUrl}/runs/${runId}/participants`),
         fetch(`${backendUrl}/runs/${runId}/items`),
-        fetch(`${backendUrl}/runs/${runId}/sales`)
+        fetch(`${backendUrl}/runs/${runId}/sales`),
+        fetch(`${backendUrl}/runs/${runId}/summary`)
       ]);
 
       let loadedParticipants = [];
       let loadedItems = [];
       let loadedSales = [];
+      let loadedSummary = null;
 
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
       if (salesRes.ok) loadedSales = await salesRes.json();
+      if (summaryRes.ok) loadedSummary = await summaryRes.json();
 
-      // Gemappte Drops/Items inkl. Abgleich mit der Sales-Tabelle
       loadedItems = (Array.isArray(loadedItems) ? loadedItems : []).map((item, index) => {
         const rawRoId = item.ro_item_id ?? item.item_id ?? item.master_item_id;
         const master = getMasterItem(rawRoId);
         const finalRoId = master ? (master.item_id ?? master.ro_item_id) : rawRoId;
         const numericRoId = finalRoId && !isNaN(Number(finalRoId)) ? Number(finalRoId) : null;
 
-        // Suche den passenden Verkauf aus der sales-Tabelle (über ro_item_id oder item_id)
         const existingSale = Array.isArray(loadedSales) ? loadedSales.find(s => 
           Number(s.item_id) === Number(numericRoId) || 
           Number(s.ro_item_id) === Number(numericRoId)
@@ -155,7 +156,8 @@
             ...r,
             participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
             items: loadedItems,
-            sales: loadedSales
+            sales: loadedSales,
+            summary: loadedSummary
           };
         }
         return r;
@@ -214,7 +216,7 @@
     }
 
     const pObj = availableParticipants.find(p => Number(p.id) === selectedId);
-    input.list = [...input.list, { participant_id: selectedId, name: pObj ? pObj.name : 'Unbekannt', class_name: input.newClass || 'Unbekannt' }];
+    input.list = [...input.list, { participant_id: selectedId, name: pObj ? pObj.name : 'Unbekannt', class_name: input.newClass || 'Unbekannt', is_paid: false }];
     input.newParticipantId = '';
     input.newClass = '';
     participantInputs = { ...participantInputs };
@@ -242,6 +244,23 @@
       if (res.ok) {
         editingParticipants[runId] = false;
         await loadRunDetails(runId);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function togglePayoutStatus(runId, participantId, currentStatus) {
+    try {
+      const res = await fetch(`${backendUrl}/runs/${runId}/participants/${participantId}/payout`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_paid: !currentStatus })
+      });
+      if (res.ok) {
+        await loadRunDetails(runId);
+      } else {
+        alert('Auszahlungsstatus konnte nicht geändert werden.');
       }
     } catch (err) {
       console.error(err);
@@ -396,12 +415,9 @@
       });
 
       if (res.ok) {
-        // Formular-Status und Eingabewerte zurücksetzen
         closeSaleForm(runItem.id);
         delete saleInputs[runItem.id];
         saleInputs = { ...saleInputs };
-
-        // Details mit neuen Verkäufen nachladen
         await loadRunDetails(runId);
       } else {
         const errorData = await res.json().catch(() => null);
@@ -464,6 +480,27 @@
 
           {#if isExpanded}
             <div class="run-details">
+
+              <!-- ZENY SPLIT SUMMARY BANNER -->
+              {#if run.summary}
+                <div class="summary-banner">
+                  <div class="summary-card">
+                    <span class="summary-label">Gesamteinnahmen</span>
+                    <span class="summary-value total-zeny">{formatZeny(run.summary.total_zeny)}</span>
+                  </div>
+                  <div class="summary-card">
+                    <span class="summary-label">Split pro Spieler ({run.summary.participant_count}x)</span>
+                    <span class="summary-value split-zeny">{formatZeny(run.summary.payout_per_player)}</span>
+                  </div>
+                  <div class="summary-card">
+                    <span class="summary-label">Auszahlungs-Status</span>
+                    <span class="summary-value status-badge" class:all-paid={run.summary.all_paid_out}>
+                      {run.summary.participants_paid} / {run.summary.participant_count} Ausgezahlt
+                    </span>
+                  </div>
+                </div>
+              {/if}
+
               <div class="details-grid">
                 
                 <!-- 1. TEILNEHMER -->
@@ -473,9 +510,20 @@
                     {#if run.participants && run.participants.length > 0}
                       <ul>
                         {#each run.participants as p, i}
-                          <li>
-                            <span><strong class="num-prefix">{i + 1}.</strong> {p.name}</span>
-                            {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
+                          <li class="participant-row" class:paid-row={p.is_paid}>
+                            <div class="p-info">
+                              <strong class="num-prefix">{i + 1}.</strong> 
+                              <span>{p.name}</span>
+                              {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
+                            </div>
+                            <label class="payout-toggle" title="Auszahlungs-Status ändern">
+                              <input 
+                                type="checkbox" 
+                                checked={p.is_paid} 
+                                on:change={() => togglePayoutStatus(run.id, p.participant_id, p.is_paid)} 
+                              />
+                              <span class="payout-label">{p.is_paid ? 'Ausgezahlt' : 'Offen'}</span>
+                            </label>
                           </li>
                         {/each}
                       </ul>
@@ -661,6 +709,26 @@
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
+
+  /* SUMMARY BANNER */
+  .summary-banner {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    background-color: #1e293b;
+    border: 1px solid #059669;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .summary-card { display: flex; flex-direction: column; gap: 0.2rem; }
+  .summary-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
+  .summary-value { font-size: 1.1rem; font-weight: 700; color: #f8fafc; }
+  .total-zeny { color: #34d399; }
+  .split-zeny { color: #fbbf24; }
+  .status-badge { font-size: 0.9rem; color: #f59e0b; }
+  .status-badge.all-paid { color: #10b981; }
+
   .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; align-items: start; }
   
   @media (max-width: 768px) {
@@ -682,6 +750,15 @@
   .detail-block ul { list-style: none; padding: 0; margin: 0 0 0.8rem 0; width: 100%; }
   .detail-block li { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; color: #e2e8f0; padding: 0.4rem 0; border-bottom: 1px dashed #334155; }
   
+  .participant-row { transition: background 0.2s; }
+  .participant-row.paid-row { opacity: 0.7; }
+  .participant-row.paid-row span { text-decoration: line-through; }
+  .p-info { display: flex; align-items: center; gap: 0.4rem; }
+  
+  .payout-toggle { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; cursor: pointer; color: #94a3b8; }
+  .payout-toggle input { cursor: pointer; }
+  .payout-label { font-weight: 500; }
+
   .num-prefix { color: #fbbf24; font-weight: 600; margin-right: 0.3rem; }
   .class-tag { background-color: #334155; color: #38bdf8; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 4px; }
   
