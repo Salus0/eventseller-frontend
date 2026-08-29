@@ -1,347 +1,271 @@
 <script>
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
   const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 
-  let eventType = '';
-  let eventDate = new Date().toISOString().split('T')[0];
-  let runNote = '';
+  let participants = [];
+  let newName = '';
+  let newDiscordId = '';
+  let isLoading = true;
+  let errorMessage = '';
 
-  let raidHelperId = '';
-  let isFetchingRaidHelper = false;
-
-  let availableParticipants = [];
-  let isLoadingParticipants = true;
+  // Auth & Admin Status
+  let isAdmin = false;
   let jwtToken = '';
 
-  let selectedParticipants = [{ participant_id: '', class_name: '' }];
+  // Zustand für das Editieren
+  let editingId = null;
+  let editName = '';
+  let editDiscordId = '';
 
-  const roClasses = [
-    'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
-    'Paladin', 'Professor', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
-    'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
-  ];
-
-  // Mapping von Raid-Helper Klassennamen auf eure RO-Klassen (erweiterbar)
-  const classMapping = {
-    'lord knight': 'Lord Knight', 'lk': 'Lord Knight',
-    'high wizard': 'High Wizard', 'hw': 'High Wizard', 'wizard': 'High Wizard',
-    'sniper': 'Sniper', 'hunter': 'Sniper',
-    'high priest': 'High Priest', 'hp': 'High Priest', 'priest': 'High Priest',
-    'whitesmith': 'Whitesmith', 'ws': 'Whitesmith', 'blacksmith': 'Whitesmith',
-    'assassin cross': 'Assassin Cross', 'sinx': 'Assassin Cross', 'assassin': 'Assassin Cross',
-    'paladin': 'Paladin', 'pala': 'Paladin',
-    'professor': 'Professor', 'prof': 'Professor', 'sage': 'Professor',
-    'clown': 'Clown', 'bard': 'Clown',
-    'gypsy': 'Gypsy', 'dancer': 'Gypsy',
-    'champion': 'Champion', 'champ': 'Champion', 'monk': 'Champion',
-    'creator': 'Creator', 'creo': 'Creator', 'alchemist': 'Creator',
-    'stalker': 'Stalker', 'rogue': 'Stalker',
-    'gunslinger': 'Gunslinger',
-    'ninja': 'Ninja',
-    'star gladiator': 'Star Gladiator', 'sg': 'Star Gladiator',
-    'super novice': 'Super Novice', 'snovi': 'Super Novice'
-  };
-
-  function mapClass(rawClass) {
-    if (!rawClass) return 'Sonstiges';
-    const cleaned = rawClass.trim().toLowerCase();
-    return classMapping[cleaned] || 'Sonstiges';
-  }
-
-  function checkAdminAccess() {
+  function checkAdminStatus() {
     const token = localStorage.getItem('jwt_token');
-    if (!token) {
-      goto('/runs');
-      return false;
-    }
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const decoded = JSON.parse(jsonPayload);
-      if (decoded.role !== 'admin') {
-        goto('/runs');
-        return false;
-      }
+    if (token) {
       jwtToken = token;
-      return true;
-    } catch (e) {
-      goto('/runs');
-      return false;
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        isAdmin = decoded.role === 'admin';
+      } catch (e) {
+        isAdmin = false;
+      }
+    } else {
+      isAdmin = false;
+      jwtToken = '';
     }
   }
 
-  async function fetchAvailableParticipants() {
+  async function loadParticipants() {
+    isLoading = true;
+    errorMessage = '';
     try {
       const res = await fetch(`${backendUrl}/participants/`);
       if (res.ok) {
-        availableParticipants = await res.json();
-      }
-    } catch (err) {
-      console.error('Fehler beim Laden der Teilnehmer-Stammdaten:', err);
-    } finally {
-      isLoadingParticipants = false;
-    }
-  }
-
-  // --- RAID HELPER IMPORT ---
-  async function importFromRaidHelper() {
-    const trimmedId = raidHelperId.trim();
-    if (!trimmedId) {
-      alert('Bitte gib eine gültige Raid-Helper Event-ID ein.');
-      return;
-    }
-
-    isFetchingRaidHelper = true;
-
-    try {
-      const res = await fetch(`https://raid-helper.dev/api/v2/events/${trimmedId}`);
-      if (!res.ok) {
-        alert(`Event konnte nicht geladen werden (Status ${res.status}). Bitte ID prüfen.`);
-        return;
-      }
-
-      const data = await res.json();
-
-      // 1. Titel & Datum setzen
-      if (data.title) {
-        eventType = data.title;
-      }
-
-      if (data.startTime) {
-        // Unix-Timestamp in YYYY-MM-DD umwandeln
-        const dateObj = new Date(data.startTime * 1000);
-        eventDate = dateObj.toISOString().split('T')[0];
-      }
-
-      // 2. Angemeldete Teilnehmer verarbeiten
-      const signups = data.signups || [];
-      const importedParticipants = [];
-
-      for (const signup of signups) {
-        // Ausgemeldete/Late/Bench-Spieler überspringen falls nötig (oder alle mit Rolle übernehmen)
-        const nameToMatch = (signup.name || signup.discordName || '').trim().toLowerCase();
-        const mappedClass = mapClass(signup.className || signup.role);
-
-        // Namensabgleich mit Stammdaten (Exakter Treffer oder Ingame/Discord-Name)
-        const matchedPlayer = availableParticipants.find(p => {
-          const dbName = p.name.trim().toLowerCase();
-          return dbName === nameToMatch;
-        });
-
-        if (matchedPlayer) {
-          importedParticipants.push({
-            participant_id: matchedPlayer.id,
-            class_name: mappedClass
-          });
-        }
-      }
-
-      if (importedParticipants.length > 0) {
-        selectedParticipants = importedParticipants;
-        alert(`${importedParticipants.length} angemeldete Spieler aus Raid-Helper übernommen!`);
+        participants = await res.json();
       } else {
-        alert('Event-Daten geladen, aber keine Übereinstimmungen mit den Stammdaten gefunden.');
+        errorMessage = 'Fehler beim Laden der Teilnehmer.';
       }
-
     } catch (err) {
-      console.error('Fehler beim Raid-Helper-Import:', err);
-      alert('Netzwerkfehler beim Abrufen der Raid-Helper Daten.');
+      console.error(err);
+      errorMessage = 'Verbindungsfehler zum Backend!';
     } finally {
-      isFetchingRaidHelper = false;
+      isLoading = false;
     }
   }
 
-  function addParticipant() {
-    selectedParticipants = [...selectedParticipants, { participant_id: '', class_name: '' }];
-  }
-  
-  function removeParticipant(index) {
-    selectedParticipants = selectedParticipants.filter((_, i) => i !== index);
-  }
-
-  async function createRun() {
-    const trimmedType = eventType.trim();
-    if (!trimmedType) {
-      alert('Bitte gib eine Event-Art an.');
+  async function addParticipant() {
+    if (!isAdmin) {
+      alert('Keine Berechtigung! Nur Admins dürfen Teilnehmer anlegen.');
       return;
     }
 
-    const formattedDate = new Date(eventDate).toLocaleDateString('de-DE');
-    const computedName = runNote.trim() 
-      ? `${trimmedType} - ${formattedDate} (${runNote.trim()})`
-      : `${trimmedType} - ${formattedDate}`;
-
-    const validParticipants = selectedParticipants
-      .filter(p => p.participant_id !== '')
-      .map(p => ({
-        participant_id: Number(p.participant_id),
-        class_name: p.class_name || 'Unbekannt'
-      }));
-
-    const payload = {
-      name: computedName,
-      event_type: trimmedType,
-      date: eventDate,
-      note: runNote.trim(),
-      participants: validParticipants
-    };
+    if (!newName.trim()) return;
 
     try {
-      const res = await fetch(`${backendUrl}/runs/`, {
+      const res = await fetch(`${backendUrl}/participants/`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${jwtToken}`
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ 
+          name: newName.trim(),
+          discord_id: newDiscordId.trim() || null
+        })
       });
 
       if (res.ok) {
-        goto('/runs');
+        newName = '';
+        newDiscordId = '';
+        await loadParticipants();
       } else {
-        const errorData = await res.json().catch(() => null);
-        alert(`Run konnte nicht erstellt werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
+        alert('Teilnehmer konnte nicht angelegt werden.');
       }
     } catch (err) {
       console.error(err);
-      alert('Netzwerkfehler beim Erstellen des Runs.');
+      alert('Fehler beim Anlegen des Teilnehmers.');
+    }
+  }
+
+  function startEditing(participant) {
+    if (!isAdmin) return;
+    editingId = participant.id;
+    editName = participant.name;
+    editDiscordId = participant.discord_id || participant.discordId || '';
+  }
+
+  function cancelEditing() {
+    editingId = null;
+    editName = '';
+    editDiscordId = '';
+  }
+
+  async function saveParticipant(id) {
+    if (!isAdmin) {
+      alert('Keine Berechtigung!');
+      return;
+    }
+
+    if (!editName.trim()) {
+      alert('Der Name darf nicht leer sein.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${backendUrl}/participants/${id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({ 
+          name: editName.trim(),
+          discord_id: editDiscordId.trim() || null
+        })
+      });
+
+      if (res.ok) {
+        editingId = null;
+        editName = '';
+        editDiscordId = '';
+        await loadParticipants();
+      } else {
+        alert('Änderung konnte nicht gespeichert werden.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Fehler beim Aktualisieren des Teilnehmers.');
     }
   }
 
   onMount(() => {
-    if (checkAdminAccess()) {
-      fetchAvailableParticipants();
-    }
+    checkAdminStatus();
+    loadParticipants();
   });
 </script>
 
-<div class="header">
-  <a href="/runs" class="back-link">← Zurück zur Übersicht</a>
-  <h1>Neuen Event-Run anlegen</h1>
+<div class="header-action">
+  <h1>Teilnehmer Verwaltung</h1>
 </div>
 
-<!-- RAID HELPER IMPORT BOX -->
-<section class="card raid-helper-card">
-  <h2>⚡ Import aus Raid-Helper</h2>
-  <p class="import-desc">Gib die Event-ID aus Discord ein, um Name, Datum und angemeldete Spieler automatisch einzulesen.</p>
-  <div class="import-row">
-    <input 
-      type="text" 
-      placeholder="Raid-Helper Event ID (z.B. 112233445566)" 
-      bind:value={raidHelperId}
-      class="import-input" 
-    />
-    <button type="button" class="import-btn" on:click={importFromRaidHelper} disabled={isFetchingRaidHelper}>
-      {isFetchingRaidHelper ? 'Lade...' : '📥 Event Importieren'}
-    </button>
-  </div>
+<!-- Nur Admins dürfen neue Teilnehmer anlegen -->
+{#if isAdmin}
+  <section class="card">
+    <h2>Neuen Teilnehmer anlegen</h2>
+    <form on:submit|preventDefault={addParticipant} class="add-form">
+      <input 
+        type="text" 
+        placeholder="Name des Teilnehmers *" 
+        bind:value={newName} 
+        class="input-field" 
+        required
+      />
+      <input 
+        type="text" 
+        placeholder="Discord ID (Optional)" 
+        bind:value={newDiscordId} 
+        class="input-field" 
+      />
+      <button type="submit" class="create-btn">+ Hinzufügen</button>
+    </form>
+  </section>
+{/if}
+
+<section class="card margin-top">
+  <h2>Alle Teilnehmer ({participants.length})</h2>
+
+  {#if isLoading}
+    <p class="status-text">Lade Teilnehmer...</p>
+  {:else if errorMessage}
+    <p class="error">{errorMessage}</p>
+  {:else if participants.length === 0}
+    <p class="status-text">Noch keine Teilnehmer eingetragen.</p>
+  {:else}
+    <ul class="participant-list">
+      {#each participants as p, i (p.id)}
+        {@const currentDiscordId = p.discord_id || p.discordId}
+        <li class="participant-item">
+          <span class="num">{i + 1}.</span>
+
+          {#if editingId === p.id && isAdmin}
+            <!-- Bearbeitungs-Modus (Nur Admins) -->
+            <div class="edit-fields">
+              <input 
+                type="text" 
+                bind:value={editName} 
+                class="input-field edit-input"
+                placeholder="Name *"
+                on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
+              />
+              <input 
+                type="text" 
+                bind:value={editDiscordId} 
+                class="input-field edit-input"
+                placeholder="Discord ID"
+                on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
+              />
+            </div>
+            <div class="btn-group">
+              <button type="button" class="save-btn" on:click={() => saveParticipant(p.id)}>Speichern</button>
+              <button type="button" class="cancel-btn" on:click={cancelEditing}>Abbrechen</button>
+            </div>
+          {:else}
+            <!-- Normaler Anzeige-Modus -->
+            <div class="info-group">
+              <span class="name">{p.name}</span>
+              {#if currentDiscordId}
+                <code class="discord-badge">ID: {currentDiscordId}</code>
+              {/if}
+            </div>
+            {#if isAdmin}
+              <button type="button" class="action-btn" on:click={() => startEditing(p)}>✏️ Edit</button>
+            {/if}
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
 </section>
 
-<form on:submit|preventDefault={createRun} class="form-container">
-  <!-- Sektion 1: Grunddaten -->
-  <section class="card">
-    <h2>1. Allgemeine Infos</h2>
-    <div class="form-grid">
-      <div class="form-group">
-        <label for="event-type">Event-Art *</label>
-        <input id="event-type" type="text" bind:value={eventType} placeholder="z. B. Endless Tower" required />
-      </div>
-
-      <div class="form-group">
-        <label for="event-date">Datum *</label>
-        <input id="event-date" type="date" bind:value={eventDate} required />
-      </div>
-
-      <div class="form-group full-width">
-        <label for="run-note">Zusatzbezeichnung (Optional)</label>
-        <input id="run-note" type="text" bind:value={runNote} placeholder="z. B. Team Alpha" />
-      </div>
-    </div>
-  </section>
-
-  <!-- Sektion 2: Teilnehmer & Klassenauswahl -->
-  <section class="card">
-    <h2>2. Teilnehmer & Klassen für diesen Run</h2>
-    
-    {#if isLoadingParticipants}
-      <p class="status-text">Lade verfügbare Spieler...</p>
-    {:else if availableParticipants.length === 0}
-      <p class="status-text">Keine Spieler in den Stammdaten gefunden. Lege zuerst welche unter <strong>Teilnehmer</strong> an!</p>
-    {:else}
-      <div class="dynamic-list">
-        {#each selectedParticipants as entry, index}
-          <div class="row">
-            <select bind:value={selectedParticipants[index].participant_id} class="select-player" required>
-              <option value="">-- Spieler wählen --</option>
-              {#each availableParticipants as p}
-                <option value={p.id}>{p.name}</option>
-              {/each}
-            </select>
-
-            <select bind:value={selectedParticipants[index].class_name} class="select-class">
-              <option value="">-- Klasse wählen --</option>
-              {#each roClasses as roClass}
-                <option value={roClass}>{roClass}</option>
-              {/each}
-            </select>
-
-            {#if selectedParticipants.length > 1}
-              <button type="button" class="remove-btn" on:click={() => removeParticipant(index)}>✕</button>
-            {/if}
-          </div>
-        {/each}
-
-        <button type="button" class="add-btn" on:click={addParticipant}>+ Spieler hinzufügen</button>
-      </div>
-    {/if}
-  </section>
-
-  <div class="actions">
-    <button type="submit" class="submit-btn">Run anlegen</button>
-  </div>
-</form>
-
 <style>
-  .header { margin-bottom: 1.5rem; }
-  .back-link { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
-  .back-link:hover { color: #fbbf24; }
-  h1 { color: #fbbf24; margin-top: 0.5rem; }
-  h2 { font-size: 1.1rem; color: #f8fafc; margin-bottom: 1rem; }
-  
-  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
-  
-  .raid-helper-card { border-color: #6366f1; background-color: #1e1b4b; }
-  .raid-helper-card h2 { color: #a5b4fc; }
-  .import-desc { color: #c7d2fe; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
-  .import-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-  .import-input { flex: 1; min-width: 220px; border-color: #6366f1 !important; }
-  .import-btn { background-color: #4f46e5; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
-  .import-btn:hover { background-color: #4338ca; }
-  .import-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .header-action { margin-bottom: 1.5rem; }
+  h1 { color: #fbbf24; margin: 0; }
+  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
+  .margin-top { margin-top: 1.5rem; }
+  h2 { color: #f8fafc; font-size: 1.1rem; margin-top: 0; margin-bottom: 1rem; }
 
-  .form-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
-  .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 200px; }
-  .full-width { width: 100%; flex: 100%; }
-  label { font-size: 0.875rem; font-weight: 600; color: #94a3b8; }
-  input, select { padding: 0.6rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.95rem; }
-  input:focus, select:focus { outline: none; border-color: #fbbf24; }
-  .dynamic-list { display: flex; flex-direction: column; gap: 0.6rem; }
-  .row { display: flex; gap: 0.5rem; align-items: center; }
-  .select-player, .select-class { flex: 1; }
-  .add-btn { background-color: #334155; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; align-self: flex-start; font-size: 0.85rem; margin-top: 0.4rem; }
-  .add-btn:hover { background-color: #475569; }
-  .remove-btn { background-color: #ef4444; color: white; border: none; padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer; }
-  .remove-btn:hover { background-color: #dc2626; }
-  .submit-btn { background-color: #d97706; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; font-size: 1rem; }
-  .submit-btn:hover { background-color: #b45309; }
+  .add-form { display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 650px; }
+  .input-field { flex: 1; min-width: 180px; padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
+  .edit-input { min-width: 140px; }
+
+  .create-btn { background-color: #d97706; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .create-btn:hover { background-color: #b45309; }
+
+  .participant-list { list-style: none; padding: 0; margin: 0; max-width: 650px; }
+  .participant-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem; border-bottom: 1px solid #334155; background-color: #0f172a; margin-bottom: 0.4rem; border-radius: 6px; }
+  .num { color: #fbbf24; font-weight: 600; min-width: 25px; }
+  
+  .info-group { flex: 1; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .name { color: #f8fafc; font-weight: 500; }
+  .discord-badge { background-color: #1e1b4b; color: #818cf8; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.75rem; border: 1px solid #312e81; font-family: monospace; }
+
+  .edit-fields { flex: 1; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+  .action-btn { background-color: #334155; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+  .action-btn:hover { background-color: #475569; }
+
+  .btn-group { display: flex; gap: 0.4rem; }
+  .save-btn { background-color: #059669; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+  .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+
   .status-text { color: #94a3b8; }
+  .error { color: #ef4444; }
 </style>
