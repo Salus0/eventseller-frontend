@@ -92,7 +92,7 @@
     }
   }
 
-  // --- RAID HELPER IMPORT (Prio 1: Discord ID, Prio 2: Name) ---
+// --- RAID HELPER IMPORT (Prio 1: Discord ID, Prio 2: Name) ---
   async function importFromRaidHelper() {
     const trimmedId = raidHelperId.trim();
     if (!trimmedId) {
@@ -126,20 +126,52 @@
       const importedParticipants = [];
 
       for (const signup of signups) {
+        // NUR primäre Zusagen (keine Bank / Bench, kein Tentative)
+        const isPrimary = signup.status === 'primary' && signup.className !== 'Bench';
+        if (!isPrimary) continue;
+
         const signupDiscordId = String(signup.userId || signup.discordId || '').trim();
-        const nameToMatch = (signup.name || signup.discordName || '').trim().toLowerCase();
+        const signupName = (signup.name || signup.discordName || '').trim();
         const mappedClass = mapClass(signup.className || signup.role);
 
+        if (!signupName) continue;
+
         // Abgleich: Erst nach Discord-ID matchen, danach Fallback auf den Namen
-        const matchedPlayer = availableParticipants.find(p => {
+        let matchedPlayer = availableParticipants.find(p => {
           const dbDiscordId = String(p.discord_id || p.discordId || '').trim();
           const dbName = p.name.trim().toLowerCase();
 
           if (signupDiscordId && dbDiscordId && signupDiscordId === dbDiscordId) {
             return true;
           }
-          return dbName === nameToMatch;
+          return dbName === signupName.toLowerCase();
         });
+
+        // Falls der Spieler noch GAR NICHT in den Stammdaten existiert, automatisch anlegen!
+        if (!matchedPlayer && signupDiscordId) {
+          try {
+            const createRes = await fetch(`${backendUrl}/participants/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwtToken}`
+              },
+              body: JSON.stringify({
+                name: signupName,
+                discord_id: signupDiscordId
+              })
+            });
+
+            if (createRes.ok) {
+              const newPart = await createRes.json();
+              // In die lokale Liste aufnehmen, damit weitere Abgleiche im Loop klappen
+              availableParticipants = [...availableParticipants, newPart];
+              matchedPlayer = newPart;
+            }
+          } catch (createErr) {
+            console.error('Fehler beim automatischen Anlegen von Teilnehmer:', signupName, createErr);
+          }
+        }
 
         if (matchedPlayer) {
           importedParticipants.push({
@@ -151,9 +183,9 @@
 
       if (importedParticipants.length > 0) {
         selectedParticipants = importedParticipants;
-        alert(`${importedParticipants.length} angemeldete Spieler aus Raid-Helper übernommen!`);
+        alert(`${importedParticipants.length} aktive Teilnehmer aus Raid-Helper übernommen (fehlende wurden automatisch angelegt)!`);
       } else {
-        alert('Event-Daten geladen, aber keine Übereinstimmungen mit den Stammdaten gefunden.');
+        alert('Event-Daten geladen, aber keine aktiven (primären) Teilnehmer gefunden.');
       }
 
     } catch (err) {
