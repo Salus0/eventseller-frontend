@@ -25,31 +25,31 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Sucht das Master-Item gezielt nach der echtem RO-Item-ID
+  // Sucht das Master-Item gezielt nach der echten RO-Item-ID
   function getMasterItem(rawId) {
-    if (!rawId) return null;
+    if (rawId === null || rawId === undefined || rawId === '') return null;
     const num = Number(rawId);
+    if (isNaN(num)) return null;
+
     return masterItems.find(m => 
-      Number(m.item_id) === num || 
-      Number(m.ro_item_id) === num || 
-      Number(m.id) === num
+      Number(m?.item_id) === num || 
+      Number(m?.ro_item_id) === num || 
+      Number(m?.id) === num
     ) || null;
   }
 
-  // Liefert GARANTIERT die Ragnarok Item-ID (und ignoriert item.id des Run-Eintrags)
+  // Liefert GARANTIERT die Ragnarok Item-ID
   function getROItemId(item) {
     if (!item) return null;
 
-    // 1. Zuerst im zugehörigen Master-Item nachschauen
     const master = getMasterItem(item.item_id ?? item.ro_item_id ?? item.master_item_id);
     if (master) {
       const masterRoId = master.item_id ?? master.ro_item_id;
       if (masterRoId) return Number(masterRoId);
     }
 
-    // 2. Explizite Felder im Run-Item prüfen (id ignorieren, da das die Zeilen-ID der DB ist)
     const directId = item.item_id ?? item.ro_item_id ?? item.master_item_id;
-    return directId ? Number(directId) : null;
+    return directId && !isNaN(Number(directId)) ? Number(directId) : null;
   }
 
   function getItemName(item, fallbackName) {
@@ -62,7 +62,6 @@
     return roId ? `Item #${roId}` : 'Unbekanntes Item';
   }
 
-  // Ermittelt die Bild-URL basierend auf der echten RO-Item-ID
   function getItemIconUrl(item) {
     if (!item) return '/items/default.png';
     
@@ -79,9 +78,9 @@
     return roId ? `/items/${roId}.png` : '/items/default.png';
   }
 
-  // Error-Handling für Bilder (PNG -> GIF -> Default)
   function handleImgError(e, item) {
     const img = e.target;
+    if (!img) return;
     const roId = getROItemId(item);
 
     if (!roId) {
@@ -105,7 +104,7 @@
       expandedRunIds.add(id);
       await loadRunDetails(id);
     }
-    expandedRunIds = expandedRunIds;
+    expandedRunIds = new Set(expandedRunIds);
   }
 
   async function loadRunDetails(runId) {
@@ -121,16 +120,19 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
-      // MAPPING FÜR EINDEUTIGE RUN_DROP-ID SOWIE RO-ITEM-ID
-      loadedItems = loadedItems.map(item => {
+      // MAPPING MIT FALLBACK-KEYS FÜR MEHRERE ITEMS
+      loadedItems = (Array.isArray(loadedItems) ? loadedItems : []).map((item, index) => {
         const rawRoId = item.item_id ?? item.ro_item_id ?? item.master_item_id;
         const master = getMasterItem(rawRoId);
         const finalRoId = master ? (master.item_id ?? master.ro_item_id) : rawRoId;
-        const numericRoId = finalRoId ? Number(finalRoId) : null;
+        const numericRoId = finalRoId && !isNaN(Number(finalRoId)) ? Number(finalRoId) : null;
+
+        // Eindeutige Zeilen-ID garantieren (Fallback auf Index, falls Backend id nicht liefert)
+        const uniqueId = item.id ?? item.run_drop_id ?? `tmp-${runId}-${index}`;
 
         return {
           ...item,
-          id: item.id, // Eindeutige ID aus der run_drops Tabelle (z. B. 146)
+          id: uniqueId,
           ro_item_id: numericRoId,
           image_url: master?.image_url || master?.icon_url || item.image_url || null,
           name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item'),
@@ -143,7 +145,7 @@
         if (r.id === runId) {
           return {
             ...r,
-            participants: loadedParticipants,
+            participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
             items: loadedItems
           };
         }
@@ -169,9 +171,8 @@
       const runsRes = await fetch(`${backendUrl}/runs/`);
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
-        runs = loadedRuns;
-        
-        await Promise.all(loadedRuns.map(r => loadRunDetails(r.id)));
+        runs = Array.isArray(loadedRuns) ? loadedRuns : [];
+        await Promise.all(runs.map(r => loadRunDetails(r.id)));
       } else {
         errorMessage = `Fehler beim Laden der Runs (Status: ${runsRes.status})`;
       }
@@ -195,7 +196,7 @@
 
   function addParticipantToBuffer(runId) {
     const input = participantInputs[runId];
-    if (!input.newParticipantId) return;
+    if (!input || !input.newParticipantId) return;
 
     const selectedId = Number(input.newParticipantId);
     if (input.list.some(p => Number(p.participant_id) === selectedId)) {
@@ -211,13 +212,14 @@
   }
 
   function removeParticipantFromBuffer(runId, index) {
+    if (!participantInputs[runId]?.list) return;
     participantInputs[runId].list.splice(index, 1);
     participantInputs[runId].list = [...participantInputs[runId].list];
     participantInputs = { ...participantInputs };
   }
 
   async function saveParticipants(runId) {
-    const updatedList = participantInputs[runId].list.map(p => ({
+    const updatedList = (participantInputs[runId]?.list || []).map(p => ({
       participant_id: Number(p.participant_id),
       class_name: p.class_name || 'Unbekannt'
     }));
@@ -258,7 +260,7 @@
 
   function addItemToBuffer(runId) {
     const input = itemInputs[runId];
-    if (!input.newNameOrId.trim()) return;
+    if (!input || !input.newNameOrId.trim()) return;
 
     const rawInput = input.newNameOrId.trim();
     const query = rawInput.toLowerCase();
@@ -296,13 +298,14 @@
   }
 
   function removeItemFromBuffer(runId, index) {
+    if (!itemInputs[runId]?.list) return;
     itemInputs[runId].list.splice(index, 1);
     itemInputs[runId].list = [...itemInputs[runId].list];
     itemInputs = { ...itemInputs };
   }
 
   async function saveItems(runId) {
-    const updatedList = itemInputs[runId].list.map(item => {
+    const updatedList = (itemInputs[runId]?.list || []).map(item => {
       const resolvedId = getROItemId(item);
       const resolvedName = getItemName(item, item.name);
 
@@ -337,7 +340,6 @@
 
   // --- VERKAUF FÜR EIN EINZELNES RUN-ITEM SPEICHERN ---
   function openSaleForm(runItemId) {
-    // Sauber abgegrenztes Objekt für genau diese Item-ID erstellen
     saleInputs = {
       ...saleInputs,
       [runItemId]: { price: '', isShop: false }
@@ -357,7 +359,7 @@
 
   async function saveSaleForItem(runId, runItem) {
     const input = saleInputs[runItem.id];
-    if (!input || !input.price || input.price <= 0) {
+    if (!input || !input.price || Number(input.price) <= 0) {
       alert('Bitte gib einen gültigen Verkaufspreis ein.');
       return;
     }
@@ -418,7 +420,7 @@
     <p class="status-text">Noch keine Runs vorhanden. Klicke oben auf "+ Neuen Run anlegen"!</p>
   {:else}
     <ul class="runs-list">
-      {#each runs as run}
+      {#each runs as run (run.id)}
         {@const isExpanded = expandedRunIds.has(run.id)}
         <li class="run-item">
           <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
@@ -459,7 +461,7 @@
                     <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
                   {:else}
                     <ul class="edit-list">
-                      {#each participantInputs[run.id].list as p, idx}
+                      {#each participantInputs[run.id]?.list || [] as p, idx}
                         <li class="edit-row">
                           <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
                           <select bind:value={p.class_name} class="small-select inline-select">
@@ -472,7 +474,7 @@
                     <div class="add-row">
                       <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
                         <option value="">-- Spieler wählen --</option>
-                        {#each availableParticipants.filter(ap => !participantInputs[run.id].list.some(p => Number(p.participant_id) === Number(ap.id))) as ap}
+                        {#each availableParticipants.filter(ap => !(participantInputs[run.id]?.list || []).some(p => Number(p.participant_id) === Number(ap.id))) as ap}
                           <option value={ap.id}>{ap.name}</option>
                         {/each}
                       </select>
@@ -501,10 +503,8 @@
                           {@const roId = getROItemId(item)}
                           <li class="item-sale-row">
                             <div class="item-info">
-                              <!-- 1. Stückzahl -->
                               <span class="item-qty">{item.amount || item.quantity || 1}x</span>
                               
-                              <!-- 2. Item Icon -->
                               <img 
                                 src={iconSrc} 
                                 alt={item.name} 
@@ -512,12 +512,10 @@
                                 on:error={(e) => handleImgError(e, item)} 
                               />
 
-                              <!-- 3. Echte RO Item-ID -->
                               {#if roId}
                                 <span class="item-id-badge">#{roId}</span>
                               {/if}
 
-                              <!-- 4. Item Name -->
                               <span class="item-name">{getItemName(item, item.name || item.item_name)}</span>
                             </div>
 
@@ -563,7 +561,7 @@
 
                   {:else}
                     <ul class="edit-list">
-                      {#each itemInputs[run.id].list as item, idx}
+                      {#each itemInputs[run.id]?.list || [] as item, idx}
                         {@const iconSrc = getItemIconUrl(item)}
                         {@const roId = getROItemId(item)}
                         <li class="edit-row">
@@ -639,7 +637,6 @@
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
-  
   .details-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; align-items: start; }
   
   @media (max-width: 768px) {
