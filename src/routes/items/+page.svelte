@@ -179,21 +179,21 @@
   }
 
   // Hilfsfunktion zur Ermittlung des Datums aus Item ODER Cache
-  function getBestSoldDate(item, cache) {
-    // 1. Wenn im Item selbst ein Wert steht
-    if (item.last_sold_at) return item.last_sold_at;
-    if (item.sold_at) return item.sold_at;
-
-    // 2. Suche in der Preishistorie aus dem Cache
-    const hist = cache[item.item_id] || cache[item.id];
-    if (Array.isArray(hist) && hist.length > 0) {
-      // Nehme den ersten Eintrag (oder durchsuche nach dem neuesten Datum)
-      const first = hist[0];
-      return first.run_date || first.created_at || first.sold_at || first.date || null;
-    }
-
-    return null;
+function getBestSoldDate(item, cache) {
+  // 1. Direktes Feld am Item
+  if (item.sold_at || item.created_at || item.last_sold_at) {
+    return item.sold_at || item.created_at || item.last_sold_at;
   }
+
+  // 2. Suche in der Preishistorie: Erst Eintrags-/Verkaufsdatum, erst danach Run-Datum
+  const hist = cache[item.item_id] || cache[item.id];
+  if (Array.isArray(hist) && hist.length > 0) {
+    const first = hist[0];
+    return first.sold_at || first.created_at || first.run_date || first.date || null;
+  }
+
+  return null;
+}
 
   // Hilfsfunktion zur Ermittlung des Preises aus Item ODER Cache
   function getBestPrice(item, cache) {
@@ -388,7 +388,7 @@
                         {#each selectedItemHistory as h}
                           <li>
                             <span class="run-name">🏰 {h.run_name || 'Event Run'}</span>
-                            <span class="run-date">📅 {formatDate(h.run_date || h.created_at || h.sold_at || h.date)}</span>
+                            <span class="run-date">📅 {formatDate(h.sold_at || h.created_at || h.run_date || h.date)}</span>
                             <span class="item-qty">Menge: x{h.quantity || 1}</span>
                             <span class="hist-price">{formatZeny(h.price ?? h.actual_price ?? h.sale_price)}</span>
                           </li>
