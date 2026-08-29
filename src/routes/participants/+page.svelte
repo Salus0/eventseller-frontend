@@ -10,6 +10,10 @@
   let isLoading = true;
   let errorMessage = '';
 
+  // Helper State zum Namen-Sync via Raid-Helper
+  let raidHelperEventId = '';
+  let isFetchingDiscordName = false;
+
   // Auth & Admin Status
   let isAdmin = false;
   let jwtToken = '';
@@ -58,6 +62,60 @@
       errorMessage = 'Verbindungsfehler zum Backend!';
     } finally {
       isLoading = false;
+    }
+  }
+
+  // Discord-Name aus einem Raid-Helper Event anhand der Discord-ID ziehen
+  async function fetchNameFromRaidHelper(discordIdToFind, targetMode = 'create') {
+    const trimmedDiscordId = discordIdToFind.trim();
+    const trimmedEventId = raidHelperEventId.trim();
+
+    if (!trimmedDiscordId) {
+      alert('Bitte trage zuerst eine Discord ID ein.');
+      return;
+    }
+    if (!trimmedEventId) {
+      alert('Bitte gib oben eine Raid-Helper Event ID ein, um den Namen daraus abzufragen.');
+      return;
+    }
+
+    isFetchingDiscordName = true;
+    try {
+      const res = await fetch(`https://raid-helper.dev/api/v2/events/${trimmedEventId}`);
+      if (!res.ok) {
+        alert(`Raid-Helper Event konnte nicht geladen werden (Status ${res.status}).`);
+        return;
+      }
+
+      const data = await res.json();
+      const signups = data.signups || [];
+
+      // Suche nach der Discord ID im Event
+      const foundSignup = signups.find(s => {
+        const uid = String(s.userId || s.discordId || '').trim();
+        return uid === trimmedDiscordId;
+      });
+
+      if (foundSignup) {
+        const fetchedName = (foundSignup.name || foundSignup.discordName || '').trim();
+        if (fetchedName) {
+          if (targetMode === 'create') {
+            newName = fetchedName;
+          } else if (targetMode === 'edit') {
+            editName = fetchedName;
+          }
+          alert(`Name "${fetchedName}" erfolgreich aus Raid-Helper übernommen!`);
+        } else {
+          alert('Spieler gefunden, aber es konnte kein Name ausgelesen werden.');
+        }
+      } else {
+        alert('Kein Spieler mit dieser Discord ID in diesem Raid-Helper Event gefunden.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Fehler beim Abrufen der Raid-Helper Daten.');
+    } finally {
+      isFetchingDiscordName = false;
     }
   }
 
@@ -156,9 +214,21 @@
   <h1>Teilnehmer Verwaltung</h1>
 </div>
 
-<!-- Nur Admins dürfen neue Teilnehmer anlegen -->
 {#if isAdmin}
-  <section class="card">
+  <!-- HELPER BOX: RAID HELPER EVENT ID FÜR NAMEN-SYNC -->
+  <section class="card sync-card">
+    <h2>⚡ Discord-Namen Sync via Raid-Helper (Optional)</h2>
+    <p class="sync-desc">Gib hier eine Event-ID ein, um beim Eintragen/Bearbeiten von Discord-IDs den Namen automatisch aus Raid-Helper abzufragen.</p>
+    <input 
+      type="text" 
+      placeholder="Raid-Helper Event ID (z.B. 112233445566)" 
+      bind:value={raidHelperEventId} 
+      class="input-field sync-input" 
+    />
+  </section>
+
+  <!-- Nur Admins dürfen neue Teilnehmer anlegen -->
+  <section class="card margin-top">
     <h2>Neuen Teilnehmer anlegen</h2>
     <form on:submit|preventDefault={addParticipant} class="add-form">
       <input 
@@ -174,6 +244,15 @@
         bind:value={newDiscordId} 
         class="input-field" 
       />
+      <button 
+        type="button" 
+        class="sync-btn" 
+        on:click={() => fetchNameFromRaidHelper(newDiscordId, 'create')}
+        disabled={isFetchingDiscordName}
+        title="Namen aus Raid-Helper Event anhand der ID abfragen"
+      >
+        🔍 Name ziehen
+      </button>
       <button type="submit" class="create-btn">+ Hinzufügen</button>
     </form>
   </section>
@@ -212,6 +291,15 @@
                 placeholder="Discord ID"
                 on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
               />
+              <button 
+                type="button" 
+                class="sync-btn-small" 
+                on:click={() => fetchNameFromRaidHelper(editDiscordId, 'edit')}
+                disabled={isFetchingDiscordName}
+                title="Namen aus Raid-Helper Event ziehen"
+              >
+                🔍
+              </button>
             </div>
             <div class="btn-group">
               <button type="button" class="save-btn" on:click={() => saveParticipant(p.id)}>Speichern</button>
@@ -242,14 +330,24 @@
   .margin-top { margin-top: 1.5rem; }
   h2 { color: #f8fafc; font-size: 1.1rem; margin-top: 0; margin-bottom: 1rem; }
 
-  .add-form { display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 650px; }
-  .input-field { flex: 1; min-width: 180px; padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
-  .edit-input { min-width: 140px; }
+  .sync-card { border-color: #6366f1; background-color: #1e1b4b; }
+  .sync-card h2 { color: #a5b4fc; }
+  .sync-desc { color: #c7d2fe; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
+  .sync-input { max-width: 350px; border-color: #6366f1 !important; }
+
+  .add-form { display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 750px; }
+  .input-field { flex: 1; min-width: 160px; padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
+  .edit-input { min-width: 130px; }
+
+  .sync-btn { background-color: #4f46e5; color: white; border: none; padding: 0.5rem 0.8rem; border-radius: 6px; font-weight: 600; cursor: pointer; white-space: nowrap; font-size: 0.85rem; }
+  .sync-btn:hover { background-color: #4338ca; }
+  .sync-btn-small { background-color: #4f46e5; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; }
+  .sync-btn-small:hover { background-color: #4338ca; }
 
   .create-btn { background-color: #d97706; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; white-space: nowrap; }
   .create-btn:hover { background-color: #b45309; }
 
-  .participant-list { list-style: none; padding: 0; margin: 0; max-width: 650px; }
+  .participant-list { list-style: none; padding: 0; margin: 0; max-width: 750px; }
   .participant-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem; border-bottom: 1px solid #334155; background-color: #0f172a; margin-bottom: 0.4rem; border-radius: 6px; }
   .num { color: #fbbf24; font-weight: 600; min-width: 25px; }
   
@@ -257,7 +355,7 @@
   .name { color: #f8fafc; font-weight: 500; }
   .discord-badge { background-color: #1e1b4b; color: #818cf8; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.75rem; border: 1px solid #312e81; font-family: monospace; }
 
-  .edit-fields { flex: 1; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .edit-fields { flex: 1; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
 
   .action-btn { background-color: #334155; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
   .action-btn:hover { background-color: #475569; }
