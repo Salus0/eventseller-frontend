@@ -9,18 +9,47 @@
   let eventDate = new Date().toISOString().split('T')[0];
   let runNote = '';
 
+  let raidHelperId = '';
+  let isFetchingRaidHelper = false;
+
   let availableParticipants = [];
   let isLoadingParticipants = true;
   let jwtToken = '';
 
   let selectedParticipants = [{ participant_id: '', class_name: '' }];
 
-  // Pre-Renewal Trans-Klassen wie in der Runs-Übersicht
   const roClasses = [
     'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
     'Paladin', 'Professor', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
+
+  // Mapping von Raid-Helper Klassennamen auf eure RO-Klassen (erweiterbar)
+  const classMapping = {
+    'lord knight': 'Lord Knight', 'lk': 'Lord Knight',
+    'high wizard': 'High Wizard', 'hw': 'High Wizard', 'wizard': 'High Wizard',
+    'sniper': 'Sniper', 'hunter': 'Sniper',
+    'high priest': 'High Priest', 'hp': 'High Priest', 'priest': 'High Priest',
+    'whitesmith': 'Whitesmith', 'ws': 'Whitesmith', 'blacksmith': 'Whitesmith',
+    'assassin cross': 'Assassin Cross', 'sinx': 'Assassin Cross', 'assassin': 'Assassin Cross',
+    'paladin': 'Paladin', 'pala': 'Paladin',
+    'professor': 'Professor', 'prof': 'Professor', 'sage': 'Professor',
+    'clown': 'Clown', 'bard': 'Clown',
+    'gypsy': 'Gypsy', 'dancer': 'Gypsy',
+    'champion': 'Champion', 'champ': 'Champion', 'monk': 'Champion',
+    'creator': 'Creator', 'creo': 'Creator', 'alchemist': 'Creator',
+    'stalker': 'Stalker', 'rogue': 'Stalker',
+    'gunslinger': 'Gunslinger',
+    'ninja': 'Ninja',
+    'star gladiator': 'Star Gladiator', 'sg': 'Star Gladiator',
+    'super novice': 'Super Novice', 'snovi': 'Super Novice'
+  };
+
+  function mapClass(rawClass) {
+    if (!rawClass) return 'Sonstiges';
+    const cleaned = rawClass.trim().toLowerCase();
+    return classMapping[cleaned] || 'Sonstiges';
+  }
 
   function checkAdminAccess() {
     const token = localStorage.getItem('jwt_token');
@@ -60,6 +89,74 @@
       console.error('Fehler beim Laden der Teilnehmer-Stammdaten:', err);
     } finally {
       isLoadingParticipants = false;
+    }
+  }
+
+  // --- RAID HELPER IMPORT ---
+  async function importFromRaidHelper() {
+    const trimmedId = raidHelperId.trim();
+    if (!trimmedId) {
+      alert('Bitte gib eine gültige Raid-Helper Event-ID ein.');
+      return;
+    }
+
+    isFetchingRaidHelper = true;
+
+    try {
+      const res = await fetch(`https://raid-helper.dev/api/v2/events/${trimmedId}`);
+      if (!res.ok) {
+        alert(`Event konnte nicht geladen werden (Status ${res.status}). Bitte ID prüfen.`);
+        return;
+      }
+
+      const data = await res.json();
+
+      // 1. Titel & Datum setzen
+      if (data.title) {
+        eventType = data.title;
+      }
+
+      if (data.startTime) {
+        // Unix-Timestamp in YYYY-MM-DD umwandeln
+        const dateObj = new Date(data.startTime * 1000);
+        eventDate = dateObj.toISOString().split('T')[0];
+      }
+
+      // 2. Angemeldete Teilnehmer verarbeiten
+      const signups = data.signups || [];
+      const importedParticipants = [];
+
+      for (const signup of signups) {
+        // Ausgemeldete/Late/Bench-Spieler überspringen falls nötig (oder alle mit Rolle übernehmen)
+        const nameToMatch = (signup.name || signup.discordName || '').trim().toLowerCase();
+        const mappedClass = mapClass(signup.className || signup.role);
+
+        // Namensabgleich mit Stammdaten (Exakter Treffer oder Ingame/Discord-Name)
+        const matchedPlayer = availableParticipants.find(p => {
+          const dbName = p.name.trim().toLowerCase();
+          return dbName === nameToMatch;
+        });
+
+        if (matchedPlayer) {
+          importedParticipants.push({
+            participant_id: matchedPlayer.id,
+            class_name: mappedClass
+          });
+        }
+      }
+
+      if (importedParticipants.length > 0) {
+        selectedParticipants = importedParticipants;
+        alert(`${importedParticipants.length} angemeldete Spieler aus Raid-Helper übernommen!`);
+      } else {
+        alert('Event-Daten geladen, aber keine Übereinstimmungen mit den Stammdaten gefunden.');
+      }
+
+    } catch (err) {
+      console.error('Fehler beim Raid-Helper-Import:', err);
+      alert('Netzwerkfehler beim Abrufen der Raid-Helper Daten.');
+    } finally {
+      isFetchingRaidHelper = false;
     }
   }
 
@@ -132,6 +229,23 @@
   <h1>Neuen Event-Run anlegen</h1>
 </div>
 
+<!-- RAID HELPER IMPORT BOX -->
+<section class="card raid-helper-card">
+  <h2>⚡ Import aus Raid-Helper</h2>
+  <p class="import-desc">Gib die Event-ID aus Discord ein, um Name, Datum und angemeldete Spieler automatisch einzulesen.</p>
+  <div class="import-row">
+    <input 
+      type="text" 
+      placeholder="Raid-Helper Event ID (z.B. 112233445566)" 
+      bind:value={raidHelperId}
+      class="import-input" 
+    />
+    <button type="button" class="import-btn" on:click={importFromRaidHelper} disabled={isFetchingRaidHelper}>
+      {isFetchingRaidHelper ? 'Lade...' : '📥 Event Importieren'}
+    </button>
+  </div>
+</section>
+
 <form on:submit|preventDefault={createRun} class="form-container">
   <!-- Sektion 1: Grunddaten -->
   <section class="card">
@@ -202,7 +316,18 @@
   .back-link:hover { color: #fbbf24; }
   h1 { color: #fbbf24; margin-top: 0.5rem; }
   h2 { font-size: 1.1rem; color: #f8fafc; margin-bottom: 1rem; }
+  
   .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  
+  .raid-helper-card { border-color: #6366f1; background-color: #1e1b4b; }
+  .raid-helper-card h2 { color: #a5b4fc; }
+  .import-desc { color: #c7d2fe; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
+  .import-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .import-input { flex: 1; min-width: 220px; border-color: #6366f1 !important; }
+  .import-btn { background-color: #4f46e5; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+  .import-btn:hover { background-color: #4338ca; }
+  .import-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
   .form-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
   .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 200px; }
   .full-width { width: 100%; flex: 100%; }
