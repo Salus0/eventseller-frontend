@@ -8,11 +8,11 @@
   let isLoading = true;
   let errorMessage = '';
 
-  // Formular-Zustand (Neues Item - ohne URL)
+  // Formular-Zustand (Neues Item)
   let newItemId = '';
   let newItemName = '';
 
-  // Zustand für den Edit-Modus (ohne URL)
+  // Zustand für den Edit-Modus
   let editingId = null;
   let editItemId = '';
   let editName = '';
@@ -23,6 +23,9 @@
   let historyLoading = false;
   let activeHistoryItemId = null;
 
+  // Cache für nachgeladene Verkaufsdaten pro Item
+  let itemSalesMap = {};
+
   async function loadItems() {
     isLoading = true;
     errorMessage = '';
@@ -31,6 +34,9 @@
       if (res.ok) {
         const data = await res.json();
         items = Array.isArray(data) ? data : [];
+        
+        // Parallel die Historie für alle Items laden, um `last_sold_at` & `last_price` sicher zu ermitteln
+        fetchHistoriesForItems(items);
       } else {
         errorMessage = `Fehler beim Laden der Items (Status: ${res.status})`;
       }
@@ -40,6 +46,27 @@
     } finally {
       isLoading = false;
     }
+  }
+
+  // Hilfsfunktion: Lädt Verkaufsverläufe im Hintergrund, um Datums- und Preis-Fallbacks zu füllen
+  async function fetchHistoriesForItems(itemList) {
+    for (const item of itemList) {
+      const targetId = item.item_id || item.ro_item_id;
+      if (!targetId) continue;
+
+      try {
+        const res = await fetch(`${backendUrl}/items/${targetId}/history`);
+        if (res.ok) {
+          const history = await res.json();
+          if (Array.isArray(history) && history.length > 0) {
+            itemSalesMap[targetId] = history;
+          }
+        }
+      } catch (err) {
+        console.error(`Fehler beim Laden der Historie für Item #${targetId}`, err);
+      }
+    }
+    itemSalesMap = { ...itemSalesMap };
   }
 
   async function addItem() {
@@ -130,6 +157,10 @@
       const res = await fetch(`${backendUrl}/items/${itemId}/history`);
       if (res.ok) {
         selectedItemHistory = await res.json();
+        if (Array.isArray(selectedItemHistory)) {
+          itemSalesMap[itemId] = selectedItemHistory;
+          itemSalesMap = { ...itemSalesMap };
+        }
       } else {
         selectedItemHistory = [];
       }
@@ -141,9 +172,51 @@
     }
   }
 
+  // Dynamische Ermittlung des Verkaufsdatums
+  function getItemSoldAt(item) {
+    if (item.last_sold_at || item.sold_at || item.created_at) {
+      return item.last_sold_at || item.sold_at || item.created_at;
+    }
+
+    const history = itemSalesMap[item.item_id];
+    if (Array.isArray(history) && history.length > 0) {
+      // Nimmt das aktuellste Datum aus der Preishistorie
+      const dates = history
+        .map(h => h.run_date || h.sold_at || h.created_at)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b) - new Date(a));
+      
+      if (dates.length > 0) {
+        return dates[0];
+      }
+    }
+
+    return null;
+  }
+
+  // Dynamische Ermittlung des letzten Preises
+  function getItemLastPrice(item) {
+    if (item.last_price !== undefined && item.last_price !== null) {
+      return item.last_price;
+    }
+
+    const history = itemSalesMap[item.item_id];
+    if (Array.isArray(history) && history.length > 0) {
+      const validSales = history.filter(h => h.price || h.actual_price);
+      if (validSales.length > 0) {
+        return validSales[0].price || validSales[0].actual_price;
+      }
+    }
+
+    return null;
+  }
+
   function formatDate(dateStr) {
     if (!dateStr) return 'Nie';
-    return new Date(dateStr).toLocaleDateString('de-DE', {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'Nie';
+    
+    return d.toLocaleDateString('de-DE', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
@@ -224,6 +297,9 @@
         </thead>
         <tbody>
           {#each filteredItems as item}
+            {@const realSoldAt = getItemSoldAt(item)}
+            {@const realLastPrice = getItemLastPrice(item)}
+
             {#if editingId === item.id}
               <!-- BEARBEITUNGS-ZEILE -->
               <tr class="edit-row">
@@ -256,8 +332,8 @@
                     class="input-field edit-input-lg"
                   />
                 </td>
-                <td class="price-cell">{formatZeny(item.last_price)}</td>
-                <td class="date-cell">{formatDate(item.last_sold_at)}</td>
+                <td class="price-cell">{formatZeny(realLastPrice)}</td>
+                <td class="date-cell">{formatDate(realSoldAt)}</td>
                 <td>
                   <div class="btn-group">
                     <button type="button" class="save-btn" on:click={() => saveItem(item.id)}>Speichern</button>
@@ -274,13 +350,10 @@
                     alt={item.name}
                     on:error={(e) => {
                       const img = e.target;
-                      // 1. Wenn PNG fehlschlägt, versuche GIF
                       if (img.src.endsWith('.png')) {
                         img.src = `/items/${item.item_id}.gif`;
-                      } 
-                      // 2. Wenn GIF auch fehlschlägt, lade default.png
-                      else if (img.src.endsWith('.gif')) {
-                        img.onerror = null; // Verhindert Endlosschleifen
+                      } else if (img.src.endsWith('.gif')) {
+                        img.onerror = null;
                         img.src = '/items/default.png';
                       }
                     }}
@@ -288,8 +361,8 @@
                 </td>
                 <td class="id-cell">#{item.item_id}</td>
                 <td class="name-cell">{item.name}</td>
-                <td class="price-cell">{formatZeny(item.last_price)}</td>
-                <td class="date-cell">{formatDate(item.last_sold_at)}</td>
+                <td class="price-cell">{formatZeny(realLastPrice)}</td>
+                <td class="date-cell">{formatDate(realSoldAt)}</td>
                 <td>
                   <div class="btn-group">
                     <button type="button" class="action-btn" on:click={() => startEditing(item)}>✏️ Edit</button>
@@ -317,9 +390,9 @@
                         {#each selectedItemHistory as h}
                           <li>
                             <span class="run-name">🏰 {h.run_name}</span>
-                            <span class="run-date">📅 {formatDate(h.run_date)}</span>
+                            <span class="run-date">📅 {formatDate(h.run_date || h.created_at)}</span>
                             <span class="item-qty">Menge: x{h.quantity || 1}</span>
-                            <span class="hist-price">{formatZeny(h.price)}</span>
+                            <span class="hist-price">{formatZeny(h.price || h.actual_price)}</span>
                           </li>
                         {/each}
                       </ul>
@@ -342,7 +415,6 @@
   h1 { color: #fbbf24; margin: 0; }
   .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
   .margin-top { margin-top: 1.5rem; }
-  .margin-top-xs { margin-top: 0.3rem; }
   h2 { color: #f8fafc; font-size: 1.1rem; margin: 0 0 1rem 0; }
 
   .add-form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
