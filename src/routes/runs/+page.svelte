@@ -486,7 +486,6 @@
       quantity: Number(runItem.amount || runItem.quantity || 1),
       actual_price: Number(input.price),
       is_shop: Boolean(input.isShop),
-      buyer_name: null
     };
 
     try {
