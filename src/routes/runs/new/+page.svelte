@@ -103,7 +103,7 @@
     isFetchingRaidHelper = true;
 
     try {
-      const res = await fetch(`https://raid-helper.dev/api/v2/events/${trimmedId}`);
+      const res = await fetch(`${backendUrl}/raidhelper/event/${trimmedId}`);
       if (!res.ok) {
         alert(`Event konnte nicht geladen werden (Status ${res.status}). Bitte ID prüfen.`);
         return;

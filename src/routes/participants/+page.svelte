@@ -81,7 +81,7 @@
 
     isFetchingDiscordName = true;
     try {
-      const res = await fetch(`https://raid-helper.dev/api/v2/events/${trimmedEventId}`);
+      const res = await fetch(`${backendUrl}/raidhelper/event/${trimmedId}`);
       if (!res.ok) {
         alert(`Raid-Helper Event konnte nicht geladen werden (Status ${res.status}).`);
         return;
