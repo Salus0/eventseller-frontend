@@ -18,37 +18,40 @@
 
   let selectedParticipants = [{ participant_id: '', class_name: '' }];
 
+// Erweiterte RO-Klassen Liste (inkl. Scholar falls gewünscht)
   const roClasses = [
     'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
-    'Paladin', 'Professor', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
+    'Paladin', 'Professor', 'Scholar', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Mapping von Raid-Helper Klassennamen/Rollen auf RO-Klassen
+  // Mapping von Raid-Helper Klassennamen auf RO-Klassen (unterstützt Unterstriche & Varianten)
   const classMapping = {
-    'lord knight': 'Lord Knight', 'lk': 'Lord Knight',
-    'high wizard': 'High Wizard', 'hw': 'High Wizard', 'wizard': 'High Wizard',
+    'lord knight': 'Lord Knight', 'lord_knight': 'Lord Knight', 'lk': 'Lord Knight',
+    'high wizard': 'High Wizard', 'high_wizzard': 'High Wizard', 'high_wizard': 'High Wizard', 'hw': 'High Wizard', 'wizard': 'High Wizard',
     'sniper': 'Sniper', 'hunter': 'Sniper',
-    'high priest': 'High Priest', 'hp': 'High Priest', 'priest': 'High Priest',
-    'whitesmith': 'Whitesmith', 'ws': 'Whitesmith', 'blacksmith': 'Whitesmith',
-    'assassin cross': 'Assassin Cross', 'sinx': 'Assassin Cross', 'assassin': 'Assassin Cross',
+    'high priest': 'High Priest', 'high_priest': 'High Priest', 'hp': 'High Priest', 'priest': 'High Priest',
+    'whitesmith': 'Whitesmith', 'whitesmith': 'Whitesmith', 'ws': 'Whitesmith', 'blacksmith': 'Whitesmith',
+    'assassin cross': 'Assassin Cross', 'assassin_cross': 'Assassin Cross', 'assa_x': 'Assassin Cross', 'sinx': 'Assassin Cross', 'assassin': 'Assassin Cross',
     'paladin': 'Paladin', 'pala': 'Paladin',
     'professor': 'Professor', 'prof': 'Professor', 'sage': 'Professor',
+    'scholar': 'Scholar',
     'clown': 'Clown', 'bard': 'Clown',
-    'gypsy': 'Gypsy', 'dancer': 'Gypsy',
+    'gypsy': 'Gypsy', 'gipsy': 'Gypsy', 'dancer': 'Gypsy',
     'champion': 'Champion', 'champ': 'Champion', 'monk': 'Champion',
     'creator': 'Creator', 'creo': 'Creator', 'alchemist': 'Creator',
     'stalker': 'Stalker', 'rogue': 'Stalker',
     'gunslinger': 'Gunslinger',
     'ninja': 'Ninja',
-    'star gladiator': 'Star Gladiator', 'sg': 'Star Gladiator',
-    'super novice': 'Super Novice', 'snovi': 'Super Novice'
+    'star gladiator': 'Star Gladiator', 'star_gladiator': 'Star Gladiator', 'sg': 'Star Gladiator',
+    'super novice': 'Super Novice', 'super_novice': 'Super Novice', 'snovi': 'Super Novice'
   };
 
   function mapClass(rawClass) {
     if (!rawClass) return 'Sonstiges';
-    const cleaned = rawClass.trim().toLowerCase();
-    return classMapping[cleaned] || 'Sonstiges';
+    // Unterstriche in Leerzeichen umwandeln und Kleinbuchstaben machen
+    const cleaned = rawClass.trim().toLowerCase().replace(/_/g, ' ');
+    return classMapping[cleaned] || classMapping[rawClass.trim().toLowerCase()] || 'Sonstiges';
   }
 
   function checkAdminAccess() {
@@ -132,7 +135,7 @@
 
         const signupDiscordId = String(signup.userId || signup.discordId || '').trim();
         const signupName = (signup.name || signup.discordName || '').trim();
-        const mappedClass = mapClass(signup.className || signup.role);
+        const mappedClass = mapClass(signup.cClassName || signup.className || signup.role);
 
         if (!signupName) continue;
 
