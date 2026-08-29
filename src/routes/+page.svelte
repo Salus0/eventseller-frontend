@@ -7,6 +7,7 @@
 	let isLoading = true;
 	let currentUserName = '';
 	let currentUserId = null;
+	let currentDiscordId = '';
 
 	// Token decodieren, um den eingeloggten User zu identifizieren
 	function checkUserSession() {
@@ -22,8 +23,10 @@
 						.join('')
 				);
 				const decoded = JSON.parse(jsonPayload);
-				currentUserName = decoded.sub || decoded.name || '';
-				currentUserId = decoded.id || decoded.userId || null;
+				
+				currentUserName = decoded.sub || decoded.name || decoded.username || '';
+				currentUserId = decoded.id || decoded.userId || decoded.user_id || null;
+				currentDiscordId = String(decoded.discord_id || decoded.discordId || '').trim();
 			} catch (e) {
 				console.error('Fehler beim Lesen des Tokens:', e);
 			}
@@ -33,10 +36,9 @@
 	// Alle Runs vom Backend laden
 	async function loadRuns() {
 		try {
-			const res = `${backendUrl}/runs/`;
-			const response = await fetch(res);
-			if (response.ok) {
-				runs = await response.json();
+			const res = await fetch(`${backendUrl}/runs/`);
+			if (res.ok) {
+				runs = await res.json();
 			}
 		} catch (err) {
 			console.error('Fehler beim Laden der Runs:', err);
@@ -47,18 +49,33 @@
 
 	// Prüfen, ob der eingeloggte User Teilnehmer in diesem Run ist
 	function isUserInRun(run) {
-		if (!run.participants) return false;
-		return run.participants.some(p => 
-			(currentUserId && p.participant_id === currentUserId) || 
-			(currentUserName && p.name && p.name.toLowerCase() === currentUserName.toLowerCase())
-		);
+		if (!run.participants || !Array.isArray(run.participants)) return false;
+
+		return run.participants.some(p => {
+			// Falls der Teilnehmer verschachtelt ist (z.B. p.participant.name)
+			const pObj = p.participant || p;
+			
+			const pId = p.participant_id || pObj.id || p.id;
+			const pDiscordId = String(pObj.discord_id || pObj.discordId || p.discord_id || '').trim();
+			const pName = (pObj.name || p.name || '').trim().toLowerCase();
+
+			// 1. Match über Datenbank ID
+			if (currentUserId && String(pId) === String(currentUserId)) return true;
+
+			// 2. Match über Discord ID
+			if (currentDiscordId && pDiscordId && currentDiscordId === pDiscordId) return true;
+
+			// 3. Match über Name (Fallback)
+			if (currentUserName && pName && currentUserName.toLowerCase() === pName) return true;
+
+			return false;
+		});
 	}
 
 	// Filter: Nur Runs des aktuellen Users
 	$: userRuns = runs.filter(run => isUserInRun(run));
 
-	// Unterteilung in Offen (z.B. Status nicht abgeschlossen/ausgezahlt) und Abgeschlossen
-	// (Hier kannst du die Bedingung je nach deinem API-Status anpassen, z.B. run.status !== 'completed')
+	// Unterteilung in Offen und Abgeschlossen
 	$: openRuns = userRuns.filter(run => run.status !== 'completed' && run.status !== 'geschlossen');
 	$: finishedRuns = userRuns.filter(run => run.status === 'completed' || run.status === 'geschlossen');
 
@@ -70,14 +87,11 @@
 
 <main class="container">
 	<h1>Mein Dashboard</h1>
-	{#if currentUserName}
-		<p class="welcome-text">Eingeloggt als: <strong>{currentUserName}</strong></p>
-	{/if}
 
 	{#if isLoading}
 		<p class="status">Lade deine Runs...</p>
 	{:else}
-		<!-- SEKTION 1: OFFEN (Items verkaufen / Auszahlung) -->
+		<!-- SEKTION 1: OFFEN -->
 		<section class="card">
 			<h2>⏳ Offene Runs (Items im Verkauf / Auszahlung ausstehend)</h2>
 			{#if openRuns.length > 0}
@@ -129,9 +143,6 @@
 	}
 	h1 {
 		color: #fbbf24;
-	}
-	.welcome-text {
-		color: #94a3b8;
 		margin-bottom: 1.5rem;
 	}
 	.card {
@@ -163,10 +174,10 @@
 		border-left: 4px solid #6366f1;
 	}
 	.run-item.open {
-		border-left-color: #d97706; /* Orange für offen */
+		border-left-color: #d97706;
 	}
 	.run-item.finished {
-		border-left-color: #059669; /* Grün für fertig */
+		border-left-color: #059669;
 	}
 	.run-info {
 		display: flex;
