@@ -16,7 +16,7 @@
     </nav>
 
     <div class="nav-actions">
-      <a href="/auth/login" class="login-btn">Login</a>
+      <a href="https://yggdrasil-eventseller-backend.up.railway.app/auth/login" class="login-btn">Login</a>
     </div>
   </div>
 </header>
