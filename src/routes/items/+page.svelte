@@ -35,7 +35,7 @@
         const data = await res.json();
         items = Array.isArray(data) ? data : [];
         
-        // Nach dem Laden der Items direkt die Verkaufsdaten für alle laden
+        // Lädt die Historien für die Fallback-Berechnung
         loadAllHistories(items);
       } else {
         errorMessage = `Fehler beim Laden der Items (Status: ${res.status})`;
@@ -48,7 +48,6 @@
     }
   }
 
-  // Lädt parallel alle Verläufe für die Tabelle
   async function loadAllHistories(itemList) {
     const promises = itemList.map(async (item) => {
       const targetId = item.item_id || item.id;
@@ -60,7 +59,7 @@
           const hist = await res.json();
           if (Array.isArray(hist) && hist.length > 0) {
             historyCache[item.item_id] = hist;
-            historyCache[item.id] = hist; // Beide Keys sichern
+            historyCache[item.id] = hist;
           }
         }
       } catch (e) {
@@ -69,7 +68,7 @@
     });
 
     await Promise.all(promises);
-    historyCache = { ...historyCache }; // Reaktivität auslösen
+    historyCache = { ...historyCache };
   }
 
   async function addItem() {
@@ -178,24 +177,24 @@
     }
   }
 
-  // Hilfsfunktion zur Ermittlung des Datums aus Item ODER Cache
-function getBestSoldDate(item, cache) {
-  // 1. Direktes Feld am Item
-  if (item.sold_at || item.created_at || item.last_sold_at) {
-    return item.sold_at || item.created_at || item.last_sold_at;
+  // Ermittelt exakt das sold_at Verkaufsdatum
+  function getBestSoldDate(item, cache) {
+    // 1. Direktes Feld im Item-Objekt
+    if (item.sold_at || item.last_sold_at) {
+      return item.sold_at || item.last_sold_at;
+    }
+
+    // 2. Aus der Preishistorie das exakte sold_at Datum auslesen
+    const hist = cache[item.item_id] || cache[item.id];
+    if (Array.isArray(hist) && hist.length > 0) {
+      const first = hist[0];
+      // Nutzt primär sold_at (aus deiner umbenannten Spalte)
+      return first.sold_at || first.created_at || first.run_date || null;
+    }
+
+    return null;
   }
 
-  // 2. Suche in der Preishistorie: Erst Eintrags-/Verkaufsdatum, erst danach Run-Datum
-  const hist = cache[item.item_id] || cache[item.id];
-  if (Array.isArray(hist) && hist.length > 0) {
-    const first = hist[0];
-    return first.sold_at || first.created_at || first.run_date || first.date || null;
-  }
-
-  return null;
-}
-
-  // Hilfsfunktion zur Ermittlung des Preises aus Item ODER Cache
   function getBestPrice(item, cache) {
     if (item.last_price !== undefined && item.last_price !== null) return item.last_price;
 
@@ -388,7 +387,7 @@ function getBestSoldDate(item, cache) {
                         {#each selectedItemHistory as h}
                           <li>
                             <span class="run-name">🏰 {h.run_name || 'Event Run'}</span>
-                            <span class="run-date">📅 {formatDate(h.sold_at || h.created_at || h.run_date || h.date)}</span>
+                            <span class="run-date">📅 {formatDate(h.sold_at || h.created_at || h.run_date)}</span>
                             <span class="item-qty">Menge: x{h.quantity || 1}</span>
                             <span class="hist-price">{formatZeny(h.price ?? h.actual_price ?? h.sale_price)}</span>
                           </li>
