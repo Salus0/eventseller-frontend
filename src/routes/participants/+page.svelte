@@ -6,6 +6,7 @@
 
   let participants = [];
   let newName = '';
+  let newDiscordId = '';
   let isLoading = true;
   let errorMessage = '';
 
@@ -16,6 +17,7 @@
   // Zustand für das Editieren
   let editingId = null;
   let editName = '';
+  let editDiscordId = '';
 
   function checkAdminStatus() {
     const token = localStorage.getItem('jwt_token');
@@ -74,11 +76,15 @@
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${jwtToken}`
         },
-        body: JSON.stringify({ name: newName.trim() })
+        body: JSON.stringify({ 
+          name: newName.trim(),
+          discord_id: newDiscordId.trim() || null
+        })
       });
 
       if (res.ok) {
         newName = '';
+        newDiscordId = '';
         await loadParticipants();
       } else {
         alert('Teilnehmer konnte nicht angelegt werden.');
@@ -93,11 +99,13 @@
     if (!isAdmin) return;
     editingId = participant.id;
     editName = participant.name;
+    editDiscordId = participant.discord_id || participant.discordId || '';
   }
 
   function cancelEditing() {
     editingId = null;
     editName = '';
+    editDiscordId = '';
   }
 
   async function saveParticipant(id) {
@@ -118,12 +126,16 @@
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${jwtToken}`
         },
-        body: JSON.stringify({ name: editName.trim() })
+        body: JSON.stringify({ 
+          name: editName.trim(),
+          discord_id: editDiscordId.trim() || null
+        })
       });
 
       if (res.ok) {
         editingId = null;
         editName = '';
+        editDiscordId = '';
         await loadParticipants();
       } else {
         alert('Änderung konnte nicht gespeichert werden.');
@@ -151,8 +163,15 @@
     <form on:submit|preventDefault={addParticipant} class="add-form">
       <input 
         type="text" 
-        placeholder="Name des Teilnehmers" 
+        placeholder="Name des Teilnehmers *" 
         bind:value={newName} 
+        class="input-field" 
+        required
+      />
+      <input 
+        type="text" 
+        placeholder="Discord ID (Optional)" 
+        bind:value={newDiscordId} 
         class="input-field" 
       />
       <button type="submit" class="create-btn">+ Hinzufügen</button>
@@ -171,25 +190,41 @@
     <p class="status-text">Noch keine Teilnehmer eingetragen.</p>
   {:else}
     <ul class="participant-list">
-      {#each participants as p, i}
+      {#each participants as p, i (p.id)}
+        {@const currentDiscordId = p.discord_id || p.discordId}
         <li class="participant-item">
           <span class="num">{i + 1}.</span>
 
           {#if editingId === p.id && isAdmin}
             <!-- Bearbeitungs-Modus (Nur Admins) -->
-            <input 
-              type="text" 
-              bind:value={editName} 
-              class="input-field edit-input"
-              on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
-            />
+            <div class="edit-fields">
+              <input 
+                type="text" 
+                bind:value={editName} 
+                class="input-field edit-input"
+                placeholder="Name *"
+                on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
+              />
+              <input 
+                type="text" 
+                bind:value={editDiscordId} 
+                class="input-field edit-input"
+                placeholder="Discord ID"
+                on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
+              />
+            </div>
             <div class="btn-group">
               <button type="button" class="save-btn" on:click={() => saveParticipant(p.id)}>Speichern</button>
               <button type="button" class="cancel-btn" on:click={cancelEditing}>Abbrechen</button>
             </div>
           {:else}
             <!-- Normaler Anzeige-Modus -->
-            <span class="name">{p.name}</span>
+            <div class="info-group">
+              <span class="name">{p.name}</span>
+              {#if currentDiscordId}
+                <code class="discord-badge">ID: {currentDiscordId}</code>
+              {/if}
+            </div>
             {#if isAdmin}
               <button type="button" class="action-btn" on:click={() => startEditing(p)}>✏️ Edit</button>
             {/if}
@@ -207,17 +242,22 @@
   .margin-top { margin-top: 1.5rem; }
   h2 { color: #f8fafc; font-size: 1.1rem; margin-top: 0; margin-bottom: 1rem; }
 
-  .add-form { display: flex; gap: 0.5rem; max-width: 500px; }
-  .input-field { flex: 1; padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
-  .edit-input { max-width: 300px; }
+  .add-form { display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 650px; }
+  .input-field { flex: 1; min-width: 180px; padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
+  .edit-input { min-width: 140px; }
 
-  .create-btn { background-color: #d97706; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+  .create-btn { background-color: #d97706; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; white-space: nowrap; }
   .create-btn:hover { background-color: #b45309; }
 
-  .participant-list { list-style: none; padding: 0; margin: 0; max-width: 600px; }
+  .participant-list { list-style: none; padding: 0; margin: 0; max-width: 650px; }
   .participant-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem; border-bottom: 1px solid #334155; background-color: #0f172a; margin-bottom: 0.4rem; border-radius: 6px; }
   .num { color: #fbbf24; font-weight: 600; min-width: 25px; }
-  .name { flex: 1; color: #f8fafc; font-weight: 500; }
+  
+  .info-group { flex: 1; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .name { color: #f8fafc; font-weight: 500; }
+  .discord-badge { background-color: #1e1b4b; color: #818cf8; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.75rem; border: 1px solid #312e81; font-family: monospace; }
+
+  .edit-fields { flex: 1; display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
   .action-btn { background-color: #334155; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
   .action-btn:hover { background-color: #475569; }
