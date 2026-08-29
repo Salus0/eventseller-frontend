@@ -122,7 +122,7 @@
       }
 
       // 2. Angemeldete Teilnehmer verarbeiten
-      const signups = data.signups || [];
+      const signups = data.signUps || data.signups || [];
       const importedParticipants = [];
 
       for (const signup of signups) {
