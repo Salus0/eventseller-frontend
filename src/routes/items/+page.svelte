@@ -35,7 +35,7 @@
         const data = await res.json();
         items = Array.isArray(data) ? data : [];
         
-        // Parallel die Historie für alle Items laden, um `last_sold_at` & `last_price` sicher zu ermitteln
+        // Lädt die Historien im Hintergrund, um Datums- und Preis-Fallbacks zu füllen
         fetchHistoriesForItems(items);
       } else {
         errorMessage = `Fehler beim Laden der Items (Status: ${res.status})`;
@@ -48,11 +48,11 @@
     }
   }
 
-  // Hilfsfunktion: Lädt Verkaufsverläufe im Hintergrund, um Datums- und Preis-Fallbacks zu füllen
+  // Hilfsfunktion: Holt im Hintergrund die Preishistorien für alle Items
   async function fetchHistoriesForItems(itemList) {
     for (const item of itemList) {
       const targetId = item.item_id || item.ro_item_id;
-      if (!targetId) continue;
+      if (!targetId || itemSalesMap[targetId]) continue;
 
       try {
         const res = await fetch(`${backendUrl}/items/${targetId}/history`);
@@ -66,6 +66,7 @@
         console.error(`Fehler beim Laden der Historie für Item #${targetId}`, err);
       }
     }
+    // Reaktivität auslösen
     itemSalesMap = { ...itemSalesMap };
   }
 
@@ -172,7 +173,7 @@
     }
   }
 
-  // Dynamische Ermittlung des Verkaufsdatums
+  // Ermittelt das aktuellste Verkaufsdatum aus dem Item oder der Preishistorie
   function getItemSoldAt(item) {
     if (item.last_sold_at || item.sold_at || item.created_at) {
       return item.last_sold_at || item.sold_at || item.created_at;
@@ -180,9 +181,8 @@
 
     const history = itemSalesMap[item.item_id];
     if (Array.isArray(history) && history.length > 0) {
-      // Nimmt das aktuellste Datum aus der Preishistorie
       const dates = history
-        .map(h => h.run_date || h.sold_at || h.created_at)
+        .map(h => h.run_date || h.created_at || h.sold_at || h.date)
         .filter(Boolean)
         .sort((a, b) => new Date(b) - new Date(a));
       
@@ -194,7 +194,7 @@
     return null;
   }
 
-  // Dynamische Ermittlung des letzten Preises
+  // Ermittelt den aktuellsten Preis aus dem Item oder der Preishistorie
   function getItemLastPrice(item) {
     if (item.last_price !== undefined && item.last_price !== null) {
       return item.last_price;
@@ -202,9 +202,9 @@
 
     const history = itemSalesMap[item.item_id];
     if (Array.isArray(history) && history.length > 0) {
-      const validSales = history.filter(h => h.price || h.actual_price);
+      const validSales = history.filter(h => h.price !== undefined || h.actual_price !== undefined);
       if (validSales.length > 0) {
-        return validSales[0].price || validSales[0].actual_price;
+        return validSales[0].price ?? validSales[0].actual_price;
       }
     }
 
@@ -215,7 +215,7 @@
     if (!dateStr) return 'Nie';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return 'Nie';
-    
+
     return d.toLocaleDateString('de-DE', {
       day: '2-digit',
       month: '2-digit',
@@ -390,9 +390,9 @@
                         {#each selectedItemHistory as h}
                           <li>
                             <span class="run-name">🏰 {h.run_name}</span>
-                            <span class="run-date">📅 {formatDate(h.run_date || h.created_at)}</span>
+                            <span class="run-date">📅 {formatDate(h.run_date || h.created_at || h.sold_at || h.date)}</span>
                             <span class="item-qty">Menge: x{h.quantity || 1}</span>
-                            <span class="hist-price">{formatZeny(h.price || h.actual_price)}</span>
+                            <span class="hist-price">{formatZeny(h.price ?? h.actual_price)}</span>
                           </li>
                         {/each}
                       </ul>
