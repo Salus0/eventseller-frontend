@@ -24,6 +24,7 @@
 				);
 				const decoded = JSON.parse(jsonPayload);
 				
+				// Sowohl Name, User-ID als auch Discord-ID aus dem Token extrahieren
 				currentUserName = decoded.sub || decoded.name || decoded.username || '';
 				currentUserId = decoded.id || decoded.userId || decoded.user_id || null;
 				currentDiscordId = String(decoded.discord_id || decoded.discordId || '').trim();
@@ -33,12 +34,49 @@
 		}
 	}
 
-	// Alle Runs vom Backend laden
+	// Details für einen einzelnen Run laden (Teilnehmer, Items & Summary)
+	async function loadRunDetails(runId) {
+		try {
+			const [partsRes, itemsRes, summaryRes] = await Promise.all([
+				fetch(`${backendUrl}/runs/${runId}/participants`),
+				fetch(`${backendUrl}/runs/${runId}/items`),
+				fetch(`${backendUrl}/runs/${runId}/summary`)
+			]);
+
+			let loadedParticipants = [];
+			let loadedItems = [];
+			let loadedSummary = null;
+
+			if (partsRes.ok) loadedParticipants = await partsRes.json();
+			if (itemsRes.ok) loadedItems = await itemsRes.json();
+			if (summaryRes.ok) loadedSummary = await summaryRes.json();
+
+			runs = runs.map(r => {
+				if (r.id === runId) {
+					return {
+						...r,
+						participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
+						items: Array.isArray(loadedItems) ? loadedItems : [],
+						summary: loadedSummary
+					};
+				}
+				return r;
+			});
+		} catch (err) {
+			console.error(`Fehler beim Laden der Details für Run ${runId}:`, err);
+		}
+	}
+
+	// Alle Runs vom Backend laden und danach die Details nachziehen
 	async function loadRuns() {
+		isLoading = true;
 		try {
 			const res = await fetch(`${backendUrl}/runs/`);
 			if (res.ok) {
-				runs = await res.json();
+				const loadedRuns = await res.json();
+				runs = Array.isArray(loadedRuns) ? loadedRuns : [];
+				// Für jeden Run die Teilnehmer & Items nachladen
+				await Promise.all(runs.map(r => loadRunDetails(r.id)));
 			}
 		} catch (err) {
 			console.error('Fehler beim Laden der Runs:', err);
@@ -52,12 +90,9 @@
 		if (!run.participants || !Array.isArray(run.participants)) return false;
 
 		return run.participants.some(p => {
-			// Falls der Teilnehmer verschachtelt ist (z.B. p.participant.name)
-			const pObj = p.participant || p;
-			
-			const pId = p.participant_id || pObj.id || p.id;
-			const pDiscordId = String(pObj.discord_id || pObj.discordId || p.discord_id || '').trim();
-			const pName = (pObj.name || p.name || '').trim().toLowerCase();
+			const pId = p.participant_id || p.id;
+			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
+			const pName = (p.name || '').trim().toLowerCase();
 
 			// 1. Match über Datenbank ID
 			if (currentUserId && String(pId) === String(currentUserId)) return true;
@@ -65,19 +100,73 @@
 			// 2. Match über Discord ID
 			if (currentDiscordId && pDiscordId && currentDiscordId === pDiscordId) return true;
 
-			// 3. Match über Name (Fallback)
+			// 3. Match über den Namen
 			if (currentUserName && pName && currentUserName.toLowerCase() === pName) return true;
 
 			return false;
 		});
 	}
 
+	// Hilfsfunktion zur Ermittlung des Auszahlungs-Status des aktuellen Users im Run
+	function getUserPayoutStatus(run) {
+		if (!run.participants) return false;
+		const myParticipant = run.participants.find(p => {
+			const pId = p.participant_id || p.id;
+			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
+			const pName = (p.name || '').trim().toLowerCase();
+
+			return (currentUserId && String(pId) === String(currentUserId)) ||
+				   (currentDiscordId && pDiscordId && currentDiscordId === pDiscordId) ||
+				   (currentUserName && pName && currentUserName.toLowerCase() === pName);
+		});
+		return myParticipant ? Boolean(myParticipant.is_paid) : false;
+	}
+
+	// Dynamischer Run-Status (identisch zur Runs-Seite)
+	function getRunStatusInfo(run) {
+		const items = run.items || [];
+		const participants = run.participants || [];
+
+		const totalItems = items.length;
+		const soldItems = items.filter(i => Boolean(i.sale_price || i.price || i.actual_price)).length;
+		const allItemsSold = totalItems > 0 && soldItems === totalItems;
+
+		const totalParticipants = participants.length;
+		const paidParticipants = participants.filter(p => p.is_paid).length;
+		const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
+
+		if (allItemsSold && allPaidOut) {
+			return { label: 'Abgeschlossen', cssClass: 'status-close', isClosed: true };
+		}
+		if (allItemsSold) {
+			return { label: 'Auszahlung bereit', cssClass: 'status-payout', isClosed: false };
+		}
+		if (soldItems > 0) {
+			return { label: 'Im Verkauf', cssClass: 'status-onsale', isClosed: false };
+		}
+		return { label: 'Offen', cssClass: 'status-open', isClosed: false };
+	}
+
 	// Filter: Nur Runs des aktuellen Users
 	$: userRuns = runs.filter(run => isUserInRun(run));
 
-	// Unterteilung in Offen und Abgeschlossen
-	$: openRuns = userRuns.filter(run => run.status !== 'completed' && run.status !== 'geschlossen');
-	$: finishedRuns = userRuns.filter(run => run.status === 'completed' || run.status === 'geschlossen');
+	// Offen = Run ist noch nicht vollzählig abgeschlossen ODER die eigene Auszahlung ist noch offen
+	$: openRuns = userRuns.filter(run => {
+		const status = getRunStatusInfo(run);
+		const isPaid = getUserPayoutStatus(run);
+		return !status.isClosed || !isPaid;
+	});
+
+	// Abgeschlossen = Run ist geschlossen UND die eigene Auszahlung ist erfolgt
+	$: finishedRuns = userRuns.filter(run => {
+		const status = getRunStatusInfo(run);
+		const isPaid = getUserPayoutStatus(run);
+		return status.isClosed && isPaid;
+	});
+
+	function formatZeny(amount) {
+		return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
+	}
 
 	onMount(() => {
 		checkUserSession();
@@ -91,18 +180,27 @@
 	{#if isLoading}
 		<p class="status">Lade deine Runs...</p>
 	{:else}
-		<!-- SEKTION 1: OFFEN -->
+		<!-- SEKTION 1: OFFENE RUNS -->
 		<section class="card">
-			<h2>⏳ Offene Runs (Items im Verkauf / Auszahlung ausstehend)</h2>
+			<h2>⏳ Offene Runs (Verkauf / Auszahlung ausstehend)</h2>
 			{#if openRuns.length > 0}
 				<ul class="run-list">
 					{#each openRuns as run}
+						{@const status = getRunStatusInfo(run)}
+						{@const isPaid = getUserPayoutStatus(run)}
 						<li class="run-item open">
 							<div class="run-info">
 								<strong>{run.name}</strong>
-								<span class="badge status-open">{run.status || 'In Bearbeitung'}</span>
+								<span class="badge {status.cssClass}">{status.label}</span>
 							</div>
-							<span class="date">{run.date || ''}</span>
+							<div class="run-right">
+								{#if run.summary}
+									<span class="zeny-payout">Split: {formatZeny(run.summary.payout_per_player)}</span>
+								{/if}
+								<span class="payout-status" class:paid={isPaid}>
+									{isPaid ? '✓ Ausgezahlt' : '⏳ Auszahlung offen'}
+								</span>
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -120,9 +218,13 @@
 						<li class="run-item finished">
 							<div class="run-info">
 								<strong>{run.name}</strong>
-								<span class="badge status-finished">Abgeschlossen</span>
+								<span class="badge status-close">Abgeschlossen</span>
 							</div>
-							<span class="date">{run.date || ''}</span>
+							<div class="run-right">
+								{#if run.summary}
+									<span class="zeny-payout">{formatZeny(run.summary.payout_per_player)} erhalten</span>
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -172,6 +274,8 @@
 		border-radius: 6px;
 		margin-bottom: 0.5rem;
 		border-left: 4px solid #6366f1;
+		flex-wrap: wrap;
+		gap: 0.5rem;
 	}
 	.run-item.open {
 		border-left-color: #d97706;
@@ -182,25 +286,36 @@
 	.run-info {
 		display: flex;
 		align-items: center;
+		gap: 0.75rem;
+	}
+	.run-right {
+		display: flex;
+		align-items: center;
 		gap: 1rem;
+		font-size: 0.85rem;
 	}
 	.badge {
 		font-size: 0.75rem;
 		padding: 0.2rem 0.5rem;
 		border-radius: 4px;
 		font-weight: 600;
+		color: white;
 	}
-	.status-open {
-		background: rgba(217, 119, 6, 0.2);
+	.status-open { background-color: #059669; }
+	.status-onsale { background-color: #d97706; }
+	.status-payout { background-color: #ca8a04; }
+	.status-close { background-color: #dc2626; }
+
+	.zeny-payout {
 		color: #fbbf24;
+		font-weight: 600;
 	}
-	.status-finished {
-		background: rgba(5, 150, 105, 0.2);
+	.payout-status {
+		color: #f59e0b;
+		font-weight: 500;
+	}
+	.payout-status.paid {
 		color: #34d399;
-	}
-	.date {
-		color: #94a3b8;
-		font-size: 0.85rem;
 	}
 	.empty-text, .status {
 		color: #94a3b8;
