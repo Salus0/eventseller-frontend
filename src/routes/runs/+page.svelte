@@ -69,7 +69,6 @@
     const roId = getROItemId(item);
     const master = getMasterItem(roId);
     
-    // Direct-URL bevorzugen (falls im Master hinterlegt)
     if (master && (master.image_url || master.icon_url || master.icon)) {
       return master.image_url || master.icon_url || master.icon;
     }
@@ -77,7 +76,6 @@
       return item.image_url || item.icon_url || item.icon;
     }
 
-    // Standard-Pfad über die RO-Item-ID generieren
     return roId ? `/items/${roId}.png` : '/items/default.png';
   }
 
@@ -95,7 +93,7 @@
     if (img.src.endsWith('.png')) {
       img.src = `/items/${roId}.gif`;
     } else if (img.src.endsWith('.gif')) {
-      img.onerror = null; // Verhindert Endlosschleifen
+      img.onerror = null;
       img.src = '/items/default.png';
     }
   }
@@ -123,7 +121,7 @@
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
 
-      // MAPPING FÜR RO-ITEM-ID STRICKT HERSTELLEN
+      // MAPPING FÜR EINDEUTIGE RUN_DROP-ID SOWIE RO-ITEM-ID
       loadedItems = loadedItems.map(item => {
         const rawRoId = item.item_id ?? item.ro_item_id ?? item.master_item_id;
         const master = getMasterItem(rawRoId);
@@ -132,10 +130,12 @@
 
         return {
           ...item,
+          id: item.id, // Eindeutige ID aus der run_drops Tabelle (z. B. 146)
           ro_item_id: numericRoId,
-          item_id: numericRoId,
           image_url: master?.image_url || master?.icon_url || item.image_url || null,
-          name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item')
+          name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item'),
+          sale_price: item.sale_price ?? item.price ?? item.actual_price ?? 0,
+          sale_type: item.sale_type ?? (item.is_shop ? 'Shop' : 'Direkt')
         };
       });
 
@@ -158,7 +158,6 @@
     isLoading = true;
     errorMessage = '';
     try {
-      // 1. Zuerst Stamm-Daten (Master-Items und Teilnehmer) laden
       const [partsRes, itemsRes] = await Promise.all([
         fetch(`${backendUrl}/participants/`),
         fetch(`${backendUrl}/items/`)
@@ -167,7 +166,6 @@
       if (itemsRes.ok) masterItems = await itemsRes.json();
       if (partsRes.ok) availableParticipants = await partsRes.json();
 
-      // 2. Danach Runs laden und Details anreichern
       const runsRes = await fetch(`${backendUrl}/runs/`);
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
@@ -245,7 +243,7 @@
       list: run.items ? run.items.map(item => {
         const roId = getROItemId(item);
         return {
-          id: item.id, // DB Row ID für Backend behalten
+          id: item.id,
           item_id: roId,
           ro_item_id: roId,
           name: getItemName(item, item.name || item.item_name),
@@ -337,7 +335,7 @@
     }
   }
 
-  // --- VERKAUF FÜR EIN ITEM HINZUFÜGEN ---
+  // --- VERKAUF FÜR EIN EINZELNES RUN-ITEM SPEICHERN ---
   function openSaleForm(runItemId) {
     saleInputs[runItemId] = { price: '', isShop: false };
     addingSaleForItemId[runItemId] = true;
@@ -350,17 +348,17 @@
       return;
     }
 
+    // Sendet die eindeutige run_drop_id (z.B. 146) an das Backend
     const payload = {
-      run_item_id: runItem.id,
-      item_id: getROItemId(runItem),
-      amount: runItem.amount || runItem.quantity || 1,
-      price: Number(input.price),
-      is_shop: Boolean(input.isShop)
+      run_drop_id: runItem.id,
+      sale_price: Number(input.price),
+      sale_type: Boolean(input.isShop) ? 'Shop' : 'Direkt',
+      is_sold: true
     };
 
     try {
-      const res = await fetch(`${backendUrl}/runs/${runId}/sales`, {
-        method: 'POST',
+      const res = await fetch(`${backendUrl}/runs/${runId}/drops/${runItem.id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
