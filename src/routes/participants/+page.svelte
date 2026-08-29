@@ -92,7 +92,7 @@
       }
 
       const data = await res.json();
-      const signups = data.signups || [];
+      const signups = data.signUps || data.signups || [];
 
       // Suche nach der Discord ID im Event
       const foundSignup = signups.find(s => {
