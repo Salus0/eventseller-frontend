@@ -1,5 +1,50 @@
 <script>
+  import { onMount } from 'svelte';
+
   export let data;
+
+  let user = null;
+
+  // Hilfsfunktion zum Dekodieren des JWT-Tokens ohne externe Library
+  function parseJwt(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function checkLogin() {
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+      const decoded = parseJwt(token);
+      // Prüfen, ob das Token noch nicht abgelaufen ist
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        user = decoded;
+      } else {
+        localStorage.removeItem('jwt_token');
+        user = null;
+      }
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem('jwt_token');
+    user = null;
+    window.location.reload();
+  }
+
+  onMount(() => {
+    checkLogin();
+  });
 </script>
 
 <header class="navbar">
@@ -16,7 +61,26 @@
     </nav>
 
     <div class="nav-actions">
-      <a href="https://yggdrasil-eventseller-backend.up.railway.app/auth/login" class="login-btn">Login</a>
+      {#if user}
+        <div class="user-profile">
+          {#if user.avatar}
+            <img 
+              src="https://cdn.discordapp.com/avatars/{user.sub}/{user.avatar}.png" 
+              alt={user.username} 
+              class="avatar" 
+            />
+          {/if}
+          <span class="username">{user.username}</span>
+          {#if user.role === 'admin'}
+            <span class="badge admin">Admin</span>
+          {/if}
+          <button on:click={logout} class="logout-btn">Logout</button>
+        </div>
+      {:else}
+        <a href="https://yggdrasil-eventseller-backend.up.railway.app/auth/login" class="login-btn">
+          Login
+        </a>
+      {/if}
     </div>
   </div>
 </header>
@@ -79,6 +143,56 @@
 
   .nav-links a:hover {
     color: #f8fafc;
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  /* User Profile Styling */
+  .user-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: white;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+  }
+
+  .username {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .badge.admin {
+    background-color: #ef4444;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .logout-btn {
+    background-color: transparent;
+    border: 1px solid #475569;
+    color: #cbd5e1;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .logout-btn:hover {
+    background-color: #334155;
+    color: white;
   }
 
   .login-btn {
