@@ -11,14 +11,44 @@
 
   let availableParticipants = [];
   let isLoadingParticipants = true;
+  let jwtToken = '';
 
   let selectedParticipants = [{ participant_id: '', class_name: '' }];
 
+  // Pre-Renewal Trans-Klassen wie in der Runs-Übersicht
   const roClasses = [
-    'Rune Knight', 'Warlock', 'Ranger', 'Arch Bishop', 'Mechanic', 'Guillotine Cross',
-    'Royal Guard', 'Sorcerer', 'Minstrel', 'Wanderer', 'Genetic', 'Shadow Chaser',
-    'Soul Reaper', 'Star Emperor', 'Kagerou/Oboro', 'Rebellion', 'Super Novice', 'Sonstiges'
+    'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
+    'Paladin', 'Professor', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
+    'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
+
+  function checkAdminAccess() {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+      goto('/runs');
+      return false;
+    }
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const decoded = JSON.parse(jsonPayload);
+      if (decoded.role !== 'admin') {
+        goto('/runs');
+        return false;
+      }
+      jwtToken = token;
+      return true;
+    } catch (e) {
+      goto('/runs');
+      return false;
+    }
+  }
 
   async function fetchAvailableParticipants() {
     try {
@@ -56,7 +86,7 @@
     const validParticipants = selectedParticipants
       .filter(p => p.participant_id !== '')
       .map(p => ({
-        participant_id: p.participant_id,
+        participant_id: Number(p.participant_id),
         class_name: p.class_name || 'Unbekannt'
       }));
 
@@ -71,14 +101,18 @@
     try {
       const res = await fetch(`${backendUrl}/runs/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify(payload)
       });
 
       if (res.ok) {
         goto('/runs');
       } else {
-        alert('Run konnte nicht erstellt werden.');
+        const errorData = await res.json().catch(() => null);
+        alert(`Run konnte nicht erstellt werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
       }
     } catch (err) {
       console.error(err);
@@ -87,7 +121,9 @@
   }
 
   onMount(() => {
-    fetchAvailableParticipants();
+    if (checkAdminAccess()) {
+      fetchAvailableParticipants();
+    }
   });
 </script>
 

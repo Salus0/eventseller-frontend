@@ -8,6 +8,10 @@
   let isLoading = true;
   let errorMessage = '';
 
+  // Auth & Admin Status
+  let isAdmin = false;
+  let jwtToken = '';
+
   // Formular-Zustand
   let newItemId = '';
   let newItemName = '';
@@ -25,6 +29,30 @@
 
   // Speicher für Historien-Daten (itemId -> Array von Verkäufen)
   let historyCache = {};
+
+  function checkAdminStatus() {
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+      jwtToken = token;
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        isAdmin = decoded.role === 'admin';
+      } catch (e) {
+        isAdmin = false;
+      }
+    } else {
+      isAdmin = false;
+      jwtToken = '';
+    }
+  }
 
   async function loadItems() {
     isLoading = true;
@@ -72,6 +100,11 @@
   }
 
   async function addItem() {
+    if (!isAdmin) {
+      alert('Keine Berechtigung! Nur Admins dürfen Items anlegen.');
+      return;
+    }
+
     if (!newItemId || !newItemName.trim()) {
       alert('Bitte Item-ID und Name eingeben.');
       return;
@@ -86,7 +119,10 @@
     try {
       const res = await fetch(`${backendUrl}/items/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify(payload)
       });
 
@@ -104,6 +140,7 @@
   }
 
   function startEditing(item) {
+    if (!isAdmin) return;
     editingId = item.id;
     editItemId = item.item_id;
     editName = item.name;
@@ -116,6 +153,11 @@
   }
 
   async function saveItem(id) {
+    if (!isAdmin) {
+      alert('Keine Berechtigung!');
+      return;
+    }
+
     if (!editItemId || !editName.trim()) {
       alert('Item-ID und Name dürfen nicht leer sein.');
       return;
@@ -130,7 +172,10 @@
     try {
       const res = await fetch(`${backendUrl}/items/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify(payload)
       });
 
@@ -179,16 +224,13 @@
 
   // Ermittelt exakt das sold_at Verkaufsdatum
   function getBestSoldDate(item, cache) {
-    // 1. Direktes Feld im Item-Objekt
     if (item.sold_at || item.last_sold_at) {
       return item.sold_at || item.last_sold_at;
     }
 
-    // 2. Aus der Preishistorie das exakte sold_at Datum auslesen
     const hist = cache[item.item_id] || cache[item.id];
     if (Array.isArray(hist) && hist.length > 0) {
       const first = hist[0];
-      // Nutzt primär sold_at (aus deiner umbenannten Spalte)
       return first.sold_at || first.created_at || first.run_date || null;
     }
 
@@ -232,6 +274,7 @@
   });
 
   onMount(() => {
+    checkAdminStatus();
     loadItems();
   });
 </script>
@@ -240,26 +283,29 @@
   <h1>Item Datenbank</h1>
 </div>
 
-<section class="card">
-  <h2>Neues Item anlegen</h2>
-  <form on:submit|preventDefault={addItem} class="add-form">
-    <input 
-      type="number" 
-      placeholder="Item-ID (z.B. 2554)" 
-      bind:value={newItemId} 
-      class="input-field small-input" 
-      required
-    />
-    <input 
-      type="text" 
-      placeholder="Item Name (z.B. Nydhorgg's Shadow Garb)" 
-      bind:value={newItemName} 
-      class="input-field" 
-      required
-    />
-    <button type="submit" class="create-btn">+ Speichern</button>
-  </form>
-</section>
+<!-- Nur Admins dürfen das Formular sehen -->
+{#if isAdmin}
+  <section class="card">
+    <h2>Neues Item anlegen</h2>
+    <form on:submit|preventDefault={addItem} class="add-form">
+      <input 
+        type="number" 
+        placeholder="Item-ID (z.B. 2554)" 
+        bind:value={newItemId} 
+        class="input-field small-input" 
+        required
+      />
+      <input 
+        type="text" 
+        placeholder="Item Name (z.B. Nydhorgg's Shadow Garb)" 
+        bind:value={newItemName} 
+        class="input-field" 
+        required
+      />
+      <button type="submit" class="create-btn">+ Speichern</button>
+    </form>
+  </section>
+{/if}
 
 <section class="card margin-top">
   <div class="list-header">
@@ -297,8 +343,8 @@
             {@const displayPrice = getBestPrice(item, historyCache)}
             {@const targetId = item.item_id || item.id}
 
-            {#if editingId === item.id}
-              <!-- BEARBEITUNGS-ZEILE -->
+            {#if editingId === item.id && isAdmin}
+              <!-- BEARBEITUNGS-ZEILE (Nur für Admins) -->
               <tr class="edit-row">
                 <td class="icon-cell">
                   <img 
@@ -362,7 +408,9 @@
                 <td class="date-cell">{formatDate(displayDate)}</td>
                 <td>
                   <div class="btn-group">
-                    <button type="button" class="action-btn" on:click={() => startEditing(item)}>✏️ Edit</button>
+                    {#if isAdmin}
+                      <button type="button" class="action-btn" on:click={() => startEditing(item)}>✏️ Edit</button>
+                    {/if}
                     <button 
                       type="button" 
                       class="history-btn" 

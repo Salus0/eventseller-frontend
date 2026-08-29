@@ -9,9 +9,37 @@
   let isLoading = true;
   let errorMessage = '';
 
+  // Auth & Admin Status
+  let isAdmin = false;
+  let jwtToken = '';
+
   // Zustand für das Editieren
   let editingId = null;
   let editName = '';
+
+  function checkAdminStatus() {
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+      jwtToken = token;
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        isAdmin = decoded.role === 'admin';
+      } catch (e) {
+        isAdmin = false;
+      }
+    } else {
+      isAdmin = false;
+      jwtToken = '';
+    }
+  }
 
   async function loadParticipants() {
     isLoading = true;
@@ -32,12 +60,20 @@
   }
 
   async function addParticipant() {
+    if (!isAdmin) {
+      alert('Keine Berechtigung! Nur Admins dürfen Teilnehmer anlegen.');
+      return;
+    }
+
     if (!newName.trim()) return;
 
     try {
       const res = await fetch(`${backendUrl}/participants/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify({ name: newName.trim() })
       });
 
@@ -54,6 +90,7 @@
   }
 
   function startEditing(participant) {
+    if (!isAdmin) return;
     editingId = participant.id;
     editName = participant.name;
   }
@@ -64,6 +101,11 @@
   }
 
   async function saveParticipant(id) {
+    if (!isAdmin) {
+      alert('Keine Berechtigung!');
+      return;
+    }
+
     if (!editName.trim()) {
       alert('Der Name darf nicht leer sein.');
       return;
@@ -72,7 +114,10 @@
     try {
       const res = await fetch(`${backendUrl}/participants/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify({ name: editName.trim() })
       });
 
@@ -90,6 +135,7 @@
   }
 
   onMount(() => {
+    checkAdminStatus();
     loadParticipants();
   });
 </script>
@@ -98,18 +144,21 @@
   <h1>Teilnehmer Verwaltung</h1>
 </div>
 
-<section class="card">
-  <h2>Neuen Teilnehmer anlegen</h2>
-  <form on:submit|preventDefault={addParticipant} class="add-form">
-    <input 
-      type="text" 
-      placeholder="Name des Teilnehmers" 
-      bind:value={newName} 
-      class="input-field" 
-    />
-    <button type="submit" class="create-btn">+ Hinzufügen</button>
-  </form>
-</section>
+<!-- Nur Admins dürfen neue Teilnehmer anlegen -->
+{#if isAdmin}
+  <section class="card">
+    <h2>Neuen Teilnehmer anlegen</h2>
+    <form on:submit|preventDefault={addParticipant} class="add-form">
+      <input 
+        type="text" 
+        placeholder="Name des Teilnehmers" 
+        bind:value={newName} 
+        class="input-field" 
+      />
+      <button type="submit" class="create-btn">+ Hinzufügen</button>
+    </form>
+  </section>
+{/if}
 
 <section class="card margin-top">
   <h2>Alle Teilnehmer ({participants.length})</h2>
@@ -126,8 +175,8 @@
         <li class="participant-item">
           <span class="num">{i + 1}.</span>
 
-          {#if editingId === p.id}
-            <!-- Bearbeitungs-Modus -->
+          {#if editingId === p.id && isAdmin}
+            <!-- Bearbeitungs-Modus (Nur Admins) -->
             <input 
               type="text" 
               bind:value={editName} 
@@ -141,7 +190,9 @@
           {:else}
             <!-- Normaler Anzeige-Modus -->
             <span class="name">{p.name}</span>
-            <button type="button" class="action-btn" on:click={() => startEditing(p)}>✏️ Edit</button>
+            {#if isAdmin}
+              <button type="button" class="action-btn" on:click={() => startEditing(p)}>✏️ Edit</button>
+            {/if}
           {/if}
         </li>
       {/each}

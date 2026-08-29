@@ -9,6 +9,10 @@
   let masterItems = []; 
   let isLoading = true;
   let errorMessage = '';
+
+  // Auth & Admin Status
+  let isAdmin = false;
+  let jwtToken = '';
   
   let expandedRunIds = new Set();
   let editingParticipants = {};
@@ -24,6 +28,30 @@
     'Paladin', 'Professor', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
+
+  function checkAdminStatus() {
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+      jwtToken = token;
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        isAdmin = decoded.role === 'admin';
+      } catch (e) {
+        isAdmin = false;
+      }
+    } else {
+      isAdmin = false;
+      jwtToken = '';
+    }
+  }
 
   function getMasterItem(rawId) {
     if (rawId === null || rawId === undefined || rawId === '') return null;
@@ -235,6 +263,7 @@
 
   // --- TEILNEHMER EDITIEREN ---
   function enableParticipantEditing(run) {
+    if (!isAdmin) return;
     participantInputs[run.id] = {
       list: run.participants ? JSON.parse(JSON.stringify(run.participants)) : [],
       newParticipantId: '',
@@ -268,6 +297,7 @@
   }
 
   async function saveParticipants(runId) {
+    if (!isAdmin) return;
     const updatedList = (participantInputs[runId]?.list || []).map(p => ({
       participant_id: Number(p.participant_id),
       class_name: p.class_name || 'Unbekannt'
@@ -276,7 +306,10 @@
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/participants`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify(updatedList)
       });
       if (res.ok) {
@@ -289,10 +322,14 @@
   }
 
   async function togglePayoutStatus(runId, participantId, currentStatus) {
+    if (!isAdmin) return;
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/participants/${participantId}/payout`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify({ is_paid: !currentStatus })
       });
       if (res.ok) {
@@ -307,6 +344,7 @@
 
   // --- DROPS / ITEMS EDITIEREN ---
   function enableItemEditing(run) {
+    if (!isAdmin) return;
     itemInputs[run.id] = {
       list: run.items ? run.items.map(item => {
         const roId = getROItemId(item);
@@ -371,6 +409,7 @@
   }
 
   async function saveItems(runId) {
+    if (!isAdmin) return;
     const updatedList = (itemInputs[runId]?.list || []).map(item => {
       const resolvedId = getROItemId(item);
       const resolvedName = getItemName(item, item.name);
@@ -387,7 +426,10 @@
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/items`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify(updatedList)
       });
 
@@ -406,6 +448,7 @@
 
   // --- VERKAUF FÜR EIN EINZELNES RUN-ITEM SPEICHERN ---
   function openSaleForm(runItemId) {
+    if (!isAdmin) return;
     saleInputs = {
       ...saleInputs,
       [runItemId]: { price: 0, priceDisplay: '', isShop: false }
@@ -424,6 +467,7 @@
   }
 
   async function saveSaleForItem(runId, runItem) {
+    if (!isAdmin) return;
     const input = saleInputs[runItem.id];
     if (!input || !input.price || Number(input.price) <= 0) {
       alert('Bitte gib einen gültigen Verkaufspreis ein.');
@@ -448,7 +492,10 @@
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/sales`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
         body: JSON.stringify(payload)
       });
 
@@ -472,6 +519,7 @@
   }
 
   onMount(() => {
+    checkAdminStatus();
     fetchData();
   });
 </script>
@@ -484,7 +532,9 @@
 
 <div class="header-action">
   <h1>Event Runs</h1>
-  <a href="/runs/new" class="create-btn">+ Neuen Run anlegen</a>
+  {#if isAdmin}
+    <a href="/runs/new" class="create-btn">+ Neuen Run anlegen</a>
+  {/if}
 </div>
 
 <section class="card">
@@ -495,7 +545,13 @@
   {:else if errorMessage}
     <p class="error">{errorMessage}</p>
   {:else if runs.length === 0}
-    <p class="status-text">Noch keine Runs vorhanden. Klicke oben auf "+ Neuen Run anlegen"!</p>
+    <p class="status-text">
+      {#if isAdmin}
+        Noch keine Runs vorhanden. Klicke oben auf "+ Neuen Run anlegen"!
+      {:else}
+        Noch keine Runs vorhanden.
+      {/if}
+    </p>
   {:else}
     <ul class="runs-list">
       {#each runs as run (run.id)}
@@ -556,21 +612,29 @@
                               <span>{p.name}</span>
                               {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
                             </div>
-                            <label class="payout-toggle" title="Auszahlungs-Status ändern">
-                              <input 
-                                type="checkbox" 
-                                checked={p.is_paid} 
-                                on:change={() => togglePayoutStatus(run.id, p.participant_id, p.is_paid)} 
-                              />
-                              <span class="payout-label">{p.is_paid ? 'Ausgezahlt' : 'Offen'}</span>
-                            </label>
+                            {#if isAdmin}
+                              <label class="payout-toggle" title="Auszahlungs-Status ändern">
+                                <input 
+                                  type="checkbox" 
+                                  checked={p.is_paid} 
+                                  on:change={() => togglePayoutStatus(run.id, p.participant_id, p.is_paid)} 
+                                />
+                                <span class="payout-label">{p.is_paid ? 'Ausgezahlt' : 'Offen'}</span>
+                              </label>
+                            {:else}
+                              <span class="payout-status-text" class:paid={p.is_paid}>
+                                {p.is_paid ? '✓ Ausgezahlt' : '⏳ Offen'}
+                              </span>
+                            {/if}
                           </li>
                         {/each}
                       </ul>
                     {:else}
                       <p class="empty-text">Keine Teilnehmer eingetragen</p>
                     {/if}
-                    <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
+                    {#if isAdmin}
+                      <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
+                    {/if}
                   {:else}
                     <ul class="edit-list">
                       {#each participantInputs[run.id]?.list || [] as p, idx}
@@ -637,7 +701,7 @@
                                 {#if item.is_shop || item.sale_type === 'Shop'}
                                   <span class="shop-badge">Shop (-2%)</span>
                                 {/if}
-                              {:else if addingSaleForItemId[item.id]}
+                              {:else if addingSaleForItemId[item.id] && isAdmin}
                                 <div class="inline-sale-form">
                                   {#if saleInputs[item.id]}
                                     <!-- Breiteres Eingabefeld mit Live-1000er-Trennzeichen -->
@@ -656,10 +720,12 @@
                                   <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
                                   <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
                                 </div>
-                              {:else}
+                              {:else if isAdmin}
                                 <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
                                   + Verkauf hinzufügen
                                 </button>
+                              {:else}
+                                <span class="empty-text">Offen</span>
                               {/if}
                             </div>
                           </li>
@@ -669,9 +735,11 @@
                       <p class="empty-text">Keine Items eingetragen</p>
                     {/if}
 
-                    <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
-                      ➕ Add/Edit
-                    </button>
+                    {#if isAdmin}
+                      <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
+                        ➕ Add/Edit
+                      </button>
+                    {/if}
 
                   {:else}
                     <ul class="edit-list">
@@ -807,6 +875,8 @@
   .payout-toggle { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; cursor: pointer; color: #94a3b8; }
   .payout-toggle input { cursor: pointer; }
   .payout-label { font-weight: 500; }
+  .payout-status-text { font-size: 0.75rem; color: #94a3b8; font-weight: 500; }
+  .payout-status-text.paid { color: #34d399; }
 
   .num-prefix { color: #fbbf24; font-weight: 600; margin-right: 0.3rem; }
   .class-tag { background-color: #334155; color: #38bdf8; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 4px; }
