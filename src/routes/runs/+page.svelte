@@ -107,24 +107,33 @@
 
   async function loadRunDetails(runId) {
     try {
-      const [partsRes, itemsRes] = await Promise.all([
+      const [partsRes, itemsRes, salesRes] = await Promise.all([
         fetch(`${backendUrl}/runs/${runId}/participants`),
-        fetch(`${backendUrl}/runs/${runId}/items`)
+        fetch(`${backendUrl}/runs/${runId}/items`),
+        fetch(`${backendUrl}/runs/${runId}/sales`)
       ]);
 
       let loadedParticipants = [];
       let loadedItems = [];
+      let loadedSales = [];
 
       if (partsRes.ok) loadedParticipants = await partsRes.json();
       if (itemsRes.ok) loadedItems = await itemsRes.json();
+      if (salesRes.ok) loadedSales = await salesRes.json();
 
+      // Gemappte Drops/Items inkl. Abgleich mit der Sales-Tabelle
       loadedItems = (Array.isArray(loadedItems) ? loadedItems : []).map((item, index) => {
         const rawRoId = item.ro_item_id ?? item.item_id ?? item.master_item_id;
         const master = getMasterItem(rawRoId);
         const finalRoId = master ? (master.item_id ?? master.ro_item_id) : rawRoId;
         const numericRoId = finalRoId && !isNaN(Number(finalRoId)) ? Number(finalRoId) : null;
 
-        // Echte DB-ID für den Drop abgreifen
+        // Suche den passenden Verkauf aus der sales-Tabelle (über ro_item_id oder item_id)
+        const existingSale = Array.isArray(loadedSales) ? loadedSales.find(s => 
+          Number(s.item_id) === Number(numericRoId) || 
+          Number(s.ro_item_id) === Number(numericRoId)
+        ) : null;
+
         const realDbId = item.run_drop_id ?? item.drop_id ?? item.id;
 
         return {
@@ -134,8 +143,9 @@
           ro_item_id: numericRoId,
           image_url: master?.image_url || master?.icon_url || item.image_url || null,
           name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item'),
-          sale_price: item.sale_price ?? item.price ?? item.actual_price ?? 0,
-          sale_type: item.sale_type ?? (item.is_shop ? 'Shop' : 'Direkt')
+          sale_price: existingSale ? (existingSale.actual_price ?? existingSale.price) : (item.sale_price ?? item.price ?? 0),
+          sale_type: existingSale ? (existingSale.is_shop ? 'Shop' : 'Direkt') : (item.sale_type ?? (item.is_shop ? 'Shop' : 'Direkt')),
+          is_shop: existingSale ? existingSale.is_shop : item.is_shop
         };
       });
 
@@ -144,7 +154,8 @@
           return {
             ...r,
             participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
-            items: loadedItems
+            items: loadedItems,
+            sales: loadedSales
           };
         }
         return r;
@@ -362,7 +373,6 @@
       return;
     }
 
-    // Ermittle die reine Item-ID (ro_item_id oder item_id)
     const itemId = getROItemId(runItem) || runItem.item_id || runItem.id;
 
     if (!itemId || isNaN(Number(itemId))) {
@@ -370,7 +380,6 @@
       return;
     }
 
-    // Exakter Payload nach dem Schema SaleCreate des Backends
     const payload = {
       item_id: Number(itemId),
       quantity: Number(runItem.amount || runItem.quantity || 1),
@@ -387,11 +396,15 @@
       });
 
       if (res.ok) {
+        // Formular-Status und Eingabewerte zurücksetzen
         closeSaleForm(runItem.id);
+        delete saleInputs[runItem.id];
+        saleInputs = { ...saleInputs };
+
+        // Details mit neuen Verkäufen nachladen
         await loadRunDetails(runId);
       } else {
         const errorData = await res.json().catch(() => null);
-        console.error('API Error:', res.status, errorData);
         alert(`Verkauf konnte nicht gespeichert werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
       }
     } catch (err) {
