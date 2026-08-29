@@ -337,8 +337,22 @@
 
   // --- VERKAUF FÜR EIN EINZELNES RUN-ITEM SPEICHERN ---
   function openSaleForm(runItemId) {
-    saleInputs[runItemId] = { price: '', isShop: false };
-    addingSaleForItemId[runItemId] = true;
+    // Sauber abgegrenztes Objekt für genau diese Item-ID erstellen
+    saleInputs = {
+      ...saleInputs,
+      [runItemId]: { price: '', isShop: false }
+    };
+    addingSaleForItemId = {
+      ...addingSaleForItemId,
+      [runItemId]: true
+    };
+  }
+
+  function closeSaleForm(runItemId) {
+    addingSaleForItemId = {
+      ...addingSaleForItemId,
+      [runItemId]: false
+    };
   }
 
   async function saveSaleForItem(runId, runItem) {
@@ -348,7 +362,6 @@
       return;
     }
 
-    // Sendet die eindeutige run_drop_id (z.B. 146) an das Backend
     const payload = {
       run_drop_id: runItem.id,
       sale_price: Number(input.price),
@@ -364,7 +377,7 @@
       });
 
       if (res.ok) {
-        addingSaleForItemId[runItem.id] = false;
+        closeSaleForm(runItem.id);
         await loadRunDetails(runId);
       } else {
         alert('Verkauf konnte nicht gespeichert werden.');
@@ -483,7 +496,7 @@
                   {#if !editingItems[run.id]}
                     {#if run.items && run.items.length > 0}
                       <ul class="items-sales-list">
-                        {#each run.items as item}
+                        {#each run.items as item (item.id)}
                           {@const iconSrc = getItemIconUrl(item)}
                           {@const roId = getROItemId(item)}
                           <li class="item-sale-row">
@@ -516,18 +529,20 @@
                                 {/if}
                               {:else if addingSaleForItemId[item.id]}
                                 <div class="inline-sale-form">
-                                  <input 
-                                    type="number" 
-                                    placeholder="Preis" 
-                                    bind:value={saleInputs[item.id].price} 
-                                    class="price-input" 
-                                  />
-                                  <label class="checkbox-label">
-                                    <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
-                                    Shop
-                                  </label>
+                                  {#if saleInputs[item.id]}
+                                    <input 
+                                      type="number" 
+                                      placeholder="Preis" 
+                                      bind:value={saleInputs[item.id].price} 
+                                      class="price-input" 
+                                    />
+                                    <label class="checkbox-label">
+                                      <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
+                                      Shop
+                                    </label>
+                                  {/if}
                                   <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
-                                  <button type="button" class="cancel-mini-btn" on:click={() => addingSaleForItemId[item.id] = false}>✕</button>
+                                  <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
                                 </div>
                               {:else}
                                 <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
