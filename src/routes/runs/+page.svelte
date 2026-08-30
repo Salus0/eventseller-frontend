@@ -29,6 +29,15 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
+  // Helper zum Erzeugen der Standard-Auth-Header
+  function getAuthHeaders() {
+    const token = localStorage.getItem('jwt_token') || jwtToken;
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+  }
+
   function checkAdminStatus() {
     const token = localStorage.getItem('jwt_token');
     if (token) {
@@ -173,11 +182,12 @@
 
   async function loadRunDetails(runId) {
     try {
+      const headers = getAuthHeaders();
       const [partsRes, itemsRes, salesRes, summaryRes] = await Promise.all([
-        fetch(`${backendUrl}/runs/${runId}/participants`),
-        fetch(`${backendUrl}/runs/${runId}/items`),
-        fetch(`${backendUrl}/runs/${runId}/sales`),
-        fetch(`${backendUrl}/runs/${runId}/summary`)
+        fetch(`${backendUrl}/runs/${runId}/participants`, { headers }),
+        fetch(`${backendUrl}/runs/${runId}/items`, { headers }),
+        fetch(`${backendUrl}/runs/${runId}/sales`, { headers }),
+        fetch(`${backendUrl}/runs/${runId}/summary`, { headers })
       ]);
 
       let loadedParticipants = [];
@@ -237,19 +247,22 @@
     isLoading = true;
     errorMessage = '';
     try {
+      const headers = getAuthHeaders();
       const [partsRes, itemsRes] = await Promise.all([
-        fetch(`${backendUrl}/participants/`),
-        fetch(`${backendUrl}/items/`)
+        fetch(`${backendUrl}/participants/`, { headers }),
+        fetch(`${backendUrl}/items/`, { headers })
       ]);
 
       if (itemsRes.ok) masterItems = await itemsRes.json();
       if (partsRes.ok) availableParticipants = await partsRes.json();
 
-      const runsRes = await fetch(`${backendUrl}/runs/`);
+      const runsRes = await fetch(`${backendUrl}/runs/`, { headers });
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
         runs = Array.isArray(loadedRuns) ? loadedRuns : [];
         await Promise.all(runs.map(r => loadRunDetails(r.id)));
+      } else if (runsRes.status === 401) {
+        errorMessage = 'Nicht autorisiert! Bitte neu einloggen.';
       } else {
         errorMessage = `Fehler beim Laden der Runs (Status: ${runsRes.status})`;
       }
@@ -306,10 +319,7 @@
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/participants`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwtToken}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(updatedList)
       });
       if (res.ok) {
@@ -326,10 +336,7 @@
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/participants/${participantId}/payout`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwtToken}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ is_paid: !currentStatus })
       });
       if (res.ok) {
@@ -426,10 +433,7 @@
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/items`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwtToken}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(updatedList)
       });
 
@@ -491,10 +495,7 @@
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/sales`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwtToken}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
 
