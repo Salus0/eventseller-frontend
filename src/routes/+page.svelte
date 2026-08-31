@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
+	import { goto } from '$app/navigation';
 
 	const backendUrl = env.PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 	let runs = [];
@@ -24,7 +25,6 @@
 				);
 				const decoded = JSON.parse(jsonPayload);
 				
-				// Sowohl Name, User-ID als auch Discord-ID aus dem Token extrahieren
 				currentUserName = decoded.sub || decoded.name || decoded.username || '';
 				currentUserId = decoded.id || decoded.userId || decoded.user_id || null;
 				currentDiscordId = String(decoded.discord_id || decoded.discordId || '').trim();
@@ -75,7 +75,6 @@
 			if (res.ok) {
 				const loadedRuns = await res.json();
 				runs = Array.isArray(loadedRuns) ? loadedRuns : [];
-				// Für jeden Run die Teilnehmer & Items nachladen
 				await Promise.all(runs.map(r => loadRunDetails(r.id)));
 			}
 		} catch (err) {
@@ -90,83 +89,46 @@
 		if (!run.participants || !Array.isArray(run.participants)) return false;
 
 		return run.participants.some(p => {
-			const pId = p.participant_id || p.id;
+			const pId = p.participant_id || p.id || p.user_id;
 			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
-			const pName = (p.name || '').trim().toLowerCase();
-
-			// 1. Match über Datenbank ID
-			if (currentUserId && String(pId) === String(currentUserId)) return true;
-
-			// 2. Match über Discord ID
-			if (currentDiscordId && pDiscordId && currentDiscordId === pDiscordId) return true;
-
-			// 3. Match über den Namen
-			if (currentUserName && pName && currentUserName.toLowerCase() === pName) return true;
-
-			return false;
-		});
-	}
-
-	// Hilfsfunktion zur Ermittlung des Auszahlungs-Status des aktuellen Users im Run
-	function getUserPayoutStatus(run) {
-		if (!run.participants) return false;
-		const myParticipant = run.participants.find(p => {
-			const pId = p.participant_id || p.id;
-			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
-			const pName = (p.name || '').trim().toLowerCase();
+			const pName = (p.name || p.username || '').trim().toLowerCase();
 
 			return (currentUserId && String(pId) === String(currentUserId)) ||
 				   (currentDiscordId && pDiscordId && currentDiscordId === pDiscordId) ||
 				   (currentUserName && pName && currentUserName.toLowerCase() === pName);
 		});
-		return myParticipant ? Boolean(myParticipant.is_paid) : false;
 	}
 
-	// Dynamischer Run-Status (identisch zur Runs-Seite)
-	function getRunStatusInfo(run) {
+	// Berechnet den Fortschritt der verkauften Items
+	function getItemSalesInfo(run) {
 		const items = run.items || [];
-		const participants = run.participants || [];
-
-		const totalItems = items.length;
-		const soldItems = items.filter(i => Boolean(i.sale_price || i.price || i.actual_price)).length;
-		const allItemsSold = totalItems > 0 && soldItems === totalItems;
-
-		const totalParticipants = participants.length;
-		const paidParticipants = participants.filter(p => p.is_paid).length;
-		const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
-
-		if (allItemsSold && allPaidOut) {
-			return { label: 'Abgeschlossen', cssClass: 'status-close', isClosed: true };
-		}
-		if (allItemsSold) {
-			return { label: 'Auszahlung bereit', cssClass: 'status-payout', isClosed: false };
-		}
-		if (soldItems > 0) {
-			return { label: 'Im Verkauf', cssClass: 'status-onsale', isClosed: false };
-		}
-		return { label: 'Offen', cssClass: 'status-open', isClosed: false };
+		const total = items.length;
+		const sold = items.filter(i => Boolean(i.sale_price || i.price || i.actual_price)).length;
+		return { sold, total, hasSales: sold > 0 };
 	}
 
-	// Filter: Nur Runs des aktuellen Users
-	$: userRuns = runs.filter(run => isUserInRun(run));
-
-	// Offen = Run ist noch nicht vollzählig abgeschlossen ODER die eigene Auszahlung ist noch offen
-	$: openRuns = userRuns.filter(run => {
-		const status = getRunStatusInfo(run);
-		const isPaid = getUserPayoutStatus(run);
-		return !status.isClosed || !isPaid;
-	});
-
-	// Abgeschlossen = Run ist geschlossen UND die eigene Auszahlung ist erfolgt
-	$: finishedRuns = userRuns.filter(run => {
-		const status = getRunStatusInfo(run);
-		const isPaid = getUserPayoutStatus(run);
-		return status.isClosed && isPaid;
-	});
+	function formatDate(dateString) {
+		if (!dateString) return '';
+		return new Date(dateString).toLocaleDateString('de-DE', {
+			day: '2-digit',
+			month: '2-digit',
+			year: 'numeric'
+		});
+	}
 
 	function formatZeny(amount) {
 		return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
 	}
+
+	// Klick-Handler für Weiterleitung zur Runs-Seite mit Open-Parameter
+	function openRunDetails(runId) {
+		goto(`/runs?open=${runId}`);
+	}
+
+	// Alle Runs filtern, bei denen der User beteiligt ist, und nach Erstellungsdatum/ID absteigend sortieren
+	$: userRuns = runs
+		.filter(run => isUserInRun(run))
+		.sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0));
 
 	onMount(() => {
 		checkUserSession();
@@ -180,56 +142,34 @@
 	{#if isLoading}
 		<p class="status">Lade deine Runs...</p>
 	{:else}
-		<!-- SEKTION 1: OFFENE RUNS -->
 		<section class="card">
-			<h2>⏳ Offene Runs (Verkauf / Auszahlung ausstehend)</h2>
-			{#if openRuns.length > 0}
+			<h2>Meine aktiven Runs</h2>
+			{#if userRuns.length > 0}
 				<ul class="run-list">
-					{#each openRuns as run}
-						{@const status = getRunStatusInfo(run)}
-						{@const isPaid = getUserPayoutStatus(run)}
-						<li class="run-item open">
-							<div class="run-info">
-								<strong>{run.name}</strong>
-								<span class="badge {status.cssClass}">{status.label}</span>
+					{#each userRuns as run}
+						{@const sales = getItemSalesInfo(run)}
+						<li class="run-item" on:click={() => openRunDetails(run.id)} role="button" tabindex="0">
+							<div class="run-header">
+								<strong class="run-name">{run.name}</strong>
+								<span class="run-date">{formatDate(run.created_at || run.date)}</span>
 							</div>
-							<div class="run-right">
-								{#if run.summary}
-									<span class="zeny-payout">Split: {formatZeny(run.summary.payout_per_player)}</span>
-								{/if}
-								<span class="payout-status" class:paid={isPaid}>
-									{isPaid ? '✓ Ausgezahlt' : '⏳ Auszahlung offen'}
-								</span>
-							</div>
-						</li>
-					{/each}
-				</ul>
-			{:else}
-				<p class="empty-text">Keine offenen Runs, bei denen du beteiligt bist.</p>
-			{/if}
-		</section>
 
-		<!-- SEKTION 2: ABGESCHLOSSENE RUNS -->
-		<section class="card">
-			<h2>✅ Abgeschlossene Runs</h2>
-			{#if finishedRuns.length > 0}
-				<ul class="run-list">
-					{#each finishedRuns as run}
-						<li class="run-item finished">
-							<div class="run-info">
-								<strong>{run.name}</strong>
-								<span class="badge status-close">Abgeschlossen</span>
-							</div>
-							<div class="run-right">
+							<div class="run-details">
+								{#if sales.hasSales}
+									<span class="sales-progress">🛒 {sales.sold} / {sales.total} Items verkauft</span>
+								{:else}
+									<span class="no-sales">Keine Verkäufe</span>
+								{/if}
+
 								{#if run.summary}
-									<span class="zeny-payout">{formatZeny(run.summary.payout_per_player)} erhalten</span>
+									<span class="split-amount">Split: {formatZeny(run.summary.payout_per_player)}</span>
 								{/if}
 							</div>
 						</li>
 					{/each}
 				</ul>
 			{:else}
-				<p class="empty-text">Noch keine abgeschlossenen Runs vorhanden.</p>
+				<p class="empty-text">Du bist aktuell in keinen Runs eingetragen.</p>
 			{/if}
 		</section>
 	{/if}
@@ -252,7 +192,6 @@
 		border: 1px solid #334155;
 		padding: 1.5rem;
 		border-radius: 8px;
-		margin-bottom: 1.5rem;
 	}
 	h2 {
 		font-size: 1.1rem;
@@ -264,58 +203,55 @@
 		list-style: none;
 		padding: 0;
 		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
 	}
 	.run-item {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		background: #0f172a;
-		padding: 0.8rem 1rem;
+		padding: 1rem;
 		border-radius: 6px;
-		margin-bottom: 0.5rem;
 		border-left: 4px solid #6366f1;
-		flex-wrap: wrap;
-		gap: 0.5rem;
+		cursor: pointer;
+		transition: background-color 0.2s ease, transform 0.1s ease;
 	}
-	.run-item.open {
-		border-left-color: #d97706;
+	.run-item:hover {
+		background: #1e293b;
+		transform: translateY(-2px);
 	}
-	.run-item.finished {
-		border-left-color: #059669;
+	.run-header {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
 	}
-	.run-info {
+	.run-name {
+		font-size: 1rem;
+		color: #f8fafc;
+	}
+	.run-date {
+		font-size: 0.8rem;
+		color: #94a3b8;
+	}
+	.run-details {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 1.5rem;
 	}
-	.run-right {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
+	.sales-progress {
 		font-size: 0.85rem;
+		color: #38bdf8;
 	}
-	.badge {
-		font-size: 0.75rem;
-		padding: 0.2rem 0.5rem;
-		border-radius: 4px;
-		font-weight: 600;
-		color: white;
+	.no-sales {
+		font-size: 0.85rem;
+		color: #64748b;
 	}
-	.status-open { background-color: #059669; }
-	.status-onsale { background-color: #d97706; }
-	.status-payout { background-color: #ca8a04; }
-	.status-close { background-color: #dc2626; }
-
-	.zeny-payout {
+	.split-amount {
 		color: #fbbf24;
 		font-weight: 600;
-	}
-	.payout-status {
-		color: #f59e0b;
-		font-weight: 500;
-	}
-	.payout-status.paid {
-		color: #34d399;
+		font-size: 0.95rem;
 	}
 	.empty-text, .status {
 		color: #94a3b8;
