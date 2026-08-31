@@ -25,16 +25,22 @@
 				);
 				const decoded = JSON.parse(jsonPayload);
 				
-				// Auslesen der User-/Participant-ID aus gängigen JWT-Feldern
-				currentUserId = decoded.participant_id ?? decoded.user_id ?? decoded.id ?? decoded.sub ?? null;
+				// Liest die Discord-ID aus allen gängigen Token-Strukturen aus
+				currentDiscordId = String(
+					decoded.discord_id || decoded.discordId || decoded.sub || ''
+				).trim();
 
-				console.log('Eingeloggt mit Participant/User ID:', currentUserId);
+				// Liest die ID & den Namen aus
+				currentUserId = decoded.id || decoded.user_id || decoded.participant_id || null;
+				currentUserName = String(decoded.name || decoded.username || decoded.sub || '').trim();
+
+				console.log('Session Geladen:', { currentDiscordId, currentUserId, currentUserName });
 			} catch (e) {
 				console.error('Fehler beim Lesen des Tokens:', e);
 			}
 		}
 	}
-
+	
 	function getAuthHeaders() {
 		return {
 			'Content-Type': 'application/json',
@@ -102,14 +108,38 @@
 
 	// Rein über participant_id / ID abgleichen
 	function isUserInRun(run) {
-		if (currentUserId === null || currentUserId === undefined || !run.participants || !Array.isArray(run.participants)) {
-			return false;
-		}
+		if (!run.participants || !Array.isArray(run.participants)) return false;
 
 		return run.participants.some(p => {
-			const pId = p.participant_id ?? p.id ?? p.user_id;
-			// String-Vergleich stellt sicher, dass Integer und Strings (z.B. "12" vs 12) übereinstimmen
-			return pId !== undefined && pId !== null && String(pId) === String(currentUserId);
+			// 1. Felder aus dem Backend-Teilnehmerobjekt auslesen
+			const pDbId = String(p.id ?? p.participant_id ?? p.user_id ?? '').trim();
+			const pDiscordId = String(p.discord_id ?? p.discordId ?? '').trim();
+			const pName = String(p.name ?? p.username ?? '').trim().toLowerCase();
+
+			// 2. Gegen die JWT-Daten des eingeloggten Nutzers prüfen
+			
+			// Match 1: Discord-ID entspricht der Discord-ID im Token
+			const matchDiscord = Boolean(
+				currentDiscordId && 
+				pDiscordId && 
+				currentDiscordId === pDiscordId
+			);
+
+			// Match 2: Datenbank-ID entspricht der User/Participant-ID im Token
+			const matchId = Boolean(
+				currentUserId && 
+				pDbId && 
+				String(currentUserId) === pDbId
+			);
+
+			// Match 3: Name entspricht dem Namen im Token (Fallback)
+			const matchName = Boolean(
+				currentUserName && 
+				pName && 
+				currentUserName.toLowerCase() === pName
+			);
+
+			return matchDiscord || matchId || matchName;
 		});
 	}
 
