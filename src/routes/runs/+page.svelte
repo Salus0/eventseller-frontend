@@ -304,7 +304,7 @@
 
         return {
           ...item,
-          id: realDbId ?? numericRoId ?? index,
+          id: realDbId ?? numericRoId ?? `${runId}-item-${index}`,
           real_db_id: realDbId ? Number(realDbId) : null,
           ro_item_id: numericRoId,
           image_url: master?.image_url || master?.icon_url || item.image_url || null,
