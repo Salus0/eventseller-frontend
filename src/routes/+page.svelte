@@ -104,10 +104,9 @@
 		});
 	}
 
-	// Berechnet gedroppte vs. verkaufte Items über das 'quantity'-Feld
 	function getItemSalesInfo(run) {
-		const totalDrops = (run.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-		const totalSold = (run.sales || []).reduce((sum, sale) => sum + (Number(sale.quantity) || 0), 0);
+		const totalDrops = (run.items || []).reduce((sum, item) => sum + (Number(item.quantity || item.amount) || 1), 0);
+		const totalSold = (run.sales || []).reduce((sum, sale) => sum + (Number(sale.quantity) || 1), 0);
 		
 		return { 
 			sold: totalSold, 
@@ -115,12 +114,29 @@
 		};
 	}
 
-	// Ermittelt den Run-Status basierend auf den Auszahlungen
-	function getRunStatus(run) {
-		if (run.summary && run.summary.all_paid_out) {
-			return { label: 'Ausbezahlt', class: 'paid' };
+	// 1:1 LOGIK AUS DER RUNS-SEITE
+	function getRunStatusInfo(run) {
+		const items = run.items || [];
+		const participants = run.participants || [];
+
+		const totalItems = items.length;
+		const soldItems = (run.sales || []).length;
+		const allItemsSold = totalItems > 0 && soldItems >= totalItems;
+
+		const totalParticipants = participants.length;
+		const paidParticipants = participants.filter(p => p.is_paid).length;
+		const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
+
+		if (allItemsSold && allPaidOut) {
+			return { label: 'Close', cssClass: 'status-close' };
 		}
-		return { label: 'Offen', class: 'open' };
+		if (allItemsSold) {
+			return { label: 'Payout', cssClass: 'status-payout' };
+		}
+		if (soldItems > 0) {
+			return { label: 'On Sale', cssClass: 'status-onsale' };
+		}
+		return { label: 'Open', cssClass: 'status-open' };
 	}
 
 	function formatDate(dateString) {
@@ -162,12 +178,12 @@
 				<ul class="run-list">
 					{#each userRuns as run}
 						{@const sales = getItemSalesInfo(run)}
-						{@const status = getRunStatus(run)}
+						{@const status = getRunStatusInfo(run)}
 						<li class="run-item" on:click={() => openRunDetails(run.id)} role="button" tabindex="0">
 							<div class="run-header">
 								<div class="run-title-line">
 									<strong class="run-name">{run.name}</strong>
-									<span class="status-badge {status.class}">
+									<span class="badge {status.cssClass}">
 										{status.label}
 									</span>
 								</div>
@@ -258,21 +274,21 @@
 		font-size: 1rem;
 		color: #f8fafc;
 	}
-	.status-badge {
-		font-size: 0.75rem;
-		padding: 0.15rem 0.5rem;
-		border-radius: 4px;
-		font-weight: bold;
-		text-transform: uppercase;
+	
+	/* EXAKTE FARB-CLASSES DER RUNS-SEITE */
+	.badge { 
+		color: white; 
+		font-size: 0.75rem; 
+		font-weight: 600; 
+		padding: 0.25rem 0.6rem; 
+		border-radius: 4px; 
+		text-transform: capitalize; 
 	}
-	.status-badge.open {
-		background: #0284c7;
-		color: #e0f2fe;
-	}
-	.status-badge.paid {
-		background: #16a34a;
-		color: #dcfce7;
-	}
+	.status-open { background-color: #059669; }     /* Grün */
+	.status-onsale { background-color: #d97706; }   /* Gelb/Orange */
+	.status-payout { background-color: #ca8a04; }   /* Gelb */
+	.status-close { background-color: #dc2626; }    /* Rot */
+
 	.run-date {
 		font-size: 0.8rem;
 		color: #94a3b8;
