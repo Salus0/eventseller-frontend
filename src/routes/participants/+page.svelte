@@ -50,8 +50,26 @@
   async function loadParticipants() {
     isLoading = true;
     errorMessage = '';
+
+    // Falls kein Token vorhanden ist (Nutzer nicht eingeloggt), gar nicht erst anfragen
+    if (!jwtToken) {
+      isLoading = false;
+      errorMessage = 'Bitte logge dich ein, um die Teilnehmer zu sehen.';
+      return;
+    }
+
     try {
-      const res = await fetch(`${backendUrl}/participants/`);
+      const res = await fetch(`${backendUrl}/participants/`, {
+        headers: {
+          'Authorization': `Bearer ${jwtToken}` // <- WICHTIG: Authorization-Header mitsenden
+        }
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        errorMessage = 'Keine Berechtigung! Bitte logge dich ein.';
+        return;
+      }
+
       if (res.ok) {
         participants = await res.json();
       } else {
