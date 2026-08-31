@@ -25,11 +25,12 @@
     };
   }
 
+  // Korrigierte Endpunkte mit trailing slash analog zur Runs-Seite
   async function loadMasterData() {
     try {
       const [itemsRes, playersRes] = await Promise.all([
-        fetch(`${backendUrl}/items`, { headers: getAuthHeaders() }),
-        fetch(`${backendUrl}/players`, { headers: getAuthHeaders() })
+        fetch(`${backendUrl}/items/`, { headers: getAuthHeaders() }),
+        fetch(`${backendUrl}/participants/`, { headers: getAuthHeaders() })
       ]);
       if (itemsRes.ok) availableItems = await itemsRes.json();
       if (playersRes.ok) availablePlayers = await playersRes.json();
@@ -38,7 +39,7 @@
     }
   }
 
-  // --- PARSER FÜR DEN CSV BLOCK ---
+  // Parser, der den Run-Namen direkt aus der ersten Zeile übernimmt
   function parseRunBlock() {
     if (!rawInput.trim()) {
       alert('Bitte füge die CSV-Daten ein.');
@@ -47,6 +48,7 @@
 
     const lines = rawInput.split('\n').map(l => l.trim()).filter(Boolean);
     
+    let runNameCustom = '';
     let runDate = new Date().toISOString().split('T')[0];
     let items = [];
     let participants = [];
@@ -55,31 +57,37 @@
     for (let line of lines) {
       const cols = line.split(',').map(c => c.trim());
 
-      // 1. Datum aus Kopfzeile holen (z.B. "EC+ET,24.07.2026")
+      // 1. Kopfzeile auswerten (z.B. "EC+ET,24.07.2026")
       if (mode === 'header' && cols[0]) {
-        if (cols[1] && cols[1].includes('.')) {
-          const parts = cols[1].split('.');
+        let prefix = cols[0];
+        let datePart = cols[1] || '';
+
+        if (datePart.includes('.')) {
+          const parts = datePart.split('.');
           if (parts.length === 3) {
             runDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
           }
         }
+
+        // Run-Namen direkt aus dem ersten Spaltenwert und Datum bilden
+        runNameCustom = datePart ? `${prefix} ${datePart}` : prefix;
         mode = 'items';
         continue;
       }
 
-      // Summen- und Split-Zeilen im CSV überspringen (wird in Runs automatisch berechnet)
+      // Summen- und Split-Zeilen überspringen
       const lowerLine = line.toLowerCase();
       if (lowerLine.includes('summe') || lowerLine.includes('split')) {
         continue;
       }
 
-      // Erkennung der Trennzeile zwischen Items und Teilnehmern
+      // Trennzeile erkennen
       if (line.replace(/,/g, '') === '' || line.startsWith(',,,,,,') || (/^\d+$/.test(cols[0]) && !cols[1])) {
         mode = 'players';
         continue;
       }
 
-      // 2. Items einlesen (Verkaufspreis und Shoppreis wie in echten Runs)
+      // 2. Items einlesen
       if (mode === 'items') {
         let itemName = cols[1] || cols[0];
         let priceStr = cols[2] || '0';
@@ -98,21 +106,19 @@
         }
       }
 
-      // 3. Teilnehmer einlesen (inkl. Auszahlungsdatum & Uhrzeit)
+      // 3. Teilnehmer einlesen
       if (mode === 'players' || /^\d{1,2}$/.test(cols[0])) {
         let playerName = cols[1];
         let payoutDateStr = cols[2] || '';
         let payoutTimeStr = cols[3] || '';
 
         if (playerName && playerName.toLowerCase() !== 'summe' && playerName.toLowerCase() !== 'split') {
-          // Versuche bekannten Spieler zu matchen
           let matched = availablePlayers.find(p => p.name.toLowerCase() === playerName.toLowerCase());
           let finalName = matched ? matched.name : playerName;
 
           let payoutDateTime = '';
           let isPaid = false;
 
-          // Auszahlungsdatum parsen (z.B. "31.07.2026" + "19:52")
           if (payoutDateStr && payoutDateStr.includes('.')) {
             const pParts = payoutDateStr.split('.');
             if (pParts.length === 3) {
@@ -133,7 +139,7 @@
     }
 
     parsedRun = {
-      name: `Run vom ${runDate.split('-').reverse().join('.')}`,
+      name: runNameCustom || `Run vom ${runDate.split('-').reverse().join('.')}`,
       run_date: runDate,
       items: items,
       participants: participants
@@ -156,13 +162,11 @@
     parsedRun.participants = [...parsedRun.participants];
   }
 
-  // Finales Speichern analog zur regulären Run-Erstellung im Backend
   async function saveImportedRun() {
     if (!parsedRun || !parsedRun.name) return;
     isSubmitting = true;
 
     try {
-      // 1. Run anlegen
       const runRes = await fetch(`${backendUrl}/runs/`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -176,7 +180,6 @@
       const createdRun = await runRes.json();
       const runId = createdRun.id;
 
-      // 2. Teilnehmer inklusive Auszahlungsstatus & Zeitpunkt übergeben
       if (parsedRun.participants.length > 0) {
         await fetch(`${backendUrl}/runs/${runId}/participants`, {
           method: 'PUT',
@@ -190,7 +193,6 @@
         });
       }
 
-      // 3. Items, Mengen, Verkaufspreis und Shoppreis übergeben
       for (const item of parsedRun.items) {
         if (!item.name) continue;
         await fetch(`${backendUrl}/runs/${runId}/items`, {
@@ -219,7 +221,7 @@
 
 <div class="import-container">
   <h1>Run CSV-Import</h1>
-  <p class="subtitle">Füge deinen kopierten Tabellenblock ein. Preise, Items und Auszahlungen werden exakt wie bei manuell erstellten Runs übernommen.</p>
+  <p class="subtitle">Füge deinen kopierten Tabellenblock ein. Der Runname wird direkt aus der Kopfzeile übernommen.</p>
 
   {#if !isEditing}
     <div class="card">
