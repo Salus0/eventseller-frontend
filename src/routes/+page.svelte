@@ -6,11 +6,9 @@
 	const backendUrl = env.PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 	let runs = [];
 	let isLoading = true;
-	let currentUserName = '';
-	let currentUserId = null;
 	let currentDiscordId = '';
 
-	// Token decodieren, um den eingeloggten User zu identifizieren
+	// Discord-ID aus dem JWT-Token extrahieren
 	function checkUserSession() {
 		const token = localStorage.getItem('jwt_token');
 		if (token) {
@@ -25,16 +23,18 @@
 				);
 				const decoded = JSON.parse(jsonPayload);
 				
-				currentUserName = decoded.sub || decoded.name || decoded.username || '';
-				currentUserId = decoded.id || decoded.userId || decoded.user_id || null;
-				currentDiscordId = String(decoded.discord_id || decoded.discordId || '').trim();
+				// Discord ID aus verschiedenen möglichen Payload-Feldern lesen
+				currentDiscordId = String(
+					decoded.discord_id || decoded.discordId || decoded.id || ''
+				).trim();
+
+				console.log('Eingeloggt mit Discord ID:', currentDiscordId);
 			} catch (e) {
 				console.error('Fehler beim Lesen des Tokens:', e);
 			}
 		}
 	}
 
-	// Details für einen einzelnen Run laden (Teilnehmer, Items & Summary)
 	async function loadRunDetails(runId) {
 		try {
 			const [partsRes, itemsRes, summaryRes] = await Promise.all([
@@ -67,7 +67,6 @@
 		}
 	}
 
-	// Alle Runs vom Backend laden und danach die Details nachziehen
 	async function loadRuns() {
 		isLoading = true;
 		try {
@@ -84,22 +83,18 @@
 		}
 	}
 
-	// Prüfen, ob der eingeloggte User Teilnehmer in diesem Run ist
+	// Rein über Discord-ID abgleichen
 	function isUserInRun(run) {
-		if (!run.participants || !Array.isArray(run.participants)) return false;
+		if (!currentDiscordId || !run.participants || !Array.isArray(run.participants)) {
+			return false;
+		}
 
 		return run.participants.some(p => {
-			const pId = p.participant_id || p.id || p.user_id;
 			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
-			const pName = (p.name || p.username || '').trim().toLowerCase();
-
-			return (currentUserId && String(pId) === String(currentUserId)) ||
-				   (currentDiscordId && pDiscordId && currentDiscordId === pDiscordId) ||
-				   (currentUserName && pName && currentUserName.toLowerCase() === pName);
+			return pDiscordId !== '' && pDiscordId === currentDiscordId;
 		});
 	}
 
-	// Berechnet den Fortschritt der verkauften Items
 	function getItemSalesInfo(run) {
 		const items = run.items || [];
 		const total = items.length;
@@ -120,12 +115,10 @@
 		return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
 	}
 
-	// Klick-Handler für Weiterleitung zur Runs-Seite mit Open-Parameter
 	function openRunDetails(runId) {
 		goto(`/runs?open=${runId}`);
 	}
 
-	// Alle Runs filtern, bei denen der User beteiligt ist, und nach Erstellungsdatum/ID absteigend sortieren
 	$: userRuns = runs
 		.filter(run => isUserInRun(run))
 		.sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0));
