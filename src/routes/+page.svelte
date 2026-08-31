@@ -7,11 +7,13 @@
 	let runs = [];
 	let isLoading = true;
 	let currentDiscordId = '';
+	let authToken = '';
 
-	// Discord-ID aus dem JWT-Token extrahieren
+	// Session und Token aus localStorage abrufen
 	function checkUserSession() {
 		const token = localStorage.getItem('jwt_token');
 		if (token) {
+			authToken = token;
 			try {
 				const base64Url = token.split('.')[1];
 				const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -23,24 +25,31 @@
 				);
 				const decoded = JSON.parse(jsonPayload);
 				
-				// Discord ID aus verschiedenen möglichen Payload-Feldern lesen
 				currentDiscordId = String(
 					decoded.discord_id || decoded.discordId || decoded.id || ''
 				).trim();
-
-				console.log('Eingeloggt mit Discord ID:', currentDiscordId);
 			} catch (e) {
 				console.error('Fehler beim Lesen des Tokens:', e);
 			}
 		}
 	}
 
+	// Helper function für authentifizierte Backend-Anfragen
+	function getAuthHeaders() {
+		return {
+			'Content-Type': 'application/json',
+			...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+		};
+	}
+
+	// Details für einen einzelnen Run laden (inklusive Auth-Header)
 	async function loadRunDetails(runId) {
 		try {
+			const headers = getAuthHeaders();
 			const [partsRes, itemsRes, summaryRes] = await Promise.all([
-				fetch(`${backendUrl}/runs/${runId}/participants`),
-				fetch(`${backendUrl}/runs/${runId}/items`),
-				fetch(`${backendUrl}/runs/${runId}/summary`)
+				fetch(`${backendUrl}/runs/${runId}/participants`, { headers }),
+				fetch(`${backendUrl}/runs/${runId}/items`, { headers }),
+				fetch(`${backendUrl}/runs/${runId}/summary`, { headers })
 			]);
 
 			let loadedParticipants = [];
@@ -67,10 +76,20 @@
 		}
 	}
 
+	// Alle Runs laden (inklusive Auth-Header)
 	async function loadRuns() {
 		isLoading = true;
 		try {
-			const res = await fetch(`${backendUrl}/runs/`);
+			const res = await fetch(`${backendUrl}/runs/`, {
+				headers: getAuthHeaders()
+			});
+
+			if (res.status === 401) {
+				console.error('Nicht autorisiert! Bitte erneut einloggen.');
+				isLoading = false;
+				return;
+			}
+
 			if (res.ok) {
 				const loadedRuns = await res.json();
 				runs = Array.isArray(loadedRuns) ? loadedRuns : [];
@@ -83,7 +102,6 @@
 		}
 	}
 
-	// Rein über Discord-ID abgleichen
 	function isUserInRun(run) {
 		if (!currentDiscordId || !run.participants || !Array.isArray(run.participants)) {
 			return false;
