@@ -6,10 +6,14 @@
 	const backendUrl = env.PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 	let runs = [];
 	let isLoading = true;
-	let currentUserId = null;
 	let authToken = '';
 
-	// User-ID & Token aus Session / JWT laden
+	// ALLE Variablen explizit deklarieren, um ReferenceError zu vermeiden:
+	let currentDiscordId = '';
+	let currentUserId = null;
+	let currentUserName = '';
+
+	// Session und Token aus localStorage abrufen
 	function checkUserSession() {
 		const token = localStorage.getItem('jwt_token');
 		if (token) {
@@ -25,22 +29,18 @@
 				);
 				const decoded = JSON.parse(jsonPayload);
 				
-				// Liest die Discord-ID aus allen gängigen Token-Strukturen aus
-				currentDiscordId = String(
-					decoded.discord_id || decoded.discordId || decoded.sub || ''
-				).trim();
-
-				// Liest die ID & den Namen aus
-				currentUserId = decoded.id || decoded.user_id || decoded.participant_id || null;
+				// Token-Felder auslesen
+				currentDiscordId = String(decoded.discord_id || decoded.discordId || decoded.discord || '').trim();
+				currentUserId = decoded.id ?? decoded.user_id ?? decoded.participant_id ?? decoded.sub ?? null;
 				currentUserName = String(decoded.name || decoded.username || decoded.sub || '').trim();
 
-				console.log('Session Geladen:', { currentDiscordId, currentUserId, currentUserName });
+				console.log('Session geladen:', { currentDiscordId, currentUserId, currentUserName });
 			} catch (e) {
 				console.error('Fehler beim Lesen des Tokens:', e);
 			}
 		}
 	}
-	
+
 	function getAuthHeaders() {
 		return {
 			'Content-Type': 'application/json',
@@ -106,38 +106,21 @@
 		}
 	}
 
-	// Rein über participant_id / ID abgleichen
+	// Multi-Match-Prüfung über Discord-ID, Datenbank-ID und Name
 	function isUserInRun(run) {
 		if (!run.participants || !Array.isArray(run.participants)) return false;
 
 		return run.participants.some(p => {
-			// 1. Felder aus dem Backend-Teilnehmerobjekt auslesen
+			const pDiscordId = String(p.discord_id || p.discordId || p.discord || '').trim();
 			const pDbId = String(p.id ?? p.participant_id ?? p.user_id ?? '').trim();
-			const pDiscordId = String(p.discord_id ?? p.discordId ?? '').trim();
-			const pName = String(p.name ?? p.username ?? '').trim().toLowerCase();
+			const pName = String(p.name || p.username || '').trim().toLowerCase();
 
-			// 2. Gegen die JWT-Daten des eingeloggten Nutzers prüfen
-			
-			// Match 1: Discord-ID entspricht der Discord-ID im Token
-			const matchDiscord = Boolean(
-				currentDiscordId && 
-				pDiscordId && 
-				currentDiscordId === pDiscordId
-			);
-
-			// Match 2: Datenbank-ID entspricht der User/Participant-ID im Token
-			const matchId = Boolean(
-				currentUserId && 
-				pDbId && 
-				String(currentUserId) === pDbId
-			);
-
-			// Match 3: Name entspricht dem Namen im Token (Fallback)
-			const matchName = Boolean(
-				currentUserName && 
-				pName && 
-				currentUserName.toLowerCase() === pName
-			);
+			// 1. Match über Discord-ID
+			const matchDiscord = Boolean(currentDiscordId && pDiscordId && currentDiscordId === pDiscordId);
+			// 2. Match über Datenbank-ID (String-Vergleich)
+			const matchId = Boolean(currentUserId !== null && pDbId && String(currentUserId) === pDbId);
+			// 3. Match über Name
+			const matchName = Boolean(currentUserName && pName && currentUserName.toLowerCase() === pName);
 
 			return matchDiscord || matchId || matchName;
 		});
