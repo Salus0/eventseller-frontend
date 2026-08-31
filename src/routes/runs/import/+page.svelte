@@ -25,7 +25,6 @@
     };
   }
 
-  // Korrigierte Endpunkte mit trailing slash analog zur Runs-Seite
   async function loadMasterData() {
     try {
       const [itemsRes, playersRes] = await Promise.all([
@@ -39,7 +38,6 @@
     }
   }
 
-  // Parser, der den Run-Namen direkt aus der ersten Zeile übernimmt
   function parseRunBlock() {
     if (!rawInput.trim()) {
       alert('Bitte füge die CSV-Daten ein.');
@@ -57,7 +55,6 @@
     for (let line of lines) {
       const cols = line.split(',').map(c => c.trim());
 
-      // 1. Kopfzeile auswerten (z.B. "EC+ET,24.07.2026")
       if (mode === 'header' && cols[0]) {
         let prefix = cols[0];
         let datePart = cols[1] || '';
@@ -65,29 +62,25 @@
         if (datePart.includes('.')) {
           const parts = datePart.split('.');
           if (parts.length === 3) {
-            runDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+            runDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
           }
         }
 
-        // Run-Namen direkt aus dem ersten Spaltenwert und Datum bilden
         runNameCustom = datePart ? `${prefix} ${datePart}` : prefix;
         mode = 'items';
         continue;
       }
 
-      // Summen- und Split-Zeilen überspringen
       const lowerLine = line.toLowerCase();
       if (lowerLine.includes('summe') || lowerLine.includes('split')) {
         continue;
       }
 
-      // Trennzeile erkennen
       if (line.replace(/,/g, '') === '' || line.startsWith(',,,,,,') || (/^\d+$/.test(cols[0]) && !cols[1])) {
         mode = 'players';
         continue;
       }
 
-      // 2. Items einlesen
       if (mode === 'items') {
         let itemName = cols[1] || cols[0];
         let priceStr = cols[2] || '0';
@@ -106,7 +99,6 @@
         }
       }
 
-      // 3. Teilnehmer einlesen
       if (mode === 'players' || /^\d{1,2}$/.test(cols[0])) {
         let playerName = cols[1];
         let payoutDateStr = cols[2] || '';
@@ -114,6 +106,7 @@
 
         if (playerName && playerName.toLowerCase() !== 'summe' && playerName.toLowerCase() !== 'split') {
           let matched = availablePlayers.find(p => p.name.toLowerCase() === playerName.toLowerCase());
+          // Wenn kein Match in der DB, nehmen wir direkt den Namen aus dem Sheet als Standard
           let finalName = matched ? matched.name : playerName;
 
           let payoutDateTime = '';
@@ -180,21 +173,25 @@
       const createdRun = await runRes.json();
       const runId = createdRun.id;
 
+      // Teilnehmer aufbereiten: Falls das Select leer gelassen wurde, fallback auf original_name
       if (parsedRun.participants.length > 0) {
+        const payloadParticipants = parsedRun.participants.map(p => ({
+          name: p.name && p.name.trim() !== '' ? p.name : p.original_name,
+          class_name: 'Sonstiges',
+          is_paid: p.is_paid,
+          payout_at: p.payout_date || null
+        }));
+
         await fetch(`${backendUrl}/runs/${runId}/participants`, {
           method: 'PUT',
           headers: getAuthHeaders(),
-          body: JSON.stringify(parsedRun.participants.map(p => ({
-            name: p.name,
-            class_name: 'Sonstiges',
-            is_paid: p.is_paid,
-            payout_at: p.payout_date || null
-          })))
+          body: JSON.stringify(payloadParticipants)
         });
       }
 
+      // Items aufbereiten
       for (const item of parsedRun.items) {
-        if (!item.name) continue;
+        if (!item.name || item.name.trim() === '') continue;
         await fetch(`${backendUrl}/runs/${runId}/items`, {
           method: 'PUT',
           headers: getAuthHeaders(),
@@ -221,7 +218,7 @@
 
 <div class="import-container">
   <h1>Run CSV-Import</h1>
-  <p class="subtitle">Füge deinen kopierten Tabellenblock ein. Der Runname wird direkt aus der Kopfzeile übernommen.</p>
+  <p class="subtitle">Füge deinen kopierten Tabellenblock ein. Ungematchte Items oder Spieler werden automatisch mit ihrem Originalnamen übernommen.</p>
 
   {#if !isEditing}
     <div class="card">
@@ -253,7 +250,7 @@
       <table class="edit-table">
         <thead>
           <tr>
-            <th>Item Name</th>
+            <th>Item Name (Auswahl oder Freitext)</th>
             <th>Menge</th>
             <th>Verkaufspreis</th>
             <th>Shoppreis</th>
@@ -265,7 +262,7 @@
             <tr>
               <td>
                 <select bind:value={item.name} class="item-select">
-                  <option value="">-- Item wählen --</option>
+                  <option value="">-- Item aus DB wählen (oder unten tippen) --</option>
                   {#each availableItems as ai}
                     <option value={ai.name}>{ai.name}</option>
                   {/each}
@@ -289,7 +286,7 @@
             <span class="original-label" title="Aus Sheet: {p.original_name}">Sheet: <strong>{p.original_name}</strong></span>
             <span class="arrow">➔</span>
             <select bind:value={p.name} class="player-select">
-              <option value="">-- Spieler zuordnen --</option>
+              <option value="">-- Behalten ({p.original_name}) --</option>
               {#each availablePlayers as ap}
                 <option value={ap.name}>{ap.name}</option>
               {/each}
