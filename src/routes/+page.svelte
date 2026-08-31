@@ -57,6 +57,11 @@
 			if (itemsRes.ok) loadedItems = await itemsRes.json();
 			if (summaryRes.ok) loadedSummary = await summaryRes.json();
 
+			// 🔍 DEBUG LOGGING
+			console.log(`--- DEBUG RUN ${runId} ---`);
+			console.log('Deine Token Discord-ID:', currentDiscordId);
+			console.log('Geladene Participants vom Backend:', loadedParticipants);
+
 			runs = runs.map(r => {
 				if (r.id === runId) {
 					return {
