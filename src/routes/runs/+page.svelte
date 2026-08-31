@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
+  import { page } from '$app/stores';
 
   const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 
@@ -350,6 +351,18 @@
         const loadedRuns = await runsRes.json();
         runs = Array.isArray(loadedRuns) ? loadedRuns : [];
         await Promise.all(runs.map(r => loadRunDetails(r.id)));
+
+        // AUTO-OPEN & SCROLL LOGIK
+        const openIdParam = $page.url.searchParams.get('open');
+        if (openIdParam) {
+          const runToOpen = Number(openIdParam);
+          if (runs.some(r => r.id === runToOpen)) {
+            await toggleExpand(runToOpen);
+            setTimeout(() => {
+              document.getElementById(`run-${runToOpen}`)?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+          }
+        }
       } else if (runsRes.status === 401) {
         errorMessage = 'Nicht autorisiert! Bitte neu einloggen.';
       } else {
@@ -713,7 +726,7 @@
       {#each runs as run (run.id)}
         {@const isExpanded = expandedRunIds.has(run.id)}
         {@const statusInfo = getRunStatusInfo(run)}
-        <li class="run-item">
+        <li class="run-item" id="run-{run.id}">
           <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
             
             {#if editingRunHeader[run.id]}
