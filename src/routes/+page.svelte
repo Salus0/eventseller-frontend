@@ -9,7 +9,6 @@
 	let authToken = '';
 	let currentDiscordId = '';
 
-	// Liest die Discord ID aus dem JWT Token
 	function checkUserSession() {
 		const token = localStorage.getItem('jwt_token');
 		if (token) {
@@ -24,8 +23,6 @@
 						.join('')
 				);
 				const decoded = JSON.parse(jsonPayload);
-				
-				// Extrahiere strikt die Discord ID (sub oder discord_id)
 				currentDiscordId = String(decoded.discord_id || decoded.discordId || decoded.sub || '').trim();
 			} catch (e) {
 				console.error('Fehler beim Lesen des Tokens:', e);
@@ -43,24 +40,22 @@
 	async function loadRunDetails(runId) {
 		try {
 			const headers = getAuthHeaders();
-			const [partsRes, itemsRes, summaryRes] = await Promise.all([
+			const [partsRes, itemsRes, salesRes, summaryRes] = await Promise.all([
 				fetch(`${backendUrl}/runs/${runId}/participants`, { headers }),
 				fetch(`${backendUrl}/runs/${runId}/items`, { headers }),
+				fetch(`${backendUrl}/runs/${runId}/sales`, { headers }),
 				fetch(`${backendUrl}/runs/${runId}/summary`, { headers })
 			]);
 
 			let loadedParticipants = [];
 			let loadedItems = [];
+			let loadedSales = [];
 			let loadedSummary = null;
 
 			if (partsRes.ok) loadedParticipants = await partsRes.json();
 			if (itemsRes.ok) loadedItems = await itemsRes.json();
+			if (salesRes.ok) loadedSales = await salesRes.json();
 			if (summaryRes.ok) loadedSummary = await summaryRes.json();
-
-			// 🔍 DEBUG LOGGING
-			console.log(`--- DEBUG RUN ${runId} ---`);
-			console.log('Deine Token Discord-ID:', currentDiscordId);
-			console.log('Geladene Participants vom Backend:', loadedParticipants);
 
 			runs = runs.map(r => {
 				if (r.id === runId) {
@@ -68,6 +63,7 @@
 						...r,
 						participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
 						items: Array.isArray(loadedItems) ? loadedItems : [],
+						sales: Array.isArray(loadedSales) ? loadedSales : [],
 						summary: loadedSummary
 					};
 				}
@@ -97,7 +93,6 @@
 		}
 	}
 
-	// AUSSCHLIESSLICHER ABGLEICH ÜBER DISCORD ID
 	function isUserInRun(run) {
 		if (!currentDiscordId || !run?.participants || !Array.isArray(run.participants)) {
 			return false;
@@ -109,11 +104,23 @@
 		});
 	}
 
+	// Berechnet gedroppte vs. verkaufte Items über das 'quantity'-Feld
 	function getItemSalesInfo(run) {
-		const items = run.items || [];
-		const total = items.length;
-		const sold = items.filter(i => Boolean(i.sale_price || i.price || i.actual_price)).length;
-		return { sold, total, hasSales: sold > 0 };
+		const totalDrops = (run.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+		const totalSold = (run.sales || []).reduce((sum, sale) => sum + (Number(sale.quantity) || 0), 0);
+		
+		return { 
+			sold: totalSold, 
+			total: totalDrops
+		};
+	}
+
+	// Ermittelt den Run-Status basierend auf den Auszahlungen
+	function getRunStatus(run) {
+		if (run.summary && run.summary.all_paid_out) {
+			return { label: 'Ausbezahlt', class: 'paid' };
+		}
+		return { label: 'Offen', class: 'open' };
 	}
 
 	function formatDate(dateString) {
@@ -155,15 +162,23 @@
 				<ul class="run-list">
 					{#each userRuns as run}
 						{@const sales = getItemSalesInfo(run)}
+						{@const status = getRunStatus(run)}
 						<li class="run-item" on:click={() => openRunDetails(run.id)} role="button" tabindex="0">
 							<div class="run-header">
-								<strong class="run-name">{run.name}</strong>
+								<div class="run-title-line">
+									<strong class="run-name">{run.name}</strong>
+									<span class="status-badge {status.class}">
+										{status.label}
+									</span>
+								</div>
 								<span class="run-date">{formatDate(run.created_at || run.date)}</span>
 							</div>
 
 							<div class="run-details">
-								{#if sales.hasSales}
+								{#if sales.total > 0}
 									<span class="sales-progress">🛒 {sales.sold} / {sales.total} Items verkauft</span>
+								{:else if sales.sold > 0}
+									<span class="sales-progress">🛒 {sales.sold} Items verkauft</span>
 								{:else}
 									<span class="no-sales">Keine Verkäufe</span>
 								{/if}
@@ -234,9 +249,29 @@
 		flex-direction: column;
 		gap: 0.25rem;
 	}
+	.run-title-line {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
 	.run-name {
 		font-size: 1rem;
 		color: #f8fafc;
+	}
+	.status-badge {
+		font-size: 0.75rem;
+		padding: 0.15rem 0.5rem;
+		border-radius: 4px;
+		font-weight: bold;
+		text-transform: uppercase;
+	}
+	.status-badge.open {
+		background: #0284c7;
+		color: #e0f2fe;
+	}
+	.status-badge.paid {
+		background: #16a34a;
+		color: #dcfce7;
 	}
 	.run-date {
 		font-size: 0.8rem;
