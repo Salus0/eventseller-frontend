@@ -310,12 +310,9 @@
 </div>
 
 <!-- Nur angemeldete Nutzer sehen Inhalte -->
-{#if !isAuthenticated || (errorMessage && !isLoading)}
+{#if !isAuthenticated}
   <section class="card">
-    <div class="unauthorized-box">
-      <p class="error">{errorMessage || 'Keine Berechtigung!'}</p>
-      <a href="/login" class="login-btn">Zum Login</a>
-    </div>
+    <p class="error">{errorMessage || 'Bitte logge dich ein, um diese Seite zu sehen.'}</p>
   </section>
 {:else}
   <!-- Nur Admins dürfen das Formular zum Anlegen sehen -->
