@@ -160,9 +160,9 @@
         isSubmitting = true;
 
         try {
-        // Datum im Format YYYY-MM-DD mit der festen Uhrzeit kombinieren
         const createdAtFixed = `${parsedRun.run_date} 20:15:00`;
 
+        // 1. Run erstellen
         const runRes = await fetch(`${backendUrl}/runs/`, {
             method: 'POST',
             headers: getAuthHeaders(),
@@ -180,34 +180,109 @@
         const createdRun = await runRes.json();
         const runId = createdRun.id;
 
+        // 2. Teilnehmer aufbereiten & automatisch anlegen falls nötig
         if (parsedRun.participants.length > 0) {
-            const payloadParticipants = parsedRun.participants.map(p => ({
-            name: p.name && p.name.trim() !== '' ? p.name : p.original_name,
-            class_name: 'Sonstiges',
-            is_paid: p.is_paid,
-            payout_at: p.payout_date || null
-            }));
+            const payloadParticipants = [];
 
+            for (const p of parsedRun.participants) {
+            const targetName = p.name && p.name.trim() !== '' ? p.name : p.original_name;
+            
+            // Prüfen, ob der Teilnehmer in den Stammdaten existiert
+            let matchedDbPlayer = availablePlayers.find(
+                ap => ap.name.toLowerCase() === targetName.toLowerCase()
+            );
+
+            // Falls nicht vorhanden, automatisch in DB anlegen
+            if (!matchedDbPlayer) {
+                try {
+                const createRes = await fetch(`${backendUrl}/participants/`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ name: targetName })
+                });
+                if (createRes.ok) {
+                    matchedDbPlayer = await createRes.json();
+                    availablePlayers = [...availablePlayers, matchedDbPlayer];
+                }
+                } catch (err) {
+                console.error('Konnte Teilnehmer nicht automatisch anlegen:', targetName);
+                }
+            }
+
+            if (matchedDbPlayer) {
+                payloadParticipants.push({
+                participant_id: matchedDbPlayer.id,
+                class_name: 'Sonstiges'
+                });
+            }
+            }
+
+            // Teilnehmer an den Run binden
+            if (payloadParticipants.length > 0) {
             await fetch(`${backendUrl}/runs/${runId}/participants`, {
-            method: 'PUT',
-            headers: getAuthHeaders(),
-            body: JSON.stringify(payloadParticipants)
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payloadParticipants)
             });
+
+            // Auszahlungsstatus nachträglich setzen, falls im Sheet als ausgezahlt markiert
+            for (let i = 0; i < parsedRun.participants.length; i++) {
+                const pData = parsedRun.participants[i];
+                const mappedP = payloadParticipants[i];
+                if (pData.is_paid && mappedP) {
+                await fetch(`${backendUrl}/runs/${runId}/participants/${mappedP.participant_id}/payout`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ is_paid: true })
+                });
+                }
+            }
+            }
         }
 
-        for (const item of parsedRun.items) {
-            if (!item.name || item.name.trim() === '') continue;
+        // 3. Items als Drops speichern (alle auf einmal, ohne Überschreiben)
+        const validItems = parsedRun.items.filter(item => item.name && item.name.trim() !== '');
+        if (validItems.length > 0) {
+            const itemPayload = validItems.map(item => ({
+            name: item.name,
+            quantity: Number(item.amount) || 1
+            }));
+
             await fetch(`${backendUrl}/runs/${runId}/items`, {
             method: 'PUT',
             headers: getAuthHeaders(),
-            body: JSON.stringify([{
-                name: item.name,
-                amount: Number(item.amount) || 1,
-                quantity: Number(item.amount) || 1,
-                price: Number(item.price) || 0,
-                shop_price: Number(item.shop_price) || 0
-            }])
+            body: JSON.stringify(itemPayload)
             });
+
+            // Aktuelle Items aus der DB laden, um die echten item_ids für die Verkäufe zu erhalten
+            const itemsRes = await fetch(`${backendUrl}/runs/${runId}/items`, {
+            headers: getAuthHeaders()
+            });
+            const savedRunItems = itemsRes.ok ? await itemsRes.json() : [];
+
+            // 4. Items mit Preisen als Verkäufe (sales) eintragen
+            for (const runItem of validItems) {
+            if (Number(runItem.price) > 0 || Number(runItem.shop_price) > 0) {
+                // Passendes Item in den gespeicherten Run-Items finden
+                const dbItemMatch = savedRunItems.find(si => si.item_name.toLowerCase() === runItem.name.toLowerCase());
+                
+                if (dbItemMatch) {
+                const salePrice = Number(runItem.price) > 0 ? Number(runItem.price) : Number(runItem.shop_price);
+                const isShopSale = Number(runItem.shop_price) > 0 && Number(runItem.price) === 0;
+
+                await fetch(`${backendUrl}/runs/${runId}/sales`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                    item_id: dbItemMatch.item_id,
+                    quantity: Number(runItem.amount) || 1,
+                    actual_price: salePrice,
+                    is_shop: isShopSale
+                    })
+                });
+                }
+            }
+            }
         }
 
         alert('Run erfolgreich importiert!');
