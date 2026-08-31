@@ -9,7 +9,6 @@
   let isEditing = false;
   let isSubmitting = false;
 
-  // Hilfsfunktion für Auth-Header
   function getAuthHeaders() {
     const token = localStorage.getItem('jwt_token');
     return {
@@ -18,78 +17,94 @@
     };
   }
 
-  // --- PARSER LOGIK FÜR DEN TEXTBLOCK ---
+  // --- CSV PARSER FÜR ECHTE TABELLEN-DATEN ---
   function parseRunBlock() {
     if (!rawInput.trim()) {
-      alert('Bitte füge einen Textblock ein.');
+      alert('Bitte füge die CSV-Daten ein.');
       return;
     }
 
-    // Zeilenumbruch-Bereinigung falls aus Excel kopiert
+    // Zeilenweise aufteilen
     const lines = rawInput.split('\n').map(l => l.trim()).filter(Boolean);
     
-    // Fall: Alles in einer Wurst ohne Zeilenumbrüche (wie im Beispiel)
-    let text = rawInput.replace(/\s+/g, ' ').trim();
-
-    // 1. Run-Typ & Datum extrahieren (z.B. "EC 29.03.2026" oder "ET 01.04.2026")
-    const headerMatch = text.match(/^(EC|ET|WoE|MD)\s*(\d{2}\.\d{2}\.\d{4})/i) || text.match(/^([A-Za-z]+)(\d{2}\.\d{2}\.\d{4})/);
-    
     let runType = 'EC';
-    let runDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD Default
-
-    if (headerMatch) {
-      runType = headerMatch[1];
-      const parts = headerMatch[2].split('.');
-      runDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // ISO-Format fürs Input-Feld
-    }
-
-    // 2. Teilnehmer extrahieren (Suchmuster: Nummer + Name + Datum + Uhrzeit, z.B. "1 Kuhni 07.04.2026 19:28")
-    // Wir suchen nach Mustern am Ende des Textes
-    const playerRegex = /(\d{1,2})\s*([A-Za-z0-9_-]+)\s*(\d{2}\.\d{2}\.\d{4})\s*(\d{2}:\d{2})/g;
+    let runDate = new Date().toISOString().split('T')[0];
+    let items = [];
     let participants = [];
-    let match;
-    
-    while ((match = playerRegex.exec(text)) !== null) {
-      participants.push({
-        name: match[2],
-        payout_date: `${match[3]} ${match[4]}`,
-        is_paid: true
-      });
-    }
 
-    // 3. Items und Preise extrahieren (Alles zwischen Header und dem Wort "Summe")
-    // Das ist heuristisch, da Item-Namen variieren. Wir extrahieren Zahlen mit Punkten.
-    // Beispielhafter Ansatz: Wir trennen den String ab dem Header bis zum Wort "Summe"
-    let sumIndex = text.indexOf('Summe');
-    let itemSection = sumIndex !== -1 ? text.substring(headerMatch ? headerMatch[0].length : 0, sumIndex) : '';
-    
-    // Teilnehmer aus dem Item-Bereich herausschneiden falls sie dranhängen
-    if (participants.length > 0) {
-      let firstPlayerStr = `${participants[0].name}`;
-      let pIndex = itemSection.indexOf(participants[0].name);
-      if (pIndex !== -1) {
-        itemSection = itemSection.substring(0, pIndex);
+    let mode = 'header'; // 'header', 'items', 'players'
+
+    for (let line of lines) {
+      const cols = line.split(',').map(c => c.trim());
+
+      // 1. Kopfzeile erkennen (z.B. "EC+ET,24.07.2026")
+      if (mode === 'header' && cols[0]) {
+        runType = cols[0];
+        if (cols[1] && cols[1].includes('.')) {
+          const parts = cols[1].split('.');
+          if (parts.length === 3) {
+            runDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+          }
+        }
+        mode = 'items';
+        continue;
+      }
+
+      // Prüfen ob wir bei Summe / Trenner / Spielern sind
+      if (line.toLowerCase().includes('summe') || line.toLowerCase().includes('split')) {
+        continue;
+      }
+      if (line.replace(/,/g, '') === '' || line.startsWith(',,,,,,') || /^\d+$/.test(cols[0]) && !cols[1]) {
+        // Trennzeile erreicht -> ab jetzt kommen Spieler
+        mode = 'players';
+        continue;
+      }
+
+      // 2. Items einlesen (wenn wir im Item-Modus sind und keine Spieler-Nummer am Anfang steht)
+      if (mode === 'items') {
+        // Schauen ob Spalte 1 oder 2 einen Itemnamen enthält
+        let itemName = cols[1] || cols[0];
+        let priceStr = cols[2] || cols[3] || '0';
+        
+        // Preis bereinigen (Punkte entfernen, Kommas zu Punkten)
+        let cleanPrice = parseInt(priceStr.replace(/\./g, '').replace(',', '.'), 10) || 0;
+
+        if (itemName && itemName !== runType && !itemName.toLowerCase().includes('summe')) {
+          items.push({
+            name: itemName,
+            amount: 1,
+            price: cleanPrice
+          });
+        }
+      }
+
+      // 3. Spieler einlesen (Modus 'players' oder Spalte 1 ist eine Zahl von 1 bis 12)
+      if (mode === 'players' || /^\d{1,2}$/.test(cols[0])) {
+        let playerNum = cols[0];
+        let playerName = cols[1];
+        let payoutDate = cols[2] || '';
+
+        if (playerName && playerName.toLowerCase() !== 'summe' && playerName.toLowerCase() !== 'split') {
+          participants.push({
+            name: playerName,
+            payout_date: payoutDate,
+            is_paid: Boolean(payoutDate && payoutDate.length > 0)
+          });
+        }
       }
     }
-
-    // Items grob zerlegen (Preisstrukturen erkennen: Text gefolgt von Zahlen)
-    // Da Rohdaten oft aneinanderkleben, bauen wir eine saubere Vorschau zum manuellen Nachkorrigieren
-    let parsedItems = [
-      { name: 'Beispiel Item (Bitte prüfen)', amount: 1, price: 0 }
-    ];
 
     parsedRun = {
       name: `${runType} vom ${runDate.split('-').reverse().join('.')}`,
       run_type: runType,
       run_date: runDate,
-      items: parsedItems,
+      items: items.length > 0 ? items : [{ name: 'Unbekanntes Item', amount: 1, price: 0 }],
       participants: participants
     };
 
     isEditing = true;
   }
 
-  // Zeile in Vorschau hinzufügen/löschen
   function addItemRow() {
     parsedRun.items = [...parsedRun.items, { name: '', amount: 1, price: 0 }];
   }
@@ -104,13 +119,11 @@
     parsedRun.participants = [...parsedRun.participants];
   }
 
-  // Abspeichern in die echte Datenbank
   async function saveImportedRun() {
     if (!parsedRun || !parsedRun.name) return;
     isSubmitting = true;
 
     try {
-      // 1. Run anlegen
       const runRes = await fetch(`${backendUrl}/runs/`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -125,7 +138,6 @@
       const createdRun = await runRes.json();
       const runId = createdRun.id;
 
-      // 2. Teilnehmer zuweisen
       if (parsedRun.participants.length > 0) {
         await fetch(`${backendUrl}/runs/${runId}/participants`, {
           method: 'PUT',
@@ -138,10 +150,8 @@
         });
       }
 
-      // 3. Items & Verkäufe zuweisen
       for (const item of parsedRun.items) {
         if (!item.name) continue;
-        // Drop eintragen
         await fetch(`${backendUrl}/runs/${runId}/items`, {
           method: 'PUT',
           headers: getAuthHeaders(),
@@ -151,12 +161,6 @@
             quantity: Number(item.amount) || 1
           }])
         });
-
-        // Falls Preis vorhanden, direkten Verkauf buchen
-        if (item.price > 0) {
-          // Wir holen die Item-ID über die Run-Details oder mappen sie
-          // (Hier vereinfacht über den allgemeinen Sales-Endpoint)
-        }
       }
 
       alert('Run erfolgreich importiert!');
@@ -171,23 +175,23 @@
 </script>
 
 <div class="import-container">
-  <h1>Run Import-Assistent (Raid-Helper Style)</h1>
-  <p class="subtitle">Füge deinen kopierten Tabellenblock ein. Das System analysiert Datum, Items und Teilnehmer zur Vorschau.</p>
+  <h1>Run CSV-Import</h1>
+  <p class="subtitle">Kopiere den Run direkt aus Google Sheets/Excel und füge ihn hier ein.</p>
 
   {#if !isEditing}
     <div class="card">
-      <label for="raw-input"><strong>Rohdaten-Block einfügen:</strong></label>
+      <label for="raw-input"><strong>Tabellen-Block (CSV) einfügen:</strong></label>
       <textarea 
         id="raw-input" 
-        rows="8" 
+        rows="12" 
         bind:value={rawInput} 
-        placeholder="Z.B. EC29.03.2026 Nyd 16.399.000 ... 1 Kuhni 07.04.2026 19:28 ..."
+        placeholder="EC+ET,24.07.2026&#10;,Nyd,16.490.000&#10;..."
       ></textarea>
-      <button class="primary-btn" on:click={parseRunBlock}>Daten analysieren & Vorschau anzeigen</button>
+      <button class="primary-btn" on:click={parseRunBlock}>Einlesen & Vorschau anzeigen</button>
     </div>
   {:else}
     <div class="card preview-card">
-      <h2>Vorschau & Korrektur vor dem Import</h2>
+      <h2>Vorschau & Korrektur</h2>
 
       <div class="form-grid">
         <div class="field">
@@ -204,13 +208,13 @@
         </div>
       </div>
 
-      <h3>📦 Gefundene Items & Preise</h3>
+      <h3>📦 Items & Preise</h3>
       <table class="edit-table">
         <thead>
           <tr>
             <th>Item Name</th>
-            <th>Anzahl</th>
-            <th>Verkaufspreis (Zeny)</th>
+            <th>Menge</th>
+            <th>Preis (Zeny)</th>
             <th>Aktion</th>
           </tr>
         </thead>
@@ -231,7 +235,7 @@
       <div class="participant-chips">
         {#each parsedRun.participants as p, i}
           <div class="chip">
-            <span>{i+1}. <strong>{p.name}</strong> ({p.payout_date})</span>
+            <span>{i+1}. <strong>{p.name}</strong> {p.payout_date ? `(${p.payout_date})` : '(Offen)'}</span>
             <button class="del-mini" on:click={() => removeParticipantRow(i)}>✕</button>
           </div>
         {/each}
@@ -252,7 +256,7 @@
   h1 { color: #fbbf24; margin-bottom: 0.5rem; }
   .subtitle { color: #94a3b8; margin-bottom: 1.5rem; font-size: 0.95rem; }
   .card { background: #1e293b; border: 1px solid #334155; padding: 1.5rem; border-radius: 8px; }
-  textarea { width: 100%; background: #0f172a; border: 1px solid #475569; color: #34d399; padding: 0.75rem; border-radius: 6px; font-family: monospace; font-size: 0.9rem; margin-top: 0.5rem; margin-bottom: 1rem; }
+  textarea { width: 100%; background: #0f172a; border: 1px solid #475569; color: #34d399; padding: 0.75rem; border-radius: 6px; font-family: monospace; font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 1rem; }
   
   .form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
   .field { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #cbd5e1; }
