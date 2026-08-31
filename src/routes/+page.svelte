@@ -103,15 +103,24 @@
 	}
 
 	function isUserInRun(run) {
-		if (!currentDiscordId || !run.participants || !Array.isArray(run.participants)) {
+		if (!run.participants || !Array.isArray(run.participants)) {
 			return false;
 		}
 
+		// 1. Zeigt an, welche Discord-ID im Token gespeichert ist
+		console.log('--- DEBUG MATCHING ---');
+		console.log('Deine Token Discord-ID:', currentDiscordId);
+		console.log(`Teilnehmer in Run ${run.id} (${run.name}):`, run.participants);
+
 		return run.participants.some(p => {
-			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
-			return pDiscordId !== '' && pDiscordId === currentDiscordId;
+			// Alle möglichen Felder der Teilnehmer-Struktur auslesen
+			const pDiscordId = String(p.discord_id || p.discordId || p.discord || '').trim();
+			
+			const isMatch = pDiscordId !== '' && pDiscordId === currentDiscordId;
+			if (isMatch) console.log('✅ MATCH GEFUNDEN IN RUN:', run.id);
+			return isMatch;
 		});
-	}
+	}	
 
 	function getItemSalesInfo(run) {
 		const items = run.items || [];
