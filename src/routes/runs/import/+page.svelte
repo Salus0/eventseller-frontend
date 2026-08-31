@@ -155,65 +155,70 @@
     parsedRun.participants = [...parsedRun.participants];
   }
 
-  async function saveImportedRun() {
-    if (!parsedRun || !parsedRun.name) return;
-    isSubmitting = true;
+    async function saveImportedRun() {
+        if (!parsedRun || !parsedRun.name) return;
+        isSubmitting = true;
 
-    try {
-      const runRes = await fetch(`${backendUrl}/runs/`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: parsedRun.name,
-          run_date: parsedRun.run_date
-        })
-      });
+        try {
+        // Datum im Format YYYY-MM-DD mit der festen Uhrzeit kombinieren
+        const createdAtFixed = `${parsedRun.run_date} 20:15:00`;
 
-      if (!runRes.ok) throw new Error('Fehler beim Erstellen des Runs');
-      const createdRun = await runRes.json();
-      const runId = createdRun.id;
-
-      // Teilnehmer aufbereiten: Falls das Select leer gelassen wurde, fallback auf original_name
-      if (parsedRun.participants.length > 0) {
-        const payloadParticipants = parsedRun.participants.map(p => ({
-          name: p.name && p.name.trim() !== '' ? p.name : p.original_name,
-          class_name: 'Sonstiges',
-          is_paid: p.is_paid,
-          payout_at: p.payout_date || null
-        }));
-
-        await fetch(`${backendUrl}/runs/${runId}/participants`, {
-          method: 'PUT',
-          headers: getAuthHeaders(),
-          body: JSON.stringify(payloadParticipants)
+        const runRes = await fetch(`${backendUrl}/runs/`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+            name: parsedRun.name,
+            created_at: createdAtFixed
+            })
         });
-      }
 
-      // Items aufbereiten
-      for (const item of parsedRun.items) {
-        if (!item.name || item.name.trim() === '') continue;
-        await fetch(`${backendUrl}/runs/${runId}/items`, {
-          method: 'PUT',
-          headers: getAuthHeaders(),
-          body: JSON.stringify([{
-            name: item.name,
-            amount: Number(item.amount) || 1,
-            quantity: Number(item.amount) || 1,
-            price: Number(item.price) || 0,
-            shop_price: Number(item.shop_price) || 0
-          }])
-        });
-      }
+        if (!runRes.ok) {
+            const errorText = await runRes.text();
+            throw new Error(`Server-Fehler (${runRes.status}): ${errorText}`);
+        }
 
-      alert('Run erfolgreich importiert!');
-      goto('/runs');
-    } catch (err) {
-      console.error(err);
-      alert('Fehler beim Importieren: ' + err.message);
-    } finally {
-      isSubmitting = false;
+        const createdRun = await runRes.json();
+        const runId = createdRun.id;
+
+        if (parsedRun.participants.length > 0) {
+            const payloadParticipants = parsedRun.participants.map(p => ({
+            name: p.name && p.name.trim() !== '' ? p.name : p.original_name,
+            class_name: 'Sonstiges',
+            is_paid: p.is_paid,
+            payout_at: p.payout_date || null
+            }));
+
+            await fetch(`${backendUrl}/runs/${runId}/participants`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payloadParticipants)
+            });
+        }
+
+        for (const item of parsedRun.items) {
+            if (!item.name || item.name.trim() === '') continue;
+            await fetch(`${backendUrl}/runs/${runId}/items`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify([{
+                name: item.name,
+                amount: Number(item.amount) || 1,
+                quantity: Number(item.amount) || 1,
+                price: Number(item.price) || 0,
+                shop_price: Number(item.shop_price) || 0
+            }])
+            });
+        }
+
+        alert('Run erfolgreich importiert!');
+        goto('/runs');
+        } catch (err) {
+        console.error(err);
+        alert('Fehler beim Importieren: ' + err.message);
+        } finally {
+        isSubmitting = false;
+        }
     }
-  }
 </script>
 
 <div class="import-container">
