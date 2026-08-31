@@ -65,7 +65,7 @@
     }
   }
 
-// Discord-Name aus einlesen
+  // Discord-Name einlesen via Proxy
   async function fetchNameFromRaidHelper(discordIdToFind, targetMode = 'create') {
     const trimmedDiscordId = discordIdToFind ? discordIdToFind.trim() : '';
     const trimmedEventId = raidHelperEventId.trim();
@@ -81,7 +81,6 @@
 
     isFetchingDiscordName = true;
     try {
-      // WICHTIG: Ruft deinen Backend-Proxy auf statt direkt raid-helper.dev
       const res = await fetch(`${backendUrl}/raidhelper/event/${trimmedEventId}`);
       
       if (!res.ok) {
