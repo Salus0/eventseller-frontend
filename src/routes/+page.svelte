@@ -111,18 +111,25 @@
 		if (!run.participants || !Array.isArray(run.participants)) return false;
 
 		return run.participants.some(p => {
-			const pDiscordId = String(p.discord_id || p.discordId || p.discord || '').trim();
-			const pDbId = String(p.id ?? p.participant_id ?? p.user_id ?? '').trim();
+			// 1. Auslesen der Teilnehmer-Daten aus dem Backend
+			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
 			const pName = String(p.name || p.username || '').trim().toLowerCase();
 
-			// 1. Match über Discord-ID
-			const matchDiscord = Boolean(currentDiscordId && pDiscordId && currentDiscordId === pDiscordId);
-			// 2. Match über Datenbank-ID (String-Vergleich)
-			const matchId = Boolean(currentUserId !== null && pDbId && String(currentUserId) === pDbId);
-			// 3. Match über Name
-			const matchName = Boolean(currentUserName && pName && currentUserName.toLowerCase() === pName);
+			// 2. Primärer Match: Eindeutige Discord-ID
+			const matchDiscord = Boolean(
+				currentDiscordId && 
+				pDiscordId && 
+				currentDiscordId === pDiscordId
+			);
 
-			return matchDiscord || matchId || matchName;
+			// 3. Fallback Match: Name (falls discord_id in DB noch NULL ist)
+			const matchName = Boolean(
+				currentUserName && 
+				pName && 
+				currentUserName.toLowerCase() === pName
+			);
+
+			return matchDiscord || matchName;
 		});
 	}
 
