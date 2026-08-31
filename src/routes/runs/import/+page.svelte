@@ -10,7 +10,6 @@
   let isEditing = false;
   let isSubmitting = false;
 
-  // Bekannte Stammdaten aus der DB für das Matching
   let availableItems = [];
   let availablePlayers = [];
 
@@ -26,7 +25,6 @@
     };
   }
 
-  // Stammdaten für Autovervollständigung laden
   async function loadMasterData() {
     try {
       const [itemsRes, playersRes] = await Promise.all([
@@ -36,11 +34,11 @@
       if (itemsRes.ok) availableItems = await itemsRes.json();
       if (playersRes.ok) availablePlayers = await playersRes.json();
     } catch (err) {
-      console.error('Konnte Stammdaten für Matching nicht laden:', err);
+      console.error('Konnte Stammdaten nicht laden:', err);
     }
   }
 
-  // --- PARSER FÜR CSV BLOCK ---
+  // --- PARSER FÜR DEN CSV BLOCK ---
   function parseRunBlock() {
     if (!rawInput.trim()) {
       alert('Bitte füge die CSV-Daten ein.');
@@ -57,27 +55,31 @@
     for (let line of lines) {
       const cols = line.split(',').map(c => c.trim());
 
-      // 1. Datum aus Kopfzeile holen
+      // 1. Datum aus Kopfzeile holen (z.B. "EC+ET,24.07.2026")
       if (mode === 'header' && cols[0]) {
         if (cols[1] && cols[1].includes('.')) {
           const parts = cols[1].split('.');
           if (parts.length === 3) {
-            runDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            runDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
           }
         }
         mode = 'items';
         continue;
       }
 
-      if (line.toLowerCase().includes('summe') || line.toLowerCase().includes('split')) {
+      // Summen- und Split-Zeilen im CSV überspringen (wird in Runs automatisch berechnet)
+      const lowerLine = line.toLowerCase();
+      if (lowerLine.includes('summe') || lowerLine.includes('split')) {
         continue;
       }
+
+      // Erkennung der Trennzeile zwischen Items und Teilnehmern
       if (line.replace(/,/g, '') === '' || line.startsWith(',,,,,,') || (/^\d+$/.test(cols[0]) && !cols[1])) {
         mode = 'players';
         continue;
       }
 
-      // 2. Items & Preise (Verkaufspreis und Shoppreis trennen)
+      // 2. Items einlesen (Verkaufspreis und Shoppreis wie in echten Runs)
       if (mode === 'items') {
         let itemName = cols[1] || cols[0];
         let priceStr = cols[2] || '0';
@@ -96,20 +98,35 @@
         }
       }
 
-      // 3. Teilnehmer
+      // 3. Teilnehmer einlesen (inkl. Auszahlungsdatum & Uhrzeit)
       if (mode === 'players' || /^\d{1,2}$/.test(cols[0])) {
         let playerName = cols[1];
-        let payoutDate = cols[2] || '';
+        let payoutDateStr = cols[2] || '';
+        let payoutTimeStr = cols[3] || '';
 
         if (playerName && playerName.toLowerCase() !== 'summe' && playerName.toLowerCase() !== 'split') {
-          // Versuche direkt einen Treffer in den bekannten Spielern zu finden (Fuzzy/Exact Match)
-          let matchedPlayer = availablePlayers.find(p => p.name.toLowerCase() === playerName.toLowerCase())?.name || playerName;
+          // Versuche bekannten Spieler zu matchen
+          let matched = availablePlayers.find(p => p.name.toLowerCase() === playerName.toLowerCase());
+          let finalName = matched ? matched.name : playerName;
+
+          let payoutDateTime = '';
+          let isPaid = false;
+
+          // Auszahlungsdatum parsen (z.B. "31.07.2026" + "19:52")
+          if (payoutDateStr && payoutDateStr.includes('.')) {
+            const pParts = payoutDateStr.split('.');
+            if (pParts.length === 3) {
+              const formattedDate = `${pParts[2]}-${pParts[1]}-${pParts[0]}`;
+              payoutDateTime = payoutTimeStr ? `${formattedDate}T${payoutTimeStr}` : `${formattedDate}T00:00`;
+              isPaid = true;
+            }
+          }
 
           participants.push({
             original_name: playerName,
-            name: matchedPlayer,
-            payout_date: payoutDate ? `${payoutDate} ${cols[3] || ''}`.trim() : '',
-            is_paid: Boolean(payoutDate && payoutDate.length > 0)
+            name: finalName,
+            payout_date: payoutDateTime,
+            is_paid: isPaid
           });
         }
       }
@@ -139,12 +156,13 @@
     parsedRun.participants = [...parsedRun.participants];
   }
 
+  // Finales Speichern analog zur regulären Run-Erstellung im Backend
   async function saveImportedRun() {
     if (!parsedRun || !parsedRun.name) return;
     isSubmitting = true;
 
     try {
-      // 1. Run anlegen (ohne Run-Typ, rein über Name und Datum)
+      // 1. Run anlegen
       const runRes = await fetch(`${backendUrl}/runs/`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -158,7 +176,7 @@
       const createdRun = await runRes.json();
       const runId = createdRun.id;
 
-      // 2. Teilnehmer zuweisen
+      // 2. Teilnehmer inklusive Auszahlungsstatus & Zeitpunkt übergeben
       if (parsedRun.participants.length > 0) {
         await fetch(`${backendUrl}/runs/${runId}/participants`, {
           method: 'PUT',
@@ -166,12 +184,13 @@
           body: JSON.stringify(parsedRun.participants.map(p => ({
             name: p.name,
             class_name: 'Sonstiges',
-            is_paid: p.is_paid
+            is_paid: p.is_paid,
+            payout_at: p.payout_date || null
           })))
         });
       }
 
-      // 3. Items und Preise übergeben
+      // 3. Items, Mengen, Verkaufspreis und Shoppreis übergeben
       for (const item of parsedRun.items) {
         if (!item.name) continue;
         await fetch(`${backendUrl}/runs/${runId}/items`, {
@@ -199,8 +218,8 @@
 </script>
 
 <div class="import-container">
-  <h1>Run CSV-Import mit Smart-Matching</h1>
-  <p class="subtitle">Füge den kopierten Tabellenblock ein. Das System gleicht Items und Teilnehmer automatisch mit eurer Datenbank ab.</p>
+  <h1>Run CSV-Import</h1>
+  <p class="subtitle">Füge deinen kopierten Tabellenblock ein. Preise, Items und Auszahlungen werden exakt wie bei manuell erstellten Runs übernommen.</p>
 
   {#if !isEditing}
     <div class="card">
@@ -223,16 +242,16 @@
           <input type="text" bind:value={parsedRun.name} />
         </div>
         <div class="field">
-          <label>Datum:</label>
+          <label>Datum des Runs:</label>
           <input type="date" bind:value={parsedRun.run_date} />
         </div>
       </div>
 
-      <h3>📦 Items & Preise (inkl. Shop-Preis)</h3>
+      <h3>📦 Items, Verkaufspreis & Shoppreis</h3>
       <table class="edit-table">
         <thead>
           <tr>
-            <th>Item Name (Autovervollständigung)</th>
+            <th>Item Name</th>
             <th>Menge</th>
             <th>Verkaufspreis</th>
             <th>Shoppreis</th>
@@ -243,12 +262,13 @@
           {#each parsedRun.items as item, i}
             <tr>
               <td>
-                <input 
-                  type="text" 
-                  list="known-items" 
-                  bind:value={item.name} 
-                  placeholder="Item Name eingeben..." 
-                />
+                <select bind:value={item.name} class="item-select">
+                  <option value="">-- Item wählen --</option>
+                  {#each availableItems as ai}
+                    <option value={ai.name}>{ai.name}</option>
+                  {/each}
+                </select>
+                <input type="text" bind:value={item.name} placeholder="Oder frei tippen..." class="fallback-input" />
               </td>
               <td><input type="number" min="1" bind:value={item.amount} style="width: 60px;" /></td>
               <td><input type="number" min="0" bind:value={item.price} /></td>
@@ -258,26 +278,26 @@
           {/each}
         </tbody>
       </table>
-      <datalist id="known-items">
-        {#each availableItems as ai}
-          <option value={ai.name}></option>
-        {/each}
-      </datalist>
       <button class="secondary-btn" on:click={addItemRow}>+ Item hinzufügen</button>
 
-      <h3>👥 Teilnehmer-Matching ({parsedRun.participants.length})</h3>
+      <h3>👥 Teilnehmer & Auszahlungs-Daten ({parsedRun.participants.length})</h3>
       <div class="participant-match-grid">
         {#each parsedRun.participants as p, i}
           <div class="match-row">
-            <span class="original-label">Sheet: <strong>{p.original_name}</strong></span>
+            <span class="original-label" title="Aus Sheet: {p.original_name}">Sheet: <strong>{p.original_name}</strong></span>
             <span class="arrow">➔</span>
             <select bind:value={p.name} class="player-select">
-              <option value="">-- Spieler wählen --</option>
+              <option value="">-- Spieler zuordnen --</option>
               {#each availablePlayers as ap}
                 <option value={ap.name}>{ap.name}</option>
               {/each}
             </select>
-            <span class="payout-info">{p.payout_date ? `(${p.payout_date})` : '(Offen)'}</span>
+            <div class="payout-box">
+              <label class="checkbox-label">
+                <input type="checkbox" bind:checked={p.is_paid} /> Ausgezahlt am:
+              </label>
+              <input type="datetime-local" bind:value={p.payout_date} disabled={!p.is_paid} class="date-input" />
+            </div>
             <button class="del-mini" on:click={() => removeParticipantRow(i)}>✕</button>
           </div>
         {/each}
@@ -294,7 +314,7 @@
 </div>
 
 <style>
-  .import-container { max-width: 950px; margin: 2rem auto; padding: 0 1rem; color: #f8fafc; }
+  .import-container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; color: #f8fafc; }
   h1 { color: #fbbf24; margin-bottom: 0.5rem; }
   .subtitle { color: #94a3b8; margin-bottom: 1.5rem; font-size: 0.95rem; }
   .card { background: #1e293b; border: 1px solid #334155; padding: 1.5rem; border-radius: 8px; }
@@ -305,16 +325,20 @@
   .field input { background: #0f172a; border: 1px solid #475569; color: white; padding: 0.5rem; border-radius: 4px; }
 
   .edit-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
-  .edit-table th, .edit-table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #334155; font-size: 0.9rem; }
-  .edit-table input { width: 100%; background: #0f172a; border: 1px solid #475569; color: white; padding: 0.4rem; border-radius: 4px; }
+  .edit-table th, .edit-table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #334155; font-size: 0.9rem; vertical-align: middle; }
+  .edit-table input, .edit-table select { width: 100%; background: #0f172a; border: 1px solid #475569; color: white; padding: 0.4rem; border-radius: 4px; }
+  .fallback-input { margin-top: 0.3rem; font-size: 0.8rem; }
 
-  .participant-match-grid { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; max-height: 250px; overflow-y: auto; padding-right: 0.5rem; }
-  .match-row { display: flex; align-items: center; gap: 1rem; background: #0f172a; border: 1px solid #334155; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.85rem; }
-  .original-label { min-width: 120px; color: #94a3b8; }
+  .participant-match-grid { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; max-height: 300px; overflow-y: auto; padding-right: 0.5rem; }
+  .match-row { display: flex; align-items: center; gap: 0.8rem; background: #0f172a; border: 1px solid #334155; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.85rem; }
+  .original-label { min-width: 100px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .arrow { color: #fbbf24; }
-  .player-select { background: #1e293b; border: 1px solid #475569; color: white; padding: 0.3rem; border-radius: 4px; flex-grow: 1; }
-  .payout-info { font-size: 0.75rem; color: #34d399; min-width: 110px; }
+  .player-select { background: #1e293b; border: 1px solid #475569; color: white; padding: 0.4rem; border-radius: 4px; min-width: 150px; }
   
+  .payout-box { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+  .checkbox-label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: #94a3b8; cursor: pointer; white-space: nowrap; }
+  .date-input { background: #1e293b; border: 1px solid #475569; color: white; padding: 0.3rem; border-radius: 4px; font-size: 0.8rem; }
+
   .primary-btn { background: #d97706; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
   .primary-btn:hover { background: #b45309; }
   .secondary-btn { background: #334155; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer; margin-bottom: 1.5rem; }
