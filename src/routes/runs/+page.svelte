@@ -723,7 +723,7 @@
     </p>
   {:else}
     <ul class="runs-list">
-      {#each runs as run (run.id)}
+      {#each runs as run, index (run.id ? `${run.id}-${index}` : index)}
         {@const isExpanded = expandedRunIds.has(run.id)}
         {@const statusInfo = getRunStatusInfo(run)}
         <li class="run-item" id="run-{run.id}">
