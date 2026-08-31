@@ -6,10 +6,10 @@
 	const backendUrl = env.PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 	let runs = [];
 	let isLoading = true;
-	let currentDiscordId = '';
+	let currentUserId = null;
 	let authToken = '';
 
-	// Session und Token aus localStorage abrufen
+	// User-ID & Token aus Session / JWT laden
 	function checkUserSession() {
 		const token = localStorage.getItem('jwt_token');
 		if (token) {
@@ -25,16 +25,16 @@
 				);
 				const decoded = JSON.parse(jsonPayload);
 				
-				currentDiscordId = String(
-					decoded.discord_id || decoded.discordId || decoded.id || ''
-				).trim();
+				// Auslesen der User-/Participant-ID aus gängigen JWT-Feldern
+				currentUserId = decoded.participant_id ?? decoded.user_id ?? decoded.id ?? decoded.sub ?? null;
+
+				console.log('Eingeloggt mit Participant/User ID:', currentUserId);
 			} catch (e) {
 				console.error('Fehler beim Lesen des Tokens:', e);
 			}
 		}
 	}
 
-	// Helper function für authentifizierte Backend-Anfragen
 	function getAuthHeaders() {
 		return {
 			'Content-Type': 'application/json',
@@ -42,7 +42,6 @@
 		};
 	}
 
-	// Details für einen einzelnen Run laden (inklusive Auth-Header)
 	async function loadRunDetails(runId) {
 		try {
 			const headers = getAuthHeaders();
@@ -76,7 +75,6 @@
 		}
 	}
 
-	// Alle Runs laden (inklusive Auth-Header)
 	async function loadRuns() {
 		isLoading = true;
 		try {
@@ -85,7 +83,7 @@
 			});
 
 			if (res.status === 401) {
-				console.error('Nicht autorisiert! Bitte erneut einloggen.');
+				console.error('Nicht autorisiert!');
 				isLoading = false;
 				return;
 			}
@@ -102,25 +100,18 @@
 		}
 	}
 
+	// Rein über participant_id / ID abgleichen
 	function isUserInRun(run) {
-		if (!run.participants || !Array.isArray(run.participants)) {
+		if (currentUserId === null || currentUserId === undefined || !run.participants || !Array.isArray(run.participants)) {
 			return false;
 		}
 
-		// 1. Zeigt an, welche Discord-ID im Token gespeichert ist
-		console.log('--- DEBUG MATCHING ---');
-		console.log('Deine Token Discord-ID:', currentDiscordId);
-		console.log(`Teilnehmer in Run ${run.id} (${run.name}):`, run.participants);
-
 		return run.participants.some(p => {
-			// Alle möglichen Felder der Teilnehmer-Struktur auslesen
-			const pDiscordId = String(p.discord_id || p.discordId || p.discord || '').trim();
-			
-			const isMatch = pDiscordId !== '' && pDiscordId === currentDiscordId;
-			if (isMatch) console.log('✅ MATCH GEFUNDEN IN RUN:', run.id);
-			return isMatch;
+			const pId = p.participant_id ?? p.id ?? p.user_id;
+			// String-Vergleich stellt sicher, dass Integer und Strings (z.B. "12" vs 12) übereinstimmen
+			return pId !== undefined && pId !== null && String(pId) === String(currentUserId);
 		});
-	}	
+	}
 
 	function getItemSalesInfo(run) {
 		const items = run.items || [];
