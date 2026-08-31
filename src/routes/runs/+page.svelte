@@ -489,7 +489,6 @@
   function startEditSale(item) {
     if (!isAdmin) return;
     const currentPrice = Number(item.sale_price || item.actual_price || item.price || 0);
-    // Wenn es ein Shop-Verkauf war, wird der Rohpreis vor 2% Steuer näherungsweise zurückgerechnet
     const rawPrice = item.is_shop ? Math.round(currentPrice / 0.98) : currentPrice;
 
     editSaleInputs = {
@@ -650,7 +649,6 @@
               {/if}
             </div>
             <div class="header-right">
-              <!-- Dynamischer Status-Badge mit passender Farbe -->
               <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
               <button class="expand-btn" type="button">
                 {isExpanded ? '▲ Verbergen' : '▼ Details'}
@@ -660,8 +658,6 @@
 
           {#if isExpanded}
             <div class="run-details">
-
-              <!-- ZENY SPLIT SUMMARY BANNER -->
               {#if run.summary}
                 <div class="summary-banner">
                   <div class="summary-card">
@@ -682,7 +678,6 @@
               {/if}
 
               <div class="details-grid">
-                
                 <!-- 1. TEILNEHMER -->
                 <div class="detail-block participant-block">
                   <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
@@ -764,24 +759,20 @@
                           <li class="item-sale-row">
                             <div class="item-info">
                               <span class="item-qty">{item.amount || item.quantity || 1}x</span>
-                              
                               <img 
                                 src={iconSrc} 
                                 alt={item.name} 
                                 class="item-icon-img"
                                 on:error={(e) => handleImgError(e, item)} 
                               />
-
                               {#if roId}
                                 <span class="item-id-badge">#{roId}</span>
                               {/if}
-
                               <span class="item-name">{getItemName(item, item.name || item.item_name)}</span>
                             </div>
 
                             <div class="sale-action-area">
                               {#if editingSaleForItemId[item.id] && isAdmin}
-                                <!-- INLINE EDIT MODUS FÜR BEREITS VERKAUFTE ITEMS -->
                                 <div class="inline-sale-form">
                                   {#if editSaleInputs[item.id]}
                                     <input 
@@ -810,7 +801,6 @@
                               {:else if addingSaleForItemId[item.id] && isAdmin}
                                 <div class="inline-sale-form">
                                   {#if saleInputs[item.id]}
-                                    <!-- Breiteres Eingabefeld mit Live-1000er-Trennzeichen -->
                                     <input 
                                       type="text" 
                                       placeholder="Preis (z.B. 1.000.000)" 
@@ -992,6 +982,8 @@
 
   .edit-list { margin-bottom: 0.5rem !important; }
   .edit-row { background-color: #0f172a; padding: 0.3rem 0.5rem !important; border-radius: 4px; margin-bottom: 0.2rem; display: flex; justify-content: space-between; align-items: center; }
+  .edit-name { font-size: 0.8rem; }
+  .inline-select { flex: none; width: auto; }
   .del-btn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; }
   
   .add-row { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; align-items: center; flex-wrap: wrap; }
@@ -1018,7 +1010,6 @@
 
   .inline-sale-form { display: flex; align-items: center; gap: 0.3rem; }
   
-  /* VERBREITERTES PREISFELD */
   .wide-price-input { width: 140px; padding: 0.3rem 0.5rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: #34d399; font-weight: 600; font-size: 0.85rem; text-align: right; }
   
   .checkbox-label { font-size: 0.75rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.2rem; cursor: pointer; }
