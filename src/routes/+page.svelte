@@ -7,13 +7,9 @@
 	let runs = [];
 	let isLoading = true;
 	let authToken = '';
-
-	// ALLE Variablen explizit deklarieren, um ReferenceError zu vermeiden:
 	let currentDiscordId = '';
-	let currentUserId = null;
-	let currentUserName = '';
 
-	// Session und Token aus localStorage abrufen
+	// Liest die Discord ID aus dem JWT Token
 	function checkUserSession() {
 		const token = localStorage.getItem('jwt_token');
 		if (token) {
@@ -29,12 +25,8 @@
 				);
 				const decoded = JSON.parse(jsonPayload);
 				
-				// Token-Felder auslesen
+				// Extrahiere strikt die Discord ID (sub oder discord_id)
 				currentDiscordId = String(decoded.discord_id || decoded.discordId || decoded.sub || '').trim();
-				currentUserId = decoded.participant_id || decoded.user_id || decoded.id || null;
-				currentUserName = String(decoded.name || decoded.username || decoded.sub || '').trim();
-
-				console.log('Session geladen:', { currentDiscordId, currentUserId, currentUserName });
 			} catch (e) {
 				console.error('Fehler beim Lesen des Tokens:', e);
 			}
@@ -88,12 +80,6 @@
 				headers: getAuthHeaders()
 			});
 
-			if (res.status === 401) {
-				console.error('Nicht autorisiert!');
-				isLoading = false;
-				return;
-			}
-
 			if (res.ok) {
 				const loadedRuns = await res.json();
 				runs = Array.isArray(loadedRuns) ? loadedRuns : [];
@@ -106,30 +92,15 @@
 		}
 	}
 
-	// Multi-Match-Prüfung über Discord-ID, Datenbank-ID und Name
+	// AUSSCHLIESSLICHER ABGLEICH ÜBER DISCORD ID
 	function isUserInRun(run) {
-		if (!run.participants || !Array.isArray(run.participants)) return false;
+		if (!currentDiscordId || !run?.participants || !Array.isArray(run.participants)) {
+			return false;
+		}
 
 		return run.participants.some(p => {
-			// 1. Auslesen der Teilnehmer-Daten aus dem Backend
 			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
-			const pName = String(p.name || p.username || '').trim().toLowerCase();
-
-			// 2. Primärer Match: Eindeutige Discord-ID
-			const matchDiscord = Boolean(
-				currentDiscordId && 
-				pDiscordId && 
-				currentDiscordId === pDiscordId
-			);
-
-			// 3. Fallback Match: Name (falls discord_id in DB noch NULL ist)
-			const matchName = Boolean(
-				currentUserName && 
-				pName && 
-				currentUserName.toLowerCase() === pName
-			);
-
-			return matchDiscord || matchName;
+			return pDiscordId !== '' && pDiscordId === currentDiscordId;
 		});
 	}
 
