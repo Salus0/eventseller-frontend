@@ -18,10 +18,12 @@
   let editingParticipants = {};
   let editingItems = {};
   let addingSaleForItemId = {};
+  let editingSaleForItemId = {}; // State für die Inline-Bearbeitung von Verkäufen
 
   let participantInputs = {};
   let itemInputs = {};
   let saleInputs = {};
+  let editSaleInputs = {}; // Eingabepuffer für das Editieren eines Verkaufs
 
   const roClasses = [
     'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
@@ -170,6 +172,18 @@
     saleInputs[runItemId].priceDisplay = new Intl.NumberFormat('de-DE').format(num);
   }
 
+  function handleEditPriceInput(runItemId, e) {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    if (!rawValue) {
+      editSaleInputs[runItemId].priceDisplay = '';
+      editSaleInputs[runItemId].price = 0;
+      return;
+    }
+    const num = parseInt(rawValue, 10);
+    editSaleInputs[runItemId].price = num;
+    editSaleInputs[runItemId].priceDisplay = new Intl.NumberFormat('de-DE').format(num);
+  }
+
   async function toggleExpand(id) {
     if (expandedRunIds.has(id)) {
       expandedRunIds.delete(id);
@@ -208,7 +222,8 @@
 
         const existingSale = Array.isArray(loadedSales) ? loadedSales.find(s => 
           Number(s.item_id) === Number(numericRoId) || 
-          Number(s.ro_item_id) === Number(numericRoId)
+          Number(s.ro_item_id) === Number(numericRoId) ||
+          Number(s.id) === Number(item.sale_id)
         ) : null;
 
         const realDbId = item.run_drop_id ?? item.drop_id ?? item.id;
@@ -220,6 +235,7 @@
           ro_item_id: numericRoId,
           image_url: master?.image_url || master?.icon_url || item.image_url || null,
           name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item'),
+          sale_id: existingSale ? existingSale.id : item.sale_id,
           sale_price: existingSale ? (existingSale.actual_price ?? existingSale.price) : (item.sale_price ?? item.price ?? 0),
           sale_type: existingSale ? (existingSale.is_shop ? 'Shop' : 'Direkt') : (item.sale_type ?? (item.is_shop ? 'Shop' : 'Direkt')),
           is_shop: existingSale ? existingSale.is_shop : item.is_shop
@@ -450,7 +466,7 @@
     }
   }
 
-  // --- VERKAUF FÜR EIN EINZELNES RUN-ITEM SPEICHERN ---
+  // --- VERKAUF NEU EINGEBEN UND SPÄTER EDITIEREN ---
   function openSaleForm(runItemId) {
     if (!isAdmin) return;
     saleInputs = {
@@ -466,6 +482,33 @@
   function closeSaleForm(runItemId) {
     addingSaleForItemId = {
       ...addingSaleForItemId,
+      [runItemId]: false
+    };
+  }
+
+  function startEditSale(item) {
+    if (!isAdmin) return;
+    const currentPrice = Number(item.sale_price || item.actual_price || item.price || 0);
+    // Wenn es ein Shop-Verkauf war, wird der Rohpreis vor 2% Steuer näherungsweise zurückgerechnet
+    const rawPrice = item.is_shop ? Math.round(currentPrice / 0.98) : currentPrice;
+
+    editSaleInputs = {
+      ...editSaleInputs,
+      [item.id]: {
+        price: rawPrice,
+        priceDisplay: new Intl.NumberFormat('de-DE').format(rawPrice),
+        isShop: Boolean(item.is_shop || item.sale_type === 'Shop')
+      }
+    };
+    editingSaleForItemId = {
+      ...editingSaleForItemId,
+      [item.id]: true
+    };
+  }
+
+  function cancelEditSale(runItemId) {
+    editingSaleForItemId = {
+      ...editingSaleForItemId,
       [runItemId]: false
     };
   }
@@ -511,6 +554,47 @@
     } catch (err) {
       console.error(err);
       alert('Netzwerkfehler beim Speichern des Verkaufs.');
+    }
+  }
+
+  async function updateSaleForItem(runId, runItem) {
+    if (!isAdmin) return;
+    const input = editSaleInputs[runItem.id];
+    if (!input || !input.price || Number(input.price) <= 0) {
+      alert('Bitte gib einen gültigen Verkaufspreis ein.');
+      return;
+    }
+
+    if (!runItem.sale_id) {
+      alert('Fehler: Es konnte keine Verkaufs-ID für dieses Item gefunden werden.');
+      return;
+    }
+
+    const payload = {
+      quantity: Number(runItem.amount || runItem.quantity || 1),
+      actual_price: Number(input.price),
+      is_shop: Boolean(input.isShop)
+    };
+
+    try {
+      const res = await fetch(`${backendUrl}/runs/sales/${runItem.sale_id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        cancelEditSale(runItem.id);
+        delete editSaleInputs[runItem.id];
+        editSaleInputs = { ...editSaleInputs };
+        await loadRunDetails(runId);
+      } else {
+        const errorData = await res.json().catch(() => null);
+        alert(`Verkauf konnte nicht aktualisiert werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Netzwerkfehler beim Aktualisieren des Verkaufs.');
     }
   }
 
@@ -696,10 +780,32 @@
                             </div>
 
                             <div class="sale-action-area">
-                              {#if item.sale_price || item.price || item.actual_price}
+                              {#if editingSaleForItemId[item.id] && isAdmin}
+                                <!-- INLINE EDIT MODUS FÜR BEREITS VERKAUFTE ITEMS -->
+                                <div class="inline-sale-form">
+                                  {#if editSaleInputs[item.id]}
+                                    <input 
+                                      type="text" 
+                                      placeholder="Preis" 
+                                      value={editSaleInputs[item.id].priceDisplay || ''} 
+                                      on:input={(e) => handleEditPriceInput(item.id, e)}
+                                      class="price-input wide-price-input" 
+                                    />
+                                    <label class="checkbox-label">
+                                      <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
+                                      Shop
+                                    </label>
+                                  {/if}
+                                  <button type="button" class="save-mini-btn" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
+                                  <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
+                                </div>
+                              {:else if item.sale_price || item.price || item.actual_price}
                                 <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
                                 {#if item.is_shop || item.sale_type === 'Shop'}
                                   <span class="shop-badge">Shop (-2%)</span>
+                                {/if}
+                                {#if isAdmin}
+                                  <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Preis bearbeiten">✏️</button>
                                 {/if}
                               {:else if addingSaleForItemId[item.id] && isAdmin}
                                 <div class="inline-sale-form">
@@ -906,6 +1012,9 @@
   .price-tag { color: #34d399; font-weight: 600; font-size: 0.85rem; }
   .add-sale-btn { background-color: #064e3b; color: #6ee7b7; border: 1px solid #047857; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
   .add-sale-btn:hover { background-color: #047857; color: white; }
+
+  .edit-sale-btn { background: none; border: none; cursor: pointer; font-size: 0.85rem; padding: 0 0.2rem; }
+  .edit-sale-btn:hover { opacity: 0.8; }
 
   .inline-sale-form { display: flex; align-items: center; gap: 0.3rem; }
   
