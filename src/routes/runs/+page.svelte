@@ -15,6 +15,9 @@
   let jwtToken = '';
   
   let expandedRunIds = new Set();
+  let editingRunHeader = {};  // Inline-Edit Modus für Run-Name/Typ
+  let runHeaderInputs = {};   // Eingabepuffer für Run-Name/Typ
+
   let editingParticipants = {};
   let editingItems = {};
   let addingSaleForItemId = {};
@@ -157,6 +160,76 @@
       return { label: 'On Sale', cssClass: 'status-onsale' };
     }
     return { label: 'Open', cssClass: 'status-open' };
+  }
+
+  // --- RUN HEADER EDITIEREN & LÖSCHEN ---
+  function startEditRunHeader(run, e) {
+    if (e) e.stopPropagation();
+    runHeaderInputs[run.id] = { name: run.name, run_type: run.run_type || '' };
+    editingRunHeader[run.id] = true;
+    editingRunHeader = { ...editingRunHeader };
+  }
+
+  function cancelEditRunHeader(runId, e) {
+    if (e) e.stopPropagation();
+    editingRunHeader[runId] = false;
+    editingRunHeader = { ...editingRunHeader };
+  }
+
+  async function saveRunHeader(runId, e) {
+    if (e) e.stopPropagation();
+    if (!isAdmin) return;
+
+    const input = runHeaderInputs[runId];
+    if (!input || !input.name.trim()) {
+      alert('Bitte gib einen gültigen Run-Namen ein.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${backendUrl}/runs/${runId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: input.name.trim(),
+          run_type: input.run_type.trim() || null
+        })
+      });
+
+      if (res.ok) {
+        editingRunHeader[runId] = false;
+        editingRunHeader = { ...editingRunHeader };
+        await fetchData();
+      } else {
+        alert('Fehler beim Aktualisieren des Runs.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Netzwerkfehler beim Aktualisieren.');
+    }
+  }
+
+  async function deleteRun(runId, runName, e) {
+    if (e) e.stopPropagation();
+    if (!isAdmin) return;
+
+    if (!confirm(`Möchtest du den Run "${runName}" wirklich löschen?`)) return;
+
+    try {
+      const res = await fetch(`${backendUrl}/runs/${runId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      if (res.ok) {
+        runs = runs.filter(r => r.id !== runId);
+      } else {
+        alert('Fehler beim Löschen des Runs.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Netzwerkfehler beim Löschen des Runs.');
+    }
   }
 
   // --- 1000er TRENNPUNKTE FORMATIERUNG BEIM EINGEBEN ---
@@ -642,14 +715,43 @@
         {@const statusInfo = getRunStatusInfo(run)}
         <li class="run-item">
           <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
-            <div class="run-info">
-              <span class="run-name">{run.name}</span>
-              {#if run.run_type}
-                <span class="run-meta">📌 {run.run_type}</span>
-              {/if}
-            </div>
+            
+            {#if editingRunHeader[run.id]}
+              <!-- INLINE-EDITIEREN DES RUN-HEADERS -->
+              <div class="run-edit-inline" on:click|stopPropagation>
+                <input 
+                  type="text" 
+                  bind:value={runHeaderInputs[run.id].name} 
+                  class="small-input header-edit-input" 
+                  placeholder="Run Name" 
+                />
+                <input 
+                  type="text" 
+                  bind:value={runHeaderInputs[run.id].run_type} 
+                  class="small-input header-edit-input" 
+                  placeholder="Typ (z.B. ET, WoE)" 
+                />
+                <button type="button" class="save-mini-btn" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
+                <button type="button" class="cancel-mini-btn" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
+              </div>
+            {:else}
+              <!-- NORMALANZEIGE DEL RUN-HEADERS -->
+              <div class="run-info">
+                <span class="run-name">{run.name}</span>
+                {#if run.run_type}
+                  <span class="run-meta">📌 {run.run_type}</span>
+                {/if}
+              </div>
+            {/if}
+
             <div class="header-right">
               <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
+
+              {#if isAdmin && !editingRunHeader[run.id]}
+                <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
+                <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
+              {/if}
+
               <button class="expand-btn" type="button">
                 {isExpanded ? '▲ Verbergen' : '▼ Details'}
               </button>
@@ -910,6 +1012,10 @@
   .run-info { display: flex; flex-direction: column; gap: 0.25rem; }
   .run-name { font-weight: 600; color: #f8fafc; font-size: 1.05rem; }
   .run-meta { font-size: 0.85rem; color: #94a3b8; }
+  
+  .run-edit-inline { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+  .header-edit-input { width: 140px !important; flex: none !important; }
+
   .header-right { display: flex; align-items: center; gap: 0.75rem; }
   
   /* FARBDISPLAY FÜR DYNAMISCHE RUN-STATUS */
