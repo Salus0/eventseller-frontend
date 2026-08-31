@@ -30,8 +30,8 @@
 				const decoded = JSON.parse(jsonPayload);
 				
 				// Token-Felder auslesen
-				currentDiscordId = String(decoded.discord_id || decoded.discordId || decoded.discord || '').trim();
-				currentUserId = decoded.id ?? decoded.user_id ?? decoded.participant_id ?? decoded.sub ?? null;
+				currentDiscordId = String(decoded.discord_id || decoded.discordId || decoded.sub || '').trim();
+				currentUserId = decoded.participant_id || decoded.user_id || decoded.id || null;
 				currentUserName = String(decoded.name || decoded.username || decoded.sub || '').trim();
 
 				console.log('Session geladen:', { currentDiscordId, currentUserId, currentUserName });
