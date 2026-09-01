@@ -163,6 +163,18 @@
     return { label: 'Open', cssClass: 'status-open' };
   }
 
+  // Helper zum Ermitteln des Zeitstempels für die Datums-Sortierung
+  function getRunTimestamp(run) {
+    const dateVal = run.created_at || run.date || run.updated_at;
+    if (!dateVal) return 0;
+    return new Date(dateVal).getTime() || 0;
+  }
+
+  // --- REAKTIVE SORTIERUNG & KATEGORISIERUNG ---
+  $: sortedRuns = [...runs].sort((a, b) => getRunTimestamp(b) - getRunTimestamp(a));
+  $: activeRuns = sortedRuns.filter(r => getRunStatusInfo(r).label !== 'Close');
+  $: closedRuns = sortedRuns.filter(r => getRunStatusInfo(r).label === 'Close');
+
   // --- RUN HEADER EDITIEREN & LÖSCHEN ---
   function startEditRunHeader(run, e) {
     if (e) e.stopPropagation();
@@ -706,14 +718,16 @@
   {/if}
 </div>
 
-<section class="card">
-  <h2>Aktive Runs</h2>
-
-  {#if isLoading}
+{#if isLoading}
+  <section class="card">
     <p class="status-text">Lade Runs...</p>
-  {:else if errorMessage}
+  </section>
+{:else if errorMessage}
+  <section class="card">
     <p class="error">{errorMessage}</p>
-  {:else if runs.length === 0}
+  </section>
+{:else if runs.length === 0}
+  <section class="card">
     <p class="status-text">
       {#if isAdmin}
         Noch keine Runs vorhanden. Klicke oben auf "+ Neuen Run anlegen"!
@@ -721,302 +735,610 @@
         Noch keine Runs vorhanden.
       {/if}
     </p>
-  {:else}
-    <ul class="runs-list">
-      {#each runs as run, index (run.id ? `${run.id}-${index}` : index)}
-        {@const isExpanded = expandedRunIds.has(run.id)}
-        {@const statusInfo = getRunStatusInfo(run)}
-        <li class="run-item" id="run-{run.id}">
-          <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
-            
-            {#if editingRunHeader[run.id]}
-              <!-- INLINE-EDITIEREN DES RUN-HEADERS -->
-              <div class="run-edit-inline" on:click|stopPropagation>
-                <input 
-                  type="text" 
-                  bind:value={runHeaderInputs[run.id].name} 
-                  class="small-input header-edit-input" 
-                  placeholder="Run Name" 
-                />
-                <input 
-                  type="text" 
-                  bind:value={runHeaderInputs[run.id].run_type} 
-                  class="small-input header-edit-input" 
-                  placeholder="Typ (z.B. ET, WoE)" 
-                />
-                <button type="button" class="save-mini-btn" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
-                <button type="button" class="cancel-mini-btn" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
-              </div>
-            {:else}
-              <!-- NORMALANZEIGE DEL RUN-HEADERS -->
-              <div class="run-info">
-                <span class="run-name">{run.name}</span>
-                {#if run.run_type}
-                  <span class="run-meta">📌 {run.run_type}</span>
-                {/if}
-              </div>
-            {/if}
-
-            <div class="header-right">
-              <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
-
-              {#if isAdmin && !editingRunHeader[run.id]}
-                <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
-                <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
-              {/if}
-
-              <button class="expand-btn" type="button">
-                {isExpanded ? '▲ Verbergen' : '▼ Details'}
-              </button>
-            </div>
-          </div>
-
-          {#if isExpanded}
-            <div class="run-details">
-              {#if run.summary}
-                <div class="summary-banner">
-                  <div class="summary-card">
-                    <span class="summary-label">Gesamteinnahmen</span>
-                    <span class="summary-value total-zeny">{formatZeny(run.summary.total_zeny)}</span>
-                  </div>
-                  <div class="summary-card">
-                    <span class="summary-label">Split pro Spieler ({run.summary.participant_count}x)</span>
-                    <span class="summary-value split-zeny">{formatZeny(run.summary.payout_per_player)}</span>
-                  </div>
-                  <div class="summary-card">
-                    <span class="summary-label">Auszahlungs-Status</span>
-                    <span class="summary-value status-badge" class:all-paid={run.summary.all_paid_out}>
-                      {run.summary.participants_paid} / {run.summary.participant_count} Ausgezahlt
-                    </span>
-                  </div>
+  </section>
+{:else}
+  <!-- 1. SEKTION: AKTIVE RUNS -->
+  <section class="card section-margin">
+    <h2>🔥 Aktive Runs ({activeRuns.length})</h2>
+    {#if activeRuns.length === 0}
+      <p class="empty-text">Keine aktiven Runs vorhanden.</p>
+    {:else}
+      <ul class="runs-list">
+        {#each activeRuns as run, index (run.id ? `${run.id}-${index}` : index)}
+          {@const isExpanded = expandedRunIds.has(run.id)}
+          {@const statusInfo = getRunStatusInfo(run)}
+          <li class="run-item" id="run-{run.id}">
+            <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
+              
+              {#if editingRunHeader[run.id]}
+                <div class="run-edit-inline" on:click|stopPropagation>
+                  <input 
+                    type="text" 
+                    bind:value={runHeaderInputs[run.id].name} 
+                    class="small-input header-edit-input" 
+                    placeholder="Run Name" 
+                  />
+                  <input 
+                    type="text" 
+                    bind:value={runHeaderInputs[run.id].run_type} 
+                    class="small-input header-edit-input" 
+                    placeholder="Typ (z.B. ET, WoE)" 
+                  />
+                  <button type="button" class="save-mini-btn" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
+                  <button type="button" class="cancel-mini-btn" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
+                </div>
+              {:else}
+                <div class="run-info">
+                  <span class="run-name">{run.name}</span>
+                  {#if run.run_type}
+                    <span class="run-meta">📌 {run.run_type}</span>
+                  {/if}
                 </div>
               {/if}
 
-              <div class="details-grid">
-                <!-- 1. TEILNEHMER -->
-                <div class="detail-block participant-block">
-                  <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
-                  {#if !editingParticipants[run.id]}
-                    {#if run.participants && run.participants.length > 0}
-                      <ul>
-                        {#each run.participants as p, i}
-                          <li class="participant-row" class:paid-row={p.is_paid}>
-                            <div class="p-info">
-                              <strong class="num-prefix">{i + 1}.</strong> 
-                              <span>{p.name}</span>
-                              {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
-                            </div>
-                            {#if isAdmin}
-                              <label class="payout-toggle" title="Auszahlungs-Status ändern">
-                                <input 
-                                  type="checkbox" 
-                                  checked={p.is_paid} 
-                                  on:change={() => togglePayoutStatus(run.id, p.participant_id, p.is_paid)} 
-                                />
-                                <span class="payout-label">{p.is_paid ? 'Ausgezahlt' : 'Offen'}</span>
-                              </label>
-                            {:else}
-                              <span class="payout-status-text" class:paid={p.is_paid}>
-                                {p.is_paid ? '✓ Ausgezahlt' : '⏳ Offen'}
-                              </span>
-                            {/if}
+              <div class="header-right">
+                <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
+
+                {#if isAdmin && !editingRunHeader[run.id]}
+                  <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
+                  <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
+                {/if}
+
+                <button class="expand-btn" type="button">
+                  {isExpanded ? '▲ Verbergen' : '▼ Details'}
+                </button>
+              </div>
+            </div>
+
+            {#if isExpanded}
+              <div class="run-details">
+                {#if run.summary}
+                  <div class="summary-banner">
+                    <div class="summary-card">
+                      <span class="summary-label">Gesamteinnahmen</span>
+                      <span class="summary-value total-zeny">{formatZeny(run.summary.total_zeny)}</span>
+                    </div>
+                    <div class="summary-card">
+                      <span class="summary-label">Split pro Spieler ({run.summary.participant_count}x)</span>
+                      <span class="summary-value split-zeny">{formatZeny(run.summary.payout_per_player)}</span>
+                    </div>
+                    <div class="summary-card">
+                      <span class="summary-label">Auszahlungs-Status</span>
+                      <span class="summary-value status-badge" class:all-paid={run.summary.all_paid_out}>
+                        {run.summary.participants_paid} / {run.summary.participant_count} Ausgezahlt
+                      </span>
+                    </div>
+                  </div>
+                {/if}
+
+                <div class="details-grid">
+                  <!-- TEILNEHMER -->
+                  <div class="detail-block participant-block">
+                    <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
+                    {#if !editingParticipants[run.id]}
+                      {#if run.participants && run.participants.length > 0}
+                        <ul>
+                          {#each run.participants as p, i}
+                            <li class="participant-row" class:paid-row={p.is_paid}>
+                              <div class="p-info">
+                                <strong class="num-prefix">{i + 1}.</strong> 
+                                <span>{p.name}</span>
+                                {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
+                              </div>
+                              {#if isAdmin}
+                                <label class="payout-toggle" title="Auszahlungs-Status ändern">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={p.is_paid} 
+                                    on:change={() => togglePayoutStatus(run.id, p.participant_id, p.is_paid)} 
+                                  />
+                                  <span class="payout-label">{p.is_paid ? 'Ausgezahlt' : 'Offen'}</span>
+                                </label>
+                              {:else}
+                                <span class="payout-status-text" class:paid={p.is_paid}>
+                                  {p.is_paid ? '✓ Ausgezahlt' : '⏳ Offen'}
+                                </span>
+                              {/if}
+                            </li>
+                          {/each}
+                        </ul>
+                      {:else}
+                        <p class="empty-text">Keine Teilnehmer eingetragen</p>
+                      {/if}
+                      {#if isAdmin}
+                        <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
+                      {/if}
+                    {:else}
+                      <ul class="edit-list">
+                        {#each participantInputs[run.id]?.list || [] as p, idx}
+                          <li class="edit-row">
+                            <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
+                            <select bind:value={p.class_name} class="small-select inline-select">
+                              {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
+                            </select>
+                            <button type="button" class="del-btn" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
-                    {:else}
-                      <p class="empty-text">Keine Teilnehmer eingetragen</p>
+                      <div class="add-row">
+                        <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
+                          <option value="">-- Spieler wählen --</option>
+                          {#each availableParticipants.filter(ap => !(participantInputs[run.id]?.list || []).some(p => Number(p.participant_id) === Number(ap.id))) as ap}
+                            <option value={ap.id}>{ap.name}</option>
+                          {/each}
+                        </select>
+                        <select bind:value={participantInputs[run.id].newClass} class="small-select">
+                          <option value="">-- Klasse --</option>
+                          {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
+                        </select>
+                        <button type="button" class="mini-add-btn" on:click={() => addParticipantToBuffer(run.id)}>+</button>
+                      </div>
+                      <div class="btn-group">
+                        <button type="button" class="save-btn" on:click={() => saveParticipants(run.id)}>Speichern</button>
+                        <button type="button" class="cancel-btn" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
+                      </div>
                     {/if}
-                    {#if isAdmin}
-                      <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
-                    {/if}
-                  {:else}
-                    <ul class="edit-list">
-                      {#each participantInputs[run.id]?.list || [] as p, idx}
-                        <li class="edit-row">
-                          <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
-                          <select bind:value={p.class_name} class="small-select inline-select">
-                            {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
-                          </select>
-                          <button type="button" class="del-btn" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
-                        </li>
-                      {/each}
-                    </ul>
-                    <div class="add-row">
-                      <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
-                        <option value="">-- Spieler wählen --</option>
-                        {#each availableParticipants.filter(ap => !(participantInputs[run.id]?.list || []).some(p => Number(p.participant_id) === Number(ap.id))) as ap}
-                          <option value={ap.id}>{ap.name}</option>
-                        {/each}
-                      </select>
-                      <select bind:value={participantInputs[run.id].newClass} class="small-select">
-                        <option value="">-- Klasse --</option>
-                        {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
-                      </select>
-                      <button type="button" class="mini-add-btn" on:click={() => addParticipantToBuffer(run.id)}>+</button>
-                    </div>
-                    <div class="btn-group">
-                      <button type="button" class="save-btn" on:click={() => saveParticipants(run.id)}>Speichern</button>
-                      <button type="button" class="cancel-btn" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
-                    </div>
-                  {/if}
-                </div>
+                  </div>
 
-                <!-- 2. DROPS / ITEMS -->
-                <div class="detail-block item-block">
-                  <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
-                  
-                  {#if !editingItems[run.id]}
-                    {#if run.items && run.items.length > 0}
-                      <ul class="items-sales-list">
-                        {#each run.items as item (item.id)}
+                  <!-- DROPS / ITEMS -->
+                  <div class="detail-block item-block">
+                    <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
+                    
+                    {#if !editingItems[run.id]}
+                      {#if run.items && run.items.length > 0}
+                        <ul class="items-sales-list">
+                          {#each run.items as item (item.id)}
+                            {@const iconSrc = getItemIconUrl(item)}
+                            {@const roId = getROItemId(item)}
+                            <li class="item-sale-row">
+                              <div class="item-info">
+                                <span class="item-qty">{item.amount || item.quantity || 1}x</span>
+                                <img 
+                                  src={iconSrc} 
+                                  alt={item.name} 
+                                  class="item-icon-img"
+                                  on:error={(e) => handleImgError(e, item)} 
+                                />
+                                {#if roId}
+                                  <span class="item-id-badge">#{roId}</span>
+                                {/if}
+                                <span class="item-name">{getItemName(item, item.name || item.item_name)}</span>
+                              </div>
+
+                              <div class="sale-action-area">
+                                {#if editingSaleForItemId[item.id] && isAdmin}
+                                  <div class="inline-sale-form">
+                                    {#if editSaleInputs[item.id]}
+                                      <input 
+                                        type="text" 
+                                        placeholder="Preis" 
+                                        value={editSaleInputs[item.id].priceDisplay || ''} 
+                                        on:input={(e) => handleEditPriceInput(item.id, e)}
+                                        class="price-input wide-price-input" 
+                                      />
+                                      <label class="checkbox-label">
+                                        <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
+                                        Shop
+                                      </label>
+                                    {/if}
+                                    <button type="button" class="save-mini-btn" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
+                                  </div>
+                                {:else if item.sale_price || item.price || item.actual_price}
+                                  <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
+                                  {#if item.is_shop || item.sale_type === 'Shop'}
+                                    <span class="shop-badge">Shop (-2%)</span>
+                                  {/if}
+                                  {#if isAdmin}
+                                    <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Preis bearbeiten">✏️</button>
+                                  {/if}
+                                {:else if addingSaleForItemId[item.id] && isAdmin}
+                                  <div class="inline-sale-form">
+                                    {#if saleInputs[item.id]}
+                                      <input 
+                                        type="text" 
+                                        placeholder="Preis (z.B. 1.000.000)" 
+                                        value={saleInputs[item.id].priceDisplay || ''} 
+                                        on:input={(e) => handlePriceInput(item.id, e)}
+                                        class="price-input wide-price-input" 
+                                      />
+                                      <label class="checkbox-label">
+                                        <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
+                                        Shop
+                                      </label>
+                                    {/if}
+                                    <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
+                                  </div>
+                                {:else if isAdmin}
+                                  <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
+                                    + Verkauf hinzufügen
+                                  </button>
+                                {:else}
+                                  <span class="empty-text">Offen</span>
+                                {/if}
+                              </div>
+                            </li>
+                          {/each}
+                        </ul>
+                      {:else}
+                        <p class="empty-text">Keine Items eingetragen</p>
+                      {/if}
+
+                      {#if isAdmin}
+                        <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
+                          ➕ Add/Edit
+                        </button>
+                      {/if}
+
+                    {:else}
+                      <ul class="edit-list">
+                        {#each itemInputs[run.id]?.list || [] as item, idx}
                           {@const iconSrc = getItemIconUrl(item)}
                           {@const roId = getROItemId(item)}
-                          <li class="item-sale-row">
-                            <div class="item-info">
-                              <span class="item-qty">{item.amount || item.quantity || 1}x</span>
+                          <li class="edit-row">
+                            <span class="item-info">
+                              <span class="item-qty">{item.amount || 1}x</span>
                               <img 
                                 src={iconSrc} 
                                 alt={item.name} 
-                                class="item-icon-img"
+                                class="item-icon-img" 
                                 on:error={(e) => handleImgError(e, item)} 
                               />
                               {#if roId}
                                 <span class="item-id-badge">#{roId}</span>
                               {/if}
-                              <span class="item-name">{getItemName(item, item.name || item.item_name)}</span>
-                            </div>
-
-                            <div class="sale-action-area">
-                              {#if editingSaleForItemId[item.id] && isAdmin}
-                                <div class="inline-sale-form">
-                                  {#if editSaleInputs[item.id]}
-                                    <input 
-                                      type="text" 
-                                      placeholder="Preis" 
-                                      value={editSaleInputs[item.id].priceDisplay || ''} 
-                                      on:input={(e) => handleEditPriceInput(item.id, e)}
-                                      class="price-input wide-price-input" 
-                                    />
-                                    <label class="checkbox-label">
-                                      <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
-                                      Shop
-                                    </label>
-                                  {/if}
-                                  <button type="button" class="save-mini-btn" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
-                                  <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
-                                </div>
-                              {:else if item.sale_price || item.price || item.actual_price}
-                                <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
-                                {#if item.is_shop || item.sale_type === 'Shop'}
-                                  <span class="shop-badge">Shop (-2%)</span>
-                                {/if}
-                                {#if isAdmin}
-                                  <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Preis bearbeiten">✏️</button>
-                                {/if}
-                              {:else if addingSaleForItemId[item.id] && isAdmin}
-                                <div class="inline-sale-form">
-                                  {#if saleInputs[item.id]}
-                                    <input 
-                                      type="text" 
-                                      placeholder="Preis (z.B. 1.000.000)" 
-                                      value={saleInputs[item.id].priceDisplay || ''} 
-                                      on:input={(e) => handlePriceInput(item.id, e)}
-                                      class="price-input wide-price-input" 
-                                    />
-                                    <label class="checkbox-label">
-                                      <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
-                                      Shop
-                                    </label>
-                                  {/if}
-                                  <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
-                                  <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
-                                </div>
-                              {:else if isAdmin}
-                                <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
-                                  + Verkauf hinzufügen
-                                </button>
-                              {:else}
-                                <span class="empty-text">Offen</span>
-                              {/if}
-                            </div>
+                              <span>{getItemName(item, item.name)}</span>
+                            </span>
+                            <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
-                    {:else}
-                      <p class="empty-text">Keine Items eingetragen</p>
+
+                      <div class="add-row">
+                        <input 
+                          type="number" 
+                          min="1" 
+                          placeholder="Anzahl" 
+                          bind:value={itemInputs[run.id].newAmount}
+                          class="qty-field"
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="Item Name oder RO-ID" 
+                          list="master-items-list"
+                          bind:value={itemInputs[run.id].newNameOrId}
+                          class="small-input"
+                        />
+                        <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
+                      </div>
+
+                      <div class="btn-group">
+                        <button type="button" class="save-btn" on:click={() => saveItems(run.id)}>Speichern</button>
+                        <button type="button" class="cancel-btn" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
+                      </div>
                     {/if}
+                  </div>
 
-                    {#if isAdmin}
-                      <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
-                        ➕ Add/Edit
-                      </button>
-                    {/if}
+                </div>
+              </div>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
 
-                  {:else}
-                    <ul class="edit-list">
-                      {#each itemInputs[run.id]?.list || [] as item, idx}
-                        {@const iconSrc = getItemIconUrl(item)}
-                        {@const roId = getROItemId(item)}
-                        <li class="edit-row">
-                          <span class="item-info">
-                            <span class="item-qty">{item.amount || 1}x</span>
-                            <img 
-                              src={iconSrc} 
-                              alt={item.name} 
-                              class="item-icon-img" 
-                              on:error={(e) => handleImgError(e, item)} 
-                            />
-                            {#if roId}
-                              <span class="item-id-badge">#{roId}</span>
-                            {/if}
-                            <span>{getItemName(item, item.name)}</span>
-                          </span>
-                          <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
-                        </li>
-                      {/each}
-                    </ul>
-
-                    <div class="add-row">
-                      <input 
-                        type="number" 
-                        min="1" 
-                        placeholder="Anzahl" 
-                        bind:value={itemInputs[run.id].newAmount}
-                        class="qty-field"
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="Item Name oder RO-ID" 
-                        list="master-items-list"
-                        bind:value={itemInputs[run.id].newNameOrId}
-                        class="small-input"
-                      />
-                      <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
-                    </div>
-
-                    <div class="btn-group">
-                      <button type="button" class="save-btn" on:click={() => saveItems(run.id)}>Speichern</button>
-                      <button type="button" class="cancel-btn" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
-                    </div>
+  <!-- 2. SEKTION: ABGESCHLOSSENE RUNS -->
+  <section class="card closed-card">
+    <h2>✅ Abgeschlossene Runs ({closedRuns.length})</h2>
+    {#if closedRuns.length === 0}
+      <p class="empty-text">Noch keine abgeschlossenen Runs vorhanden.</p>
+    {:else}
+      <ul class="runs-list">
+        {#each closedRuns as run, index (run.id ? `${run.id}-${index}` : index)}
+          {@const isExpanded = expandedRunIds.has(run.id)}
+          {@const statusInfo = getRunStatusInfo(run)}
+          <li class="run-item closed-run-item" id="run-{run.id}">
+            <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
+              
+              {#if editingRunHeader[run.id]}
+                <div class="run-edit-inline" on:click|stopPropagation>
+                  <input 
+                    type="text" 
+                    bind:value={runHeaderInputs[run.id].name} 
+                    class="small-input header-edit-input" 
+                    placeholder="Run Name" 
+                  />
+                  <input 
+                    type="text" 
+                    bind:value={runHeaderInputs[run.id].run_type} 
+                    class="small-input header-edit-input" 
+                    placeholder="Typ (z.B. ET, WoE)" 
+                  />
+                  <button type="button" class="save-mini-btn" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
+                  <button type="button" class="cancel-mini-btn" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
+                </div>
+              {:else}
+                <div class="run-info">
+                  <span class="run-name">{run.name}</span>
+                  {#if run.run_type}
+                    <span class="run-meta">📌 {run.run_type}</span>
                   {/if}
                 </div>
+              {/if}
 
+              <div class="header-right">
+                <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
+
+                {#if isAdmin && !editingRunHeader[run.id]}
+                  <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
+                  <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
+                {/if}
+
+                <button class="expand-btn" type="button">
+                  {isExpanded ? '▲ Verbergen' : '▼ Details'}
+                </button>
               </div>
             </div>
-          {/if}
-        </li>
-      {/each}
-    </ul>
-  {/if}
-</section>
+
+            {#if isExpanded}
+              <div class="run-details">
+                {#if run.summary}
+                  <div class="summary-banner">
+                    <div class="summary-card">
+                      <span class="summary-label">Gesamteinnahmen</span>
+                      <span class="summary-value total-zeny">{formatZeny(run.summary.total_zeny)}</span>
+                    </div>
+                    <div class="summary-card">
+                      <span class="summary-label">Split pro Spieler ({run.summary.participant_count}x)</span>
+                      <span class="summary-value split-zeny">{formatZeny(run.summary.payout_per_player)}</span>
+                    </div>
+                    <div class="summary-card">
+                      <span class="summary-label">Auszahlungs-Status</span>
+                      <span class="summary-value status-badge" class:all-paid={run.summary.all_paid_out}>
+                        {run.summary.participants_paid} / {run.summary.participant_count} Ausgezahlt
+                      </span>
+                    </div>
+                  </div>
+                {/if}
+
+                <div class="details-grid">
+                  <!-- TEILNEHMER -->
+                  <div class="detail-block participant-block">
+                    <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
+                    {#if !editingParticipants[run.id]}
+                      {#if run.participants && run.participants.length > 0}
+                        <ul>
+                          {#each run.participants as p, i}
+                            <li class="participant-row" class:paid-row={p.is_paid}>
+                              <div class="p-info">
+                                <strong class="num-prefix">{i + 1}.</strong> 
+                                <span>{p.name}</span>
+                                {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
+                              </div>
+                              {#if isAdmin}
+                                <label class="payout-toggle" title="Auszahlungs-Status ändern">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={p.is_paid} 
+                                    on:change={() => togglePayoutStatus(run.id, p.participant_id, p.is_paid)} 
+                                  />
+                                  <span class="payout-label">{p.is_paid ? 'Ausgezahlt' : 'Offen'}</span>
+                                </label>
+                              {:else}
+                                <span class="payout-status-text" class:paid={p.is_paid}>
+                                  {p.is_paid ? '✓ Ausgezahlt' : '⏳ Offen'}
+                                </span>
+                              {/if}
+                            </li>
+                          {/each}
+                        </ul>
+                      {:else}
+                        <p class="empty-text">Keine Teilnehmer eingetragen</p>
+                      {/if}
+                      {#if isAdmin}
+                        <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
+                      {/if}
+                    {:else}
+                      <ul class="edit-list">
+                        {#each participantInputs[run.id]?.list || [] as p, idx}
+                          <li class="edit-row">
+                            <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
+                            <select bind:value={p.class_name} class="small-select inline-select">
+                              {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
+                            </select>
+                            <button type="button" class="del-btn" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
+                          </li>
+                        {/each}
+                      </ul>
+                      <div class="add-row">
+                        <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
+                          <option value="">-- Spieler wählen --</option>
+                          {#each availableParticipants.filter(ap => !(participantInputs[run.id]?.list || []).some(p => Number(p.participant_id) === Number(ap.id))) as ap}
+                            <option value={ap.id}>{ap.name}</option>
+                          {/each}
+                        </select>
+                        <select bind:value={participantInputs[run.id].newClass} class="small-select">
+                          <option value="">-- Klasse --</option>
+                          {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
+                        </select>
+                        <button type="button" class="mini-add-btn" on:click={() => addParticipantToBuffer(run.id)}>+</button>
+                      </div>
+                      <div class="btn-group">
+                        <button type="button" class="save-btn" on:click={() => saveParticipants(run.id)}>Speichern</button>
+                        <button type="button" class="cancel-btn" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
+                      </div>
+                    {/if}
+                  </div>
+
+                  <!-- DROPS / ITEMS -->
+                  <div class="detail-block item-block">
+                    <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
+                    
+                    {#if !editingItems[run.id]}
+                      {#if run.items && run.items.length > 0}
+                        <ul class="items-sales-list">
+                          {#each run.items as item (item.id)}
+                            {@const iconSrc = getItemIconUrl(item)}
+                            {@const roId = getROItemId(item)}
+                            <li class="item-sale-row">
+                              <div class="item-info">
+                                <span class="item-qty">{item.amount || item.quantity || 1}x</span>
+                                <img 
+                                  src={iconSrc} 
+                                  alt={item.name} 
+                                  class="item-icon-img"
+                                  on:error={(e) => handleImgError(e, item)} 
+                                />
+                                {#if roId}
+                                  <span class="item-id-badge">#{roId}</span>
+                                {/if}
+                                <span class="item-name">{getItemName(item, item.name || item.item_name)}</span>
+                              </div>
+
+                              <div class="sale-action-area">
+                                {#if editingSaleForItemId[item.id] && isAdmin}
+                                  <div class="inline-sale-form">
+                                    {#if editSaleInputs[item.id]}
+                                      <input 
+                                        type="text" 
+                                        placeholder="Preis" 
+                                        value={editSaleInputs[item.id].priceDisplay || ''} 
+                                        on:input={(e) => handleEditPriceInput(item.id, e)}
+                                        class="price-input wide-price-input" 
+                                      />
+                                      <label class="checkbox-label">
+                                        <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
+                                        Shop
+                                      </label>
+                                    {/if}
+                                    <button type="button" class="save-mini-btn" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
+                                  </div>
+                                {:else if item.sale_price || item.price || item.actual_price}
+                                  <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
+                                  {#if item.is_shop || item.sale_type === 'Shop'}
+                                    <span class="shop-badge">Shop (-2%)</span>
+                                  {/if}
+                                  {#if isAdmin}
+                                    <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Preis bearbeiten">✏️</button>
+                                  {/if}
+                                {:else if addingSaleForItemId[item.id] && isAdmin}
+                                  <div class="inline-sale-form">
+                                    {#if saleInputs[item.id]}
+                                      <input 
+                                        type="text" 
+                                        placeholder="Preis (z.B. 1.000.000)" 
+                                        value={saleInputs[item.id].priceDisplay || ''} 
+                                        on:input={(e) => handlePriceInput(item.id, e)}
+                                        class="price-input wide-price-input" 
+                                      />
+                                      <label class="checkbox-label">
+                                        <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
+                                        Shop
+                                      </label>
+                                    {/if}
+                                    <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
+                                  </div>
+                                {:else if isAdmin}
+                                  <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
+                                    + Verkauf hinzufügen
+                                  </button>
+                                {:else}
+                                  <span class="empty-text">Offen</span>
+                                {/if}
+                              </div>
+                            </li>
+                          {/each}
+                        </ul>
+                      {:else}
+                        <p class="empty-text">Keine Items eingetragen</p>
+                      {/if}
+
+                      {#if isAdmin}
+                        <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
+                          ➕ Add/Edit
+                        </button>
+                      {/if}
+
+                    {:else}
+                      <ul class="edit-list">
+                        {#each itemInputs[run.id]?.list || [] as item, idx}
+                          {@const iconSrc = getItemIconUrl(item)}
+                          {@const roId = getROItemId(item)}
+                          <li class="edit-row">
+                            <span class="item-info">
+                              <span class="item-qty">{item.amount || 1}x</span>
+                              <img 
+                                src={iconSrc} 
+                                alt={item.name} 
+                                class="item-icon-img" 
+                                on:error={(e) => handleImgError(e, item)} 
+                              />
+                              {#if roId}
+                                <span class="item-id-badge">#{roId}</span>
+                              {/if}
+                              <span>{getItemName(item, item.name)}</span>
+                            </span>
+                            <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
+                          </li>
+                        {/each}
+                      </ul>
+
+                      <div class="add-row">
+                        <input 
+                          type="number" 
+                          min="1" 
+                          placeholder="Anzahl" 
+                          bind:value={itemInputs[run.id].newAmount}
+                          class="qty-field"
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="Item Name oder RO-ID" 
+                          list="master-items-list"
+                          bind:value={itemInputs[run.id].newNameOrId}
+                          class="small-input"
+                        />
+                        <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
+                      </div>
+
+                      <div class="btn-group">
+                        <button type="button" class="save-btn" on:click={() => saveItems(run.id)}>Speichern</button>
+                        <button type="button" class="cancel-btn" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
+                      </div>
+                    {/if}
+                  </div>
+
+                </div>
+              </div>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
+{/if}
 
 <style>
   .header-action { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
   h1 { color: #fbbf24; margin: 0; }
+  h2 { font-size: 1.1rem; color: #f8fafc; margin-top: 0; margin-bottom: 1rem; }
+  
   .create-btn { background-color: #d97706; color: white; padding: 0.6rem 1.2rem; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
   .create-btn:hover { background-color: #b45309; }
-  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
   
+  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
+  .section-margin { margin-bottom: 1.5rem; }
+  
+  /* ABGESCHLOSSENE RUNS OPTIONAL LEICHT ABGEDUNKELT */
+  .closed-card { border-color: #1e293b; background-color: #111827; }
+  .closed-card h2 { color: #94a3b8; }
+  .closed-run-item { opacity: 0.85; }
+  .closed-run-item:hover { opacity: 1; }
+
   .runs-list { list-style: none; padding: 0; margin: 0; }
   .run-item { background-color: #0f172a; border: 1px solid #334155; border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
   .run-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; cursor: pointer; user-select: none; }
