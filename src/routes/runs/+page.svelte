@@ -324,7 +324,10 @@
 
       // Mehrfach-Drops beim Laden in Einzel-Items mit Stückzahl 1 aufspalten
       let expandedItems = [];
-      (Array.isArray(loadedItems) ? loadedItems : []).forEach((item) => {
+      const safeItems = Array.isArray(loadedItems) ? loadedItems : [];
+      const safeSales = Array.isArray(loadedSales) ? loadedSales : [];
+
+      safeItems.forEach((item, itemIdx) => {
         const rawRoId = item.ro_item_id ?? item.item_id ?? item.master_item_id;
         const master = getMasterItem(rawRoId);
         const finalRoId = master ? (master.item_id ?? master.ro_item_id) : rawRoId;
@@ -334,16 +337,21 @@
 
         for (let i = 0; i < qty; i++) {
           // Zuordnung bestehender Verkäufe ohne Doppelbelegung
-          const existingSale = Array.isArray(loadedSales) ? loadedSales.find(s => 
+          const existingSale = safeSales.find(s => 
             (Number(s.item_id) === Number(numericRoId) || Number(s.ro_item_id) === Number(numericRoId) || Number(s.id) === Number(item.sale_id)) &&
             !expandedItems.some(exp => Number(exp.sale_id) === Number(s.id))
-          ) : null;
+          );
+
+          // Garantiert eindeutige ID für die Svelte-Schleife (#each ... (item.id))
+          const uniqueKey = realDbId 
+            ? `db-${realDbId}-${i}` 
+            : `run-${runId}-item-${itemIdx}-${i}-${Math.random().toString(36).substring(2, 7)}`;
 
           expandedItems.push({
             ...item,
             amount: 1,
             quantity: 1,
-            id: realDbId ? `${realDbId}-${i}` : (numericRoId ? `${numericRoId}-${i}` : `${runId}-item-${expandedItems.length}`),
+            id: uniqueKey,
             real_db_id: realDbId ? Number(realDbId) : null,
             ro_item_id: numericRoId,
             image_url: master?.image_url || master?.icon_url || item.image_url || null,
@@ -363,7 +371,7 @@
             ...r,
             participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
             items: expandedItems,
-            sales: loadedSales,
+            sales: safeSales,
             summary: loadedSummary
           };
         }
