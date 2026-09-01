@@ -35,6 +35,28 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
+  // Helper zum Formatieren von UTC/ISO-Daten in DD.MM.YY, HH:mm
+  function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  }
+
+  // Helper um ISO Date für datetime-local Input Vorzubelegen (YYYY-MM-THH:mm)
+  function toLocalDatetimeInput(dateStr) {
+    const d = dateStr ? new Date(dateStr) : new Date();
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   // Helper zum Erzeugen der Standard-Auth-Header
   function getAuthHeaders() {
     const token = localStorage.getItem('jwt_token') || jwtToken;
@@ -324,7 +346,8 @@
           sale_id: existingSale ? existingSale.id : item.sale_id,
           sale_price: existingSale ? (existingSale.actual_price ?? existingSale.price) : (item.sale_price ?? item.price ?? 0),
           sale_type: existingSale ? (existingSale.is_shop ? 'Shop' : 'Direkt') : (item.sale_type ?? (item.is_shop ? 'Shop' : 'Direkt')),
-          is_shop: existingSale ? existingSale.is_shop : item.is_shop
+          is_shop: existingSale ? existingSale.is_shop : item.is_shop,
+          sale_date: existingSale ? (existingSale.created_at || existingSale.sale_date || existingSale.date) : (item.sale_date || item.created_at)
         };
       });
 
@@ -564,12 +587,12 @@
     }
   }
 
-  // --- VERKAUF NEU EINGEBEN UND SPÄTER EDITIEREN ---
+  // --- VERKAUF NEU EINGEBEN, SPÄTER EDITIEREN ODER ZURÜCKSETZEN ---
   function openSaleForm(runItemId) {
     if (!isAdmin) return;
     saleInputs = {
       ...saleInputs,
-      [runItemId]: { price: 0, priceDisplay: '', isShop: false }
+      [runItemId]: { price: 0, priceDisplay: '', isShop: false, saleDate: toLocalDatetimeInput() }
     };
     addingSaleForItemId = {
       ...addingSaleForItemId,
@@ -594,7 +617,8 @@
       [item.id]: {
         price: rawPrice,
         priceDisplay: new Intl.NumberFormat('de-DE').format(rawPrice),
-        isShop: Boolean(item.is_shop || item.sale_type === 'Shop')
+        isShop: Boolean(item.is_shop || item.sale_type === 'Shop'),
+        saleDate: toLocalDatetimeInput(item.sale_date)
       }
     };
     editingSaleForItemId = {
@@ -630,6 +654,7 @@
       quantity: Number(runItem.amount || runItem.quantity || 1),
       actual_price: Number(input.price),
       is_shop: Boolean(input.isShop),
+      created_at: input.saleDate ? new Date(input.saleDate).toISOString() : new Date().toISOString()
     };
 
     try {
@@ -670,7 +695,8 @@
     const payload = {
       quantity: Number(runItem.amount || runItem.quantity || 1),
       actual_price: Number(input.price),
-      is_shop: Boolean(input.isShop)
+      is_shop: Boolean(input.isShop),
+      created_at: input.saleDate ? new Date(input.saleDate).toISOString() : undefined
     };
 
     try {
@@ -692,6 +718,36 @@
     } catch (err) {
       console.error(err);
       alert('Netzwerkfehler beim Aktualisieren des Verkaufs.');
+    }
+  }
+
+  // NEW: Verkauf zurücksetzen / löschen
+  async function deleteSaleForItem(runId, runItem) {
+    if (!isAdmin) return;
+    if (!runItem.sale_id) {
+      alert('Fehler: Es konnte keine Verkaufs-ID für dieses Item gefunden werden.');
+      return;
+    }
+
+    if (!confirm(`Möchtest du den Verkauf von "${getItemName(runItem)}" wirklich zurücksetzen?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${backendUrl}/runs/sales/${runItem.sale_id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      if (res.ok) {
+        await loadRunDetails(runId);
+      } else {
+        const errorData = await res.json().catch(() => null);
+        alert(`Verkauf konnte nicht zurückgesetzt werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Netzwerkfehler beim Zurücksetzen des Verkaufs.');
     }
   }
 
@@ -916,6 +972,11 @@
                                         on:input={(e) => handleEditPriceInput(item.id, e)}
                                         class="price-input wide-price-input" 
                                       />
+                                      <input 
+                                        type="datetime-local" 
+                                        bind:value={editSaleInputs[item.id].saleDate} 
+                                        class="date-input"
+                                      />
                                       <label class="checkbox-label">
                                         <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
                                         Shop
@@ -925,12 +986,19 @@
                                     <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
                                   </div>
                                 {:else if item.sale_price || item.price || item.actual_price}
-                                  <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
+                                  <div class="sale-details-col">
+                                    <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
+                                    {#if item.sale_date}
+                                      <span class="sale-date-tag">📅 {formatDate(item.sale_date)}</span>
+                                    {/if}
+                                  </div>
+
                                   {#if item.is_shop || item.sale_type === 'Shop'}
                                     <span class="shop-badge">Shop (-2%)</span>
                                   {/if}
                                   {#if isAdmin}
-                                    <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Preis bearbeiten">✏️</button>
+                                    <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
+                                    <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                   {/if}
                                 {:else if addingSaleForItemId[item.id] && isAdmin}
                                   <div class="inline-sale-form">
@@ -941,6 +1009,11 @@
                                         value={saleInputs[item.id].priceDisplay || ''} 
                                         on:input={(e) => handlePriceInput(item.id, e)}
                                         class="price-input wide-price-input" 
+                                      />
+                                      <input 
+                                        type="datetime-local" 
+                                        bind:value={saleInputs[item.id].saleDate} 
+                                        class="date-input"
                                       />
                                       <label class="checkbox-label">
                                         <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
@@ -1208,6 +1281,11 @@
                                         on:input={(e) => handleEditPriceInput(item.id, e)}
                                         class="price-input wide-price-input" 
                                       />
+                                      <input 
+                                        type="datetime-local" 
+                                        bind:value={editSaleInputs[item.id].saleDate} 
+                                        class="date-input"
+                                      />
                                       <label class="checkbox-label">
                                         <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
                                         Shop
@@ -1217,12 +1295,19 @@
                                     <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
                                   </div>
                                 {:else if item.sale_price || item.price || item.actual_price}
-                                  <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
+                                  <div class="sale-details-col">
+                                    <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
+                                    {#if item.sale_date}
+                                      <span class="sale-date-tag">📅 {formatDate(item.sale_date)}</span>
+                                    {/if}
+                                  </div>
+
                                   {#if item.is_shop || item.sale_type === 'Shop'}
                                     <span class="shop-badge">Shop (-2%)</span>
                                   {/if}
                                   {#if isAdmin}
-                                    <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Preis bearbeiten">✏️</button>
+                                    <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
+                                    <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                   {/if}
                                 {:else if addingSaleForItemId[item.id] && isAdmin}
                                   <div class="inline-sale-form">
@@ -1233,6 +1318,11 @@
                                         value={saleInputs[item.id].priceDisplay || ''} 
                                         on:input={(e) => handlePriceInput(item.id, e)}
                                         class="price-input wide-price-input" 
+                                      />
+                                      <input 
+                                        type="datetime-local" 
+                                        bind:value={saleInputs[item.id].saleDate} 
+                                        class="date-input"
                                       />
                                       <label class="checkbox-label">
                                         <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
@@ -1442,6 +1532,8 @@
   .item-name { font-weight: 500; }
   
   .sale-action-area { display: flex; align-items: center; gap: 0.5rem; }
+  .sale-details-col { display: flex; flex-direction: column; align-items: flex-end; }
+  .sale-date-tag { font-size: 0.7rem; color: #94a3b8; }
   .price-tag { color: #34d399; font-weight: 600; font-size: 0.85rem; }
   .add-sale-btn { background-color: #064e3b; color: #6ee7b7; border: 1px solid #047857; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
   .add-sale-btn:hover { background-color: #047857; color: white; }
@@ -1449,9 +1541,10 @@
   .edit-sale-btn { background: none; border: none; cursor: pointer; font-size: 0.85rem; padding: 0 0.2rem; }
   .edit-sale-btn:hover { opacity: 0.8; }
 
-  .inline-sale-form { display: flex; align-items: center; gap: 0.3rem; }
+  .inline-sale-form { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+  .date-input { background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: #cbd5e1; font-size: 0.75rem; padding: 0.25rem 0.4rem; }
   
-  .wide-price-input { width: 140px; padding: 0.3rem 0.5rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: #34d399; font-weight: 600; font-size: 0.85rem; text-align: right; }
+  .wide-price-input { width: 130px; padding: 0.3rem 0.5rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; color: #34d399; font-weight: 600; font-size: 0.85rem; text-align: right; }
   
   .checkbox-label { font-size: 0.75rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.2rem; cursor: pointer; }
   .save-mini-btn { background: #059669; color: white; border: none; padding: 0.3rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
