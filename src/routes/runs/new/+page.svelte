@@ -18,20 +18,18 @@
 
   let selectedParticipants = [{ participant_id: '', class_name: '' }];
 
-// Erweiterte RO-Klassen Liste (inkl. Scholar falls gewünscht)
   const roClasses = [
     'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
     'Paladin', 'Professor', 'Scholar', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Mapping von Raid-Helper Klassennamen auf RO-Klassen (unterstützt Unterstriche & Varianten)
   const classMapping = {
     'lord knight': 'Lord Knight', 'lord_knight': 'Lord Knight', 'lk': 'Lord Knight',
     'high wizard': 'High Wizard', 'high_wizzard': 'High Wizard', 'high_wizard': 'High Wizard', 'high wizzard': 'High Wizard', 'wizard': 'High Wizard',
     'sniper': 'Sniper', 'hunter': 'Sniper',
     'high priest': 'High Priest', 'high_priest': 'High Priest', 'hp': 'High Priest', 'priest': 'High Priest',
-    'whitesmith': 'Whitesmith', 'whitesmith': 'Whitesmith', 'ws': 'Whitesmith', 'blacksmith': 'Whitesmith',
+    'whitesmith': 'Whitesmith', 'ws': 'Whitesmith', 'blacksmith': 'Whitesmith',
     'assassin cross': 'Assassin Cross', 'assassin_cross': 'Assassin Cross', 'assa_x': 'Assassin Cross', 'sinx': 'Assassin Cross', 'assassin': 'Assassin Cross',
     'paladin': 'Paladin', 'pala': 'Paladin',
     'professor': 'Professor', 'prof': 'Professor', 'sage': 'Professor',
@@ -49,7 +47,6 @@
 
   function mapClass(rawClass) {
     if (!rawClass) return 'Sonstiges';
-    // Unterstriche in Leerzeichen umwandeln und Kleinbuchstaben machen
     const cleaned = rawClass.trim().toLowerCase().replace(/_/g, ' ');
     return classMapping[cleaned] || classMapping[rawClass.trim().toLowerCase()] || 'Sonstiges';
   }
@@ -95,7 +92,6 @@
     }
   }
 
-// --- RAID HELPER IMPORT (Prio 1: Discord ID, Prio 2: Name) ---
   async function importFromRaidHelper() {
     const trimmedId = raidHelperId.trim();
     if (!trimmedId) {
@@ -114,7 +110,6 @@
 
       const data = await res.json();
 
-      // 1. Titel & Datum setzen
       if (data.title) {
         eventType = data.title;
       }
@@ -124,12 +119,10 @@
         eventDate = dateObj.toISOString().split('T')[0];
       }
 
-      // 2. Angemeldete Teilnehmer verarbeiten
       const signups = data.signUps || data.signups || [];
       const importedParticipants = [];
 
       for (const signup of signups) {
-        // NUR primäre Zusagen (keine Bank / Bench, kein Tentative)
         const isPrimary = signup.status === 'primary' && signup.className !== 'Bench';
         if (!isPrimary) continue;
 
@@ -139,7 +132,6 @@
 
         if (!signupName) continue;
 
-        // Abgleich: Erst nach Discord-ID matchen, danach Fallback auf den Namen
         let matchedPlayer = availableParticipants.find(p => {
           const dbDiscordId = String(p.discord_id || p.discordId || '').trim();
           const dbName = p.name.trim().toLowerCase();
@@ -150,7 +142,6 @@
           return dbName === signupName.toLowerCase();
         });
 
-        // Falls der Spieler noch GAR NICHT in den Stammdaten existiert, automatisch anlegen!
         if (!matchedPlayer && signupDiscordId) {
           try {
             const createRes = await fetch(`${backendUrl}/participants/`, {
@@ -167,7 +158,6 @@
 
             if (createRes.ok) {
               const newPart = await createRes.json();
-              // In die lokale Liste aufnehmen, damit weitere Abgleiche im Loop klappen
               availableParticipants = [...availableParticipants, newPart];
               matchedPlayer = newPart;
             }
@@ -186,7 +176,7 @@
 
       if (importedParticipants.length > 0) {
         selectedParticipants = importedParticipants;
-        alert(`${importedParticipants.length} aktive Teilnehmer aus Raid-Helper übernommen (fehlende wurden automatisch angelegt)!`);
+        alert(`${importedParticipants.length} aktive Teilnehmer aus Raid-Helper übernommen!`);
       } else {
         alert('Event-Daten geladen, aber keine aktiven (primären) Teilnehmer gefunden.');
       }
@@ -219,37 +209,59 @@
       ? `${trimmedType} - ${formattedDate} (${runNote.trim()})`
       : `${trimmedType} - ${formattedDate}`;
 
+    // 1. Gültige Teilnehmer filtern und Typen explizit als Numbers erzwingen
     const validParticipants = selectedParticipants
-      .filter(p => p.participant_id !== '')
+      .filter(p => p.participant_id !== '' && p.participant_id !== null)
       .map(p => ({
         participant_id: Number(p.participant_id),
-        class_name: p.class_name || 'Unbekannt'
+        class_name: p.class_name || 'Sonstiges'
       }));
 
-    const payload = {
-      name: computedName,
-      event_type: trimmedType,
-      date: eventDate,
-      note: runNote.trim(),
-      participants: validParticipants
-    };
+    if (validParticipants.length === 0) {
+      alert('Bitte wähle mindestens einen gültigen Teilnehmer aus.');
+      return;
+    }
 
     try {
+      // 2. Run in der Datenbank anlegen
       const res = await fetch(`${backendUrl}/runs/`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${jwtToken}`
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          name: computedName,
+          created_at: `${eventDate} 20:15:00`
+        })
       });
 
-      if (res.ok) {
-        goto('/runs');
-      } else {
+      if (!res.ok) {
         const errorData = await res.json().catch(() => null);
         alert(`Run konnte nicht erstellt werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
+        return;
       }
+
+      const createdRun = await res.json();
+      const runId = createdRun.id;
+
+      // 3. Teilnehmer explizit über den PUT-Endpoint dem Run zuweisen
+      const partRes = await fetch(`${backendUrl}/runs/${runId}/participants`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify(validParticipants)
+      });
+
+      if (partRes.ok) {
+        goto('/runs');
+      } else {
+        const partErr = await partRes.json().catch(() => null);
+        alert(`Run wurde erstellt, aber Teilnehmer konnten nicht zugewiesen werden:\n${JSON.stringify(partErr || partRes.statusText)}`);
+      }
+
     } catch (err) {
       console.error(err);
       alert('Netzwerkfehler beim Erstellen des Runs.');
@@ -317,7 +329,7 @@
       <p class="status-text">Keine Spieler in den Stammdaten gefunden. Lege zuerst welche unter <strong>Teilnehmer</strong> an!</p>
     {:else}
       <div class="dynamic-list">
-        {#each selectedParticipants as entry, index}
+        {#each selectedParticipants as entry, index (index)}
           <div class="row">
             <select bind:value={selectedParticipants[index].participant_id} class="select-player" required>
               <option value="">-- Spieler wählen --</option>
