@@ -262,26 +262,31 @@
 
             // 4. Items mit Preisen als Verkäufe (sales) eintragen
             for (const runItem of validItems) {
-            if (Number(runItem.price) > 0 || Number(runItem.shop_price) > 0) {
+              const hasNormalPrice = Number(runItem.price) > 0;
+              const hasShopPrice = Number(runItem.shop_price) > 0;
+
+              if (hasNormalPrice || hasShopPrice) {
                 // Passendes Item in den gespeicherten Run-Items finden
                 const dbItemMatch = savedRunItems.find(si => si.item_name.toLowerCase() === runItem.name.toLowerCase());
                 
                 if (dbItemMatch) {
-                const salePrice = Number(runItem.price) > 0 ? Number(runItem.price) : Number(runItem.shop_price);
-                const isShopSale = Number(runItem.shop_price) > 0 && Number(runItem.price) === 0;
+                  // Wenn ein Shop-Preis existiert, ist es ein Shop-Verkauf: 
+                  // Wir nehmen den Normalpreis (oder falls nur Shop-Preis da ist, diesen) und setzen is_shop = true
+                  const isShopSale = hasShopPrice;
+                  const salePrice = hasNormalPrice ? Number(runItem.price) : Number(runItem.shop_price);
 
-                await fetch(`${backendUrl}/runs/${runId}/sales`, {
+                  await fetch(`${backendUrl}/runs/${runId}/sales`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({
-                    item_id: dbItemMatch.item_id,
-                    quantity: Number(runItem.amount) || 1,
-                    actual_price: salePrice,
-                    is_shop: isShopSale
+                      item_id: dbItemMatch.item_id,
+                      quantity: Number(runItem.amount) || 1,
+                      actual_price: salePrice,
+                      is_shop: isShopSale
                     })
-                });
+                  });
                 }
-            }
+              }
             }
         }
 
