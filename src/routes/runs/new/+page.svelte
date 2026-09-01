@@ -79,11 +79,22 @@
     }
   }
 
-  async function fetchAvailableParticipants() {
+  async function fetchAvailableParticipants(token) {
+    const activeToken = token || jwtToken || localStorage.getItem('jwt_token');
+    
     try {
-      const res = await fetch(`${backendUrl}/participants/`);
+      const res = await fetch(`${backendUrl}/participants/`, {
+        headers: {
+          'Authorization': `Bearer ${activeToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
       if (res.ok) {
         availableParticipants = await res.json();
+        console.log('Geladene Teilnehmer:', availableParticipants);
+      } else {
+        console.error(`Fehler beim Laden der Teilnehmer: Status ${res.status}`);
       }
     } catch (err) {
       console.error('Fehler beim Laden der Teilnehmer-Stammdaten:', err);
@@ -269,10 +280,12 @@
   }
 
   onMount(() => {
+    const token = localStorage.getItem('jwt_token');
     if (checkAdminAccess()) {
-      fetchAvailableParticipants();
+      fetchAvailableParticipants(token);
     }
   });
+
 </script>
 
 <div class="header">
