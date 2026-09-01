@@ -322,33 +322,39 @@
       if (salesRes.ok) loadedSales = await salesRes.json();
       if (summaryRes.ok) loadedSummary = await summaryRes.json();
 
-      loadedItems = (Array.isArray(loadedItems) ? loadedItems : []).map((item, index) => {
+      // Mehrfach-Drops beim Laden in Einzel-Items mit Stückzahl 1 aufspalten
+      let expandedItems = [];
+      (Array.isArray(loadedItems) ? loadedItems : []).forEach((item) => {
         const rawRoId = item.ro_item_id ?? item.item_id ?? item.master_item_id;
         const master = getMasterItem(rawRoId);
         const finalRoId = master ? (master.item_id ?? master.ro_item_id) : rawRoId;
         const numericRoId = finalRoId && !isNaN(Number(finalRoId)) ? Number(finalRoId) : null;
-
-        const existingSale = Array.isArray(loadedSales) ? loadedSales.find(s => 
-          Number(s.item_id) === Number(numericRoId) || 
-          Number(s.ro_item_id) === Number(numericRoId) ||
-          Number(s.id) === Number(item.sale_id)
-        ) : null;
-
         const realDbId = item.run_drop_id ?? item.drop_id ?? item.id;
+        const qty = Number(item.amount || item.quantity || 1);
 
-        return {
-          ...item,
-          id: realDbId ?? numericRoId ?? `${runId}-item-${index}`,
-          real_db_id: realDbId ? Number(realDbId) : null,
-          ro_item_id: numericRoId,
-          image_url: master?.image_url || master?.icon_url || item.image_url || null,
-          name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item'),
-          sale_id: existingSale ? existingSale.id : item.sale_id,
-          sale_price: existingSale ? (existingSale.actual_price ?? existingSale.price) : (item.sale_price ?? item.price ?? 0),
-          sale_type: existingSale ? (existingSale.is_shop ? 'Shop' : 'Direkt') : (item.sale_type ?? (item.is_shop ? 'Shop' : 'Direkt')),
-          is_shop: existingSale ? existingSale.is_shop : item.is_shop,
-          sale_date: existingSale ? (existingSale.created_at || existingSale.sale_date || existingSale.date) : (item.sale_date || item.created_at)
-        };
+        for (let i = 0; i < qty; i++) {
+          // Zuordnung bestehender Verkäufe ohne Doppelbelegung
+          const existingSale = Array.isArray(loadedSales) ? loadedSales.find(s => 
+            (Number(s.item_id) === Number(numericRoId) || Number(s.ro_item_id) === Number(numericRoId) || Number(s.id) === Number(item.sale_id)) &&
+            !expandedItems.some(exp => Number(exp.sale_id) === Number(s.id))
+          ) : null;
+
+          expandedItems.push({
+            ...item,
+            amount: 1,
+            quantity: 1,
+            id: realDbId ? `${realDbId}-${i}` : (numericRoId ? `${numericRoId}-${i}` : `${runId}-item-${expandedItems.length}`),
+            real_db_id: realDbId ? Number(realDbId) : null,
+            ro_item_id: numericRoId,
+            image_url: master?.image_url || master?.icon_url || item.image_url || null,
+            name: master?.name || item.name || item.item_name || (numericRoId ? `Item #${numericRoId}` : 'Unbekanntes Item'),
+            sale_id: existingSale ? existingSale.id : item.sale_id,
+            sale_price: existingSale ? (existingSale.actual_price ?? existingSale.price) : (item.sale_price ?? item.price ?? 0),
+            sale_type: existingSale ? (existingSale.is_shop ? 'Shop' : 'Direkt') : (item.sale_type ?? (item.is_shop ? 'Shop' : 'Direkt')),
+            is_shop: existingSale ? existingSale.is_shop : item.is_shop,
+            sale_date: existingSale ? (existingSale.created_at || existingSale.sale_date || existingSale.date) : (item.sale_date || item.created_at)
+          });
+        }
       });
 
       runs = runs.map(r => {
@@ -356,7 +362,7 @@
           return {
             ...r,
             participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
-            items: loadedItems,
+            items: expandedItems,
             sales: loadedSales,
             summary: loadedSummary
           };
@@ -497,7 +503,7 @@
           item_id: roId,
           ro_item_id: roId,
           name: getItemName(item, item.name || item.item_name),
-          amount: item.amount || item.quantity || 1
+          amount: 1
         };
       }) : [],
       newNameOrId: '',
@@ -530,15 +536,20 @@
       finalName = getItemName({ item_id: finalItemId }, finalName);
     }
 
-    input.list = [
-      ...input.list, 
-      { 
+    const amountToTake = Number(input.newAmount) || 1;
+    const newItemsArray = [];
+
+    // Jedes Item einzeln mit Stückzahl 1 anlegen
+    for (let i = 0; i < amountToTake; i++) {
+      newItemsArray.push({
         item_id: finalItemId,
         ro_item_id: finalItemId,
         name: finalName,
-        amount: Number(input.newAmount) || 1 
-      }
-    ];
+        amount: 1
+      });
+    }
+
+    input.list = [...input.list, ...newItemsArray];
 
     input.newNameOrId = '';
     input.newAmount = 1;
@@ -562,8 +573,8 @@
         item_id: resolvedId ? Number(resolvedId) : null,
         ro_item_id: resolvedId ? Number(resolvedId) : null,
         name: resolvedName,
-        amount: Number(item.amount) || 1,
-        quantity: Number(item.amount) || 1
+        amount: 1,
+        quantity: 1
       };
     });
 
@@ -651,7 +662,7 @@
 
     const payload = {
       item_id: Number(itemId),
-      quantity: Number(runItem.amount || runItem.quantity || 1),
+      quantity: 1, // Immer 1 Einzelstück verkaufen
       actual_price: Number(input.price),
       is_shop: Boolean(input.isShop),
       created_at: input.saleDate ? new Date(input.saleDate).toISOString() : new Date().toISOString()
@@ -693,7 +704,7 @@
     }
 
     const payload = {
-      quantity: Number(runItem.amount || runItem.quantity || 1),
+      quantity: 1, // Immer 1 Einzelstück verkaufen
       actual_price: Number(input.price),
       is_shop: Boolean(input.isShop),
       created_at: input.saleDate ? new Date(input.saleDate).toISOString() : undefined
@@ -721,7 +732,6 @@
     }
   }
 
-  // NEW: Verkauf zurücksetzen / löschen
   async function deleteSaleForItem(runId, runItem) {
     if (!isAdmin) return;
     if (!runItem.sale_id) {
