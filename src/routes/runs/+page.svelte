@@ -399,7 +399,6 @@
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
         runs = Array.isArray(loadedRuns) ? loadedRuns : [];
-        await Promise.all(runs.map(r => loadRunDetails(r.id)));
 
         // AUTO-OPEN & SCROLL LOGIK
         const openIdParam = $page.url.searchParams.get('open');
