@@ -93,7 +93,6 @@
 		}
 	}
 
-	// Prüft, ob der angemeldete User im Run eingetragen UND noch NICHT ausbezahlt ist
 	function isUserUnpaidInRun(run) {
 		if (!currentDiscordId || !run?.participants || !Array.isArray(run.participants)) {
 			return false;
@@ -129,16 +128,21 @@
 		const paidParticipants = participants.filter(p => p.is_paid).length;
 		const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
 
+		// 1. Alle Items verkauft & alle bezahlt -> Close
 		if (allItemsSold && allPaidOut) {
 			return { label: 'Close', cssClass: 'status-close' };
 		}
+		// 2. Alle Items verkauft (aber noch nicht alle ausbezahlt) -> Payout
 		if (allItemsSold) {
 			return { label: 'Payout', cssClass: 'status-payout' };
 		}
-		if (soldItems > 0) {
+		// 3. Sobald mindestens ein Item eingetragen wurde -> On Sale
+		if (totalItems > 0) {
 			return { label: 'On Sale', cssClass: 'status-onsale' };
 		}
-		return { label: 'Open', cssClass: 'status-open' };
+
+		// Fallback (falls noch keine Items eingetragen sind)
+		return null;
 	}
 
 	function formatDate(dateString) {
@@ -158,7 +162,6 @@
 		goto(`/runs?open=${runId}`);
 	}
 
-	// Reaktive Liste gefiltert nach unbezahlten Runs
 	$: userRuns = runs
 		.filter(run => isUserUnpaidInRun(run))
 		.sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0));
@@ -186,9 +189,11 @@
 							<div class="run-header">
 								<div class="run-title-line">
 									<strong class="run-name">{run.name}</strong>
-									<span class="badge {status.cssClass}">
-										{status.label}
-									</span>
+									{#if status}
+										<span class="badge {status.cssClass}">
+											{status.label}
+										</span>
+									{/if}
 								</div>
 								<span class="run-date">{formatDate(run.created_at || run.date)}</span>
 							</div>
@@ -286,7 +291,6 @@
 		border-radius: 4px; 
 		text-transform: capitalize; 
 	}
-	.status-open { background-color: #059669; }
 	.status-onsale { background-color: #d97706; }
 	.status-payout { background-color: #ca8a04; }
 	.status-close { background-color: #dc2626; }
