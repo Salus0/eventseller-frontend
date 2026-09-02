@@ -845,6 +845,7 @@
                     placeholder="Typ (z.B. ET, WoE)" 
                   />
                   <button type="button" class="save-mini-btn" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
+                  <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
                   <button type="button" class="cancel-mini-btn" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
                 </div>
               {:else}
@@ -861,7 +862,6 @@
 
                 {#if isAdmin && !editingRunHeader[run.id]}
                   <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
-                  <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
                 {/if}
 
                 <button class="expand-btn" type="button">
@@ -1007,6 +1007,7 @@
                                       </label>
                                     {/if}
                                     <button type="button" class="save-mini-btn" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                     <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
                                   </div>
                                 {:else if item.sale_price || item.price || item.actual_price}
@@ -1022,7 +1023,6 @@
                                   {/if}
                                   {#if canEdit}
                                     <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
-                                    <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                   {/if}
                                 {:else if addingSaleForItemId[item.id] && canEdit}
                                   <div class="inline-sale-form">
@@ -1154,6 +1154,7 @@
                     placeholder="Typ (z.B. ET, WoE)" 
                   />
                   <button type="button" class="save-mini-btn" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
+                  <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
                   <button type="button" class="cancel-mini-btn" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
                 </div>
               {:else}
@@ -1170,7 +1171,6 @@
 
                 {#if isAdmin && !editingRunHeader[run.id]}
                   <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
-                  <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
                 {/if}
 
                 <button class="expand-btn" type="button">
@@ -1316,6 +1316,7 @@
                                       </label>
                                     {/if}
                                     <button type="button" class="save-mini-btn" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                     <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
                                   </div>
                                 {:else if item.sale_price || item.price || item.actual_price}
@@ -1331,7 +1332,6 @@
                                   {/if}
                                   {#if canEdit}
                                     <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
-                                    <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                   {/if}
                                 {:else if addingSaleForItemId[item.id] && canEdit}
                                   <div class="inline-sale-form">
