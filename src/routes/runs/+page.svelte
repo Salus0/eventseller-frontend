@@ -184,16 +184,23 @@
     const paidParticipants = participants.filter(p => p.is_paid).length;
     const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
 
+    // 1. Close: Alle Items verkauft UND alle Teilnehmer ausgezahlt
     if (allItemsSold && allPaidOut) {
       return { label: 'Close', cssClass: 'status-close' };
     }
+    
+    // 2. Payout: Alle Items verkauft, aber Auszahlung noch offen
     if (allItemsSold) {
       return { label: 'Payout', cssClass: 'status-payout' };
     }
-    if (soldItems > 0) {
+    
+    // 3. On Sale: Mindestens 1 Item im Run vorhanden
+    if (totalItems > 0) {
       return { label: 'On Sale', cssClass: 'status-onsale' };
     }
-    return { label: 'Open', cssClass: 'status-open' };
+    
+    // Kein Item vorhanden -> Kein Badge
+    return null;
   }
 
   // Helper zum Ermitteln des Zeitstempels für die Datums-Sortierung
@@ -205,8 +212,8 @@
 
   // --- REAKTIVE SORTIERUNG & KATEGORISIERUNG ---
   $: sortedRuns = [...runs].sort((a, b) => getRunTimestamp(b) - getRunTimestamp(a));
-  $: activeRuns = sortedRuns.filter(r => getRunStatusInfo(r).label !== 'Close');
-  $: closedRuns = sortedRuns.filter(r => getRunStatusInfo(r).label === 'Close');
+  $: activeRuns = sortedRuns.filter(r => getRunStatusInfo(r)?.label !== 'Close');
+  $: closedRuns = sortedRuns.filter(r => getRunStatusInfo(r)?.label === 'Close');
 
   // --- RUN HEADER EDITIEREN & LÖSCHEN ---
   function startEditRunHeader(run, e) {
@@ -858,7 +865,9 @@
               {/if}
 
               <div class="header-right">
-                <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
+                {#if statusInfo}
+                  <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
+                {/if}
 
                 {#if isAdmin && !editingRunHeader[run.id]}
                   <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
@@ -1167,7 +1176,9 @@
               {/if}
 
               <div class="header-right">
-                <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
+                {#if statusInfo}
+                  <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
+                {/if}
 
                 {#if isAdmin && !editingRunHeader[run.id]}
                   <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
@@ -1467,7 +1478,6 @@
   .header-right { display: flex; align-items: center; gap: 0.75rem; }
   
   .badge { color: white; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 4px; text-transform: capitalize; }
-  .status-open { background-color: #059669; }
   .status-onsale { background-color: #d97706; }
   .status-payout { background-color: #ca8a04; }
   .status-close { background-color: #dc2626; }
