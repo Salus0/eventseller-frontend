@@ -93,7 +93,7 @@
 		}
 	}
 
-// Prüft, ob der angemeldete User im Run eingetragen UND noch NICHT ausbezahlt ist
+	// Prüft, ob der angemeldete User im Run eingetragen UND noch NICHT ausbezahlt ist
 	function isUserUnpaidInRun(run) {
 		if (!currentDiscordId || !run?.participants || !Array.isArray(run.participants)) {
 			return false;
@@ -104,14 +104,8 @@
 			return pDiscordId !== '' && pDiscordId === currentDiscordId;
 		});
 
-		// User muss im Run sein UND is_paid muss false / falsy sein
 		return participant ? !participant.is_paid : false;
 	}
-
-// Filtert nun nach unbezahlten Runs des Nutzers
-$: userRuns = runs
-    .filter(run => isUserUnpaidInRun(run))
-    .sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0));
 
 	function getItemSalesInfo(run) {
 		const totalDrops = (run.items || []).reduce((sum, item) => sum + (Number(item.quantity || item.amount) || 1), 0);
@@ -123,7 +117,6 @@ $: userRuns = runs
 		};
 	}
 
-	// 1:1 LOGIK AUS DER RUNS-SEITE
 	function getRunStatusInfo(run) {
 		const items = run.items || [];
 		const participants = run.participants || [];
@@ -165,8 +158,9 @@ $: userRuns = runs
 		goto(`/runs?open=${runId}`);
 	}
 
+	// Reaktive Liste gefiltert nach unbezahlten Runs
 	$: userRuns = runs
-		.filter(run => isUserInRun(run))
+		.filter(run => isUserUnpaidInRun(run))
 		.sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0));
 
 	onMount(() => {
@@ -216,7 +210,7 @@ $: userRuns = runs
 					{/each}
 				</ul>
 			{:else}
-				<p class="empty-text">Du bist aktuell in keinen Runs eingetragen.</p>
+				<p class="empty-text">Du hast aktuell keine offenen Payouts oder bist in keinen aktiven Runs eingetragen.</p>
 			{/if}
 		</section>
 	{/if}
@@ -284,7 +278,6 @@ $: userRuns = runs
 		color: #f8fafc;
 	}
 	
-	/* EXAKTE FARB-CLASSES DER RUNS-SEITE */
 	.badge { 
 		color: white; 
 		font-size: 0.75rem; 
@@ -293,10 +286,10 @@ $: userRuns = runs
 		border-radius: 4px; 
 		text-transform: capitalize; 
 	}
-	.status-open { background-color: #059669; }     /* Grün */
-	.status-onsale { background-color: #d97706; }   /* Gelb/Orange */
-	.status-payout { background-color: #ca8a04; }   /* Gelb */
-	.status-close { background-color: #dc2626; }    /* Rot */
+	.status-open { background-color: #059669; }
+	.status-onsale { background-color: #d97706; }
+	.status-payout { background-color: #ca8a04; }
+	.status-close { background-color: #dc2626; }
 
 	.run-date {
 		font-size: 0.8rem;
