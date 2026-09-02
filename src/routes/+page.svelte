@@ -93,16 +93,25 @@
 		}
 	}
 
-	function isUserInRun(run) {
+// Prüft, ob der angemeldete User im Run eingetragen UND noch NICHT ausbezahlt ist
+	function isUserUnpaidInRun(run) {
 		if (!currentDiscordId || !run?.participants || !Array.isArray(run.participants)) {
 			return false;
 		}
 
-		return run.participants.some(p => {
+		const participant = run.participants.find(p => {
 			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
 			return pDiscordId !== '' && pDiscordId === currentDiscordId;
 		});
+
+		// User muss im Run sein UND is_paid muss false / falsy sein
+		return participant ? !participant.is_paid : false;
 	}
+
+// Filtert nun nach unbezahlten Runs des Nutzers
+$: userRuns = runs
+    .filter(run => isUserUnpaidInRun(run))
+    .sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0));
 
 	function getItemSalesInfo(run) {
 		const totalDrops = (run.items || []).reduce((sum, item) => sum + (Number(item.quantity || item.amount) || 1), 0);
