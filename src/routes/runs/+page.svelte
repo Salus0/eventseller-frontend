@@ -11,8 +11,10 @@
   let isLoading = true;
   let errorMessage = '';
 
-  // Auth & Admin Status
+  // Auth, Admin & Seller Status
   let isAdmin = false;
+  let isSeller = false;
+  let canEdit = false; // Erlaubt Aktionen für Admin ODER Seller
   let jwtToken = '';
   
   let expandedRunIds = new Set();
@@ -80,12 +82,21 @@
             .join('')
         );
         const decoded = JSON.parse(jsonPayload);
-        isAdmin = decoded.role === 'admin';
+        
+        // Rollenprüfung erweitert: Admin & Seller identifizieren
+        const userRole = (decoded.role || '').toLowerCase();
+        isAdmin = userRole === 'admin';
+        isSeller = userRole === 'seller';
+        canEdit = isAdmin || isSeller;
       } catch (e) {
         isAdmin = false;
+        isSeller = false;
+        canEdit = false;
       }
     } else {
       isAdmin = false;
+      isSeller = false;
+      canEdit = false;
       jwtToken = '';
     }
   }
@@ -322,7 +333,6 @@
       if (salesRes.ok) loadedSales = await salesRes.json();
       if (summaryRes.ok) loadedSummary = await summaryRes.json();
 
-      // Mehrfach-Drops beim Laden in Einzel-Items mit Stückzahl 1 aufspalten
       let expandedItems = [];
       const safeItems = Array.isArray(loadedItems) ? loadedItems : [];
       const safeSales = Array.isArray(loadedSales) ? loadedSales : [];
@@ -336,13 +346,11 @@
         const qty = Number(item.amount || item.quantity || 1);
 
         for (let i = 0; i < qty; i++) {
-          // Zuordnung bestehender Verkäufe ohne Doppelbelegung
           const existingSale = safeSales.find(s => 
             (Number(s.item_id) === Number(numericRoId) || Number(s.ro_item_id) === Number(numericRoId) || Number(s.id) === Number(item.sale_id)) &&
             !expandedItems.some(exp => Number(exp.sale_id) === Number(s.id))
           );
 
-          // Garantiert eindeutige ID für die Svelte-Schleife (#each ... (item.id))
           const uniqueKey = realDbId 
             ? `db-${realDbId}-${i}` 
             : `run-${runId}-item-${itemIdx}-${i}-${Math.random().toString(36).substring(2, 7)}`;
@@ -401,7 +409,6 @@
         runs = Array.isArray(loadedRuns) ? loadedRuns : [];
         await Promise.all(runs.map(r => loadRunDetails(r.id)));
 
-        // AUTO-OPEN & SCROLL LOGIK
         const openIdParam = $page.url.searchParams.get('open');
         if (openIdParam) {
           const runToOpen = Number(openIdParam);
@@ -427,7 +434,7 @@
 
   // --- TEILNEHMER EDITIEREN ---
   function enableParticipantEditing(run) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     participantInputs[run.id] = {
       list: run.participants ? JSON.parse(JSON.stringify(run.participants)) : [],
       newParticipantId: '',
@@ -461,7 +468,7 @@
   }
 
   async function saveParticipants(runId) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     const updatedList = (participantInputs[runId]?.list || []).map(p => ({
       participant_id: Number(p.participant_id),
       class_name: p.class_name || 'Unbekannt'
@@ -483,7 +490,7 @@
   }
 
   async function togglePayoutStatus(runId, participantId, currentStatus) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/participants/${participantId}/payout`, {
         method: 'PUT',
@@ -502,7 +509,7 @@
 
   // --- DROPS / ITEMS EDITIEREN ---
   function enableItemEditing(run) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     itemInputs[run.id] = {
       list: run.items ? run.items.map(item => {
         const roId = getROItemId(item);
@@ -547,7 +554,6 @@
     const amountToTake = Number(input.newAmount) || 1;
     const newItemsArray = [];
 
-    // Jedes Item einzeln mit Stückzahl 1 anlegen
     for (let i = 0; i < amountToTake; i++) {
       newItemsArray.push({
         item_id: finalItemId,
@@ -572,7 +578,7 @@
   }
 
   async function saveItems(runId) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     const updatedList = (itemInputs[runId]?.list || []).map(item => {
       const resolvedId = getROItemId(item);
       const resolvedName = getItemName(item, item.name);
@@ -608,7 +614,7 @@
 
   // --- VERKAUF NEU EINGEBEN, SPÄTER EDITIEREN ODER ZURÜCKSETZEN ---
   function openSaleForm(runItemId) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     saleInputs = {
       ...saleInputs,
       [runItemId]: { price: 0, priceDisplay: '', isShop: false, saleDate: toLocalDatetimeInput() }
@@ -627,7 +633,7 @@
   }
 
   function startEditSale(item) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     const currentPrice = Number(item.sale_price || item.actual_price || item.price || 0);
     const rawPrice = item.is_shop ? Math.round(currentPrice / 0.98) : currentPrice;
 
@@ -654,7 +660,7 @@
   }
 
   async function saveSaleForItem(runId, runItem) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     const input = saleInputs[runItem.id];
     if (!input || !input.price || Number(input.price) <= 0) {
       alert('Bitte gib einen gültigen Verkaufspreis ein.');
@@ -670,7 +676,7 @@
 
     const payload = {
       item_id: Number(itemId),
-      quantity: 1, // Immer 1 Einzelstück verkaufen
+      quantity: 1,
       actual_price: Number(input.price),
       is_shop: Boolean(input.isShop),
       created_at: input.saleDate ? new Date(input.saleDate).toISOString() : new Date().toISOString()
@@ -699,7 +705,7 @@
   }
 
   async function updateSaleForItem(runId, runItem) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     const input = editSaleInputs[runItem.id];
     if (!input || !input.price || Number(input.price) <= 0) {
       alert('Bitte gib einen gültigen Verkaufspreis ein.');
@@ -712,7 +718,7 @@
     }
 
     const payload = {
-      quantity: 1, // Immer 1 Einzelstück verkaufen
+      quantity: 1,
       actual_price: Number(input.price),
       is_shop: Boolean(input.isShop),
       created_at: input.saleDate ? new Date(input.saleDate).toISOString() : undefined
@@ -741,7 +747,7 @@
   }
 
   async function deleteSaleForItem(runId, runItem) {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     if (!runItem.sale_id) {
       alert('Fehler: Es konnte keine Verkaufs-ID für dieses Item gefunden werden.');
       return;
@@ -787,7 +793,7 @@
 
 <div class="header-action">
   <h1>Event Runs</h1>
-  {#if isAdmin}
+  {#if canEdit}
     <a href="/runs/new" class="create-btn">+ Neuen Run anlegen</a>
   {/if}
 </div>
@@ -803,7 +809,7 @@
 {:else if runs.length === 0}
   <section class="card">
     <p class="status-text">
-      {#if isAdmin}
+      {#if canEdit}
         Noch keine Runs vorhanden. Klicke oben auf "+ Neuen Run anlegen"!
       {:else}
         Noch keine Runs vorhanden.
@@ -899,7 +905,7 @@
                                 <span>{p.name}</span>
                                 {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
                               </div>
-                              {#if isAdmin}
+                              {#if canEdit}
                                 <label class="payout-toggle" title="Auszahlungs-Status ändern">
                                   <input 
                                     type="checkbox" 
@@ -919,7 +925,7 @@
                       {:else}
                         <p class="empty-text">Keine Teilnehmer eingetragen</p>
                       {/if}
-                      {#if isAdmin}
+                      {#if canEdit}
                         <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
                       {/if}
                     {:else}
@@ -980,7 +986,7 @@
                               </div>
 
                               <div class="sale-action-area">
-                                {#if editingSaleForItemId[item.id] && isAdmin}
+                                {#if editingSaleForItemId[item.id] && canEdit}
                                   <div class="inline-sale-form">
                                     {#if editSaleInputs[item.id]}
                                       <input 
@@ -1014,11 +1020,11 @@
                                   {#if item.is_shop || item.sale_type === 'Shop'}
                                     <span class="shop-badge">Shop (-2%)</span>
                                   {/if}
-                                  {#if isAdmin}
+                                  {#if canEdit}
                                     <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
                                     <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                   {/if}
-                                {:else if addingSaleForItemId[item.id] && isAdmin}
+                                {:else if addingSaleForItemId[item.id] && canEdit}
                                   <div class="inline-sale-form">
                                     {#if saleInputs[item.id]}
                                       <input 
@@ -1041,7 +1047,7 @@
                                     <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
                                     <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
                                   </div>
-                                {:else if isAdmin}
+                                {:else if canEdit}
                                   <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
                                     + Verkauf hinzufügen
                                   </button>
@@ -1056,7 +1062,7 @@
                         <p class="empty-text">Keine Items eingetragen</p>
                       {/if}
 
-                      {#if isAdmin}
+                      {#if canEdit}
                         <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
                           ➕ Add/Edit
                         </button>
@@ -1208,7 +1214,7 @@
                                 <span>{p.name}</span>
                                 {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
                               </div>
-                              {#if isAdmin}
+                              {#if canEdit}
                                 <label class="payout-toggle" title="Auszahlungs-Status ändern">
                                   <input 
                                     type="checkbox" 
@@ -1228,7 +1234,7 @@
                       {:else}
                         <p class="empty-text">Keine Teilnehmer eingetragen</p>
                       {/if}
-                      {#if isAdmin}
+                      {#if canEdit}
                         <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
                       {/if}
                     {:else}
@@ -1289,7 +1295,7 @@
                               </div>
 
                               <div class="sale-action-area">
-                                {#if editingSaleForItemId[item.id] && isAdmin}
+                                {#if editingSaleForItemId[item.id] && canEdit}
                                   <div class="inline-sale-form">
                                     {#if editSaleInputs[item.id]}
                                       <input 
@@ -1323,11 +1329,11 @@
                                   {#if item.is_shop || item.sale_type === 'Shop'}
                                     <span class="shop-badge">Shop (-2%)</span>
                                   {/if}
-                                  {#if isAdmin}
+                                  {#if canEdit}
                                     <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
                                     <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                   {/if}
-                                {:else if addingSaleForItemId[item.id] && isAdmin}
+                                {:else if addingSaleForItemId[item.id] && canEdit}
                                   <div class="inline-sale-form">
                                     {#if saleInputs[item.id]}
                                       <input 
@@ -1350,7 +1356,7 @@
                                     <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
                                     <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
                                   </div>
-                                {:else if isAdmin}
+                                {:else if canEdit}
                                   <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
                                     + Verkauf hinzufügen
                                   </button>
@@ -1365,7 +1371,7 @@
                         <p class="empty-text">Keine Items eingetragen</p>
                       {/if}
 
-                      {#if isAdmin}
+                      {#if canEdit}
                         <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
                           ➕ Add/Edit
                         </button>
@@ -1441,7 +1447,6 @@
   .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
   .section-margin { margin-bottom: 1.5rem; }
   
-  /* ABGESCHLOSSENE RUNS OPTIONAL LEICHT ABGEDUNKELT */
   .closed-card { border-color: #1e293b; background-color: #111827; }
   .closed-card h2 { color: #94a3b8; }
   .closed-run-item { opacity: 0.85; }
@@ -1461,18 +1466,16 @@
 
   .header-right { display: flex; align-items: center; gap: 0.75rem; }
   
-  /* FARBDISPLAY FÜR DYNAMISCHE RUN-STATUS */
   .badge { color: white; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 4px; text-transform: capitalize; }
-  .status-open { background-color: #059669; }     /* Grün */
-  .status-onsale { background-color: #d97706; }   /* Gelb/Orange */
-  .status-payout { background-color: #ca8a04; }   /* Gelb */
-  .status-close { background-color: #dc2626; }    /* Rot */
+  .status-open { background-color: #059669; }
+  .status-onsale { background-color: #d97706; }
+  .status-payout { background-color: #ca8a04; }
+  .status-close { background-color: #dc2626; }
 
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
 
   .run-details { padding: 1rem; border-top: 1px solid #334155; background-color: #090d16; }
 
-  /* SUMMARY BANNER */
   .summary-banner {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
