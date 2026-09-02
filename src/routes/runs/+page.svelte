@@ -394,6 +394,7 @@
 
       if (itemsRes.ok) masterItems = await itemsRes.json();
       if (partsRes.ok) availableParticipants = await partsRes.json();
+      await Promise.all(runs.map(r => loadRunDetails(r.id)));
 
       const runsRes = await fetch(`${backendUrl}/runs/`, { headers });
       if (runsRes.ok) {
