@@ -90,15 +90,15 @@
 </main>
 
 <style>
-  /* CSS-Variablen für konsistente grüne Farben in der ganzen App */
+  /* CSS-Variablen für das Dunkelgrün-Theme (Dark Emerald) */
   :root {
-    --bg-main: #e8f5e9;        /* Helles Pastell-/Mintgrün als Seitenhintergrund */
-    --navbar-bg: #1b4332;      /* Tiefes Dunkelgrün für die Navigationsleiste */
-    --primary-green: #2d6a4f;   /* Waldgrün für Buttons & Akzente */
-    --primary-hover: #1b4332;   /* Dunkleres Grün bei Hover */
-    --text-dark: #1b4332;       /* Dunkles Waldgrün für Schriften auf hellem Grund */
-    --text-muted: #52796f;      /* Sanftes Grün-Grau für Subtitel */
-    --border-color: #b7e4c7;    /* Pastellgrüner Rahmen */
+    --bg-main: #0a1f18;        /* Dunkles, tiefes Waldgrün als Hintergrund */
+    --navbar-bg: #112d23;      /* Etwas helleres Dunkelgrün für die Navigationsleiste */
+    --primary-green: #2d6a4f;   /* Sattes Smaragdgrün für Buttons & Icons */
+    --primary-hover: #40916c;   /* Hellers Grün bei Hover */
+    --text-dark: #e8f5e9;       /* Helles Mint/Weiß für sehr gute Lesbarkeit auf dunklem Grund */
+    --text-muted: #95d5b2;      /* Sanftes Hellgrün für Nebentexte */
+    --border-color: #1b4332;    /* Dezent dunkler grüner Rahmen */
   }
 
   /* Globales Styling für den Seiten-Hintergrund */
@@ -114,11 +114,11 @@
   /* Navigation Bar styling */
   .navbar {
     background-color: var(--navbar-bg);
-    border-bottom: 1px solid #2d6a4f;
+    border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     z-index: 50;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
   .nav-container {
@@ -136,7 +136,7 @@
     gap: 0.5rem;
     font-weight: 700;
     font-size: 1.125rem;
-    color: #d8f3dc; /* Sehr helles Mintgrün */
+    color: #52b788; /* Frisches Grün für das Logo */
     text-decoration: none;
   }
 
@@ -146,7 +146,7 @@
   }
 
   .nav-links a {
-    color: #b7e4c7;
+    color: var(--text-muted);
     text-decoration: none;
     font-size: 0.95rem;
     font-weight: 500;
@@ -174,17 +174,17 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    border: 1px solid #b7e4c7;
+    border: 1px solid #52b788;
   }
 
   .username {
     font-weight: 600;
     font-size: 0.95rem;
-    color: #e8f5e9;
+    color: var(--text-dark);
   }
 
   .badge.admin {
-    background-color: #d90429;
+    background-color: #e63946;
     color: white;
     font-size: 0.7rem;
     font-weight: 700;
@@ -195,8 +195,8 @@
 
   .logout-btn {
     background-color: transparent;
-    border: 1px solid #52796f;
-    color: #b7e4c7;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
     padding: 0.35rem 0.75rem;
     border-radius: 6px;
     font-size: 0.85rem;
@@ -205,12 +205,12 @@
   }
 
   .logout-btn:hover {
-    background-color: #2d6a4f;
+    background-color: var(--border-color);
     color: white;
   }
 
   .login-btn {
-    background-color: #40916c;
+    background-color: var(--primary-green);
     color: white;
     padding: 0.4rem 1rem;
     border-radius: 6px;
@@ -221,7 +221,7 @@
   }
 
   .login-btn:hover {
-    background-color: var(--primary-green);
+    background-color: var(--primary-hover);
   }
 
   /* Container für alle Seiten-Inhalte */
