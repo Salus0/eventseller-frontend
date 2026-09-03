@@ -50,7 +50,7 @@
 <header class="navbar">
   <div class="nav-container">
     <a href="/" class="brand">
-      ⚔️ <span>RO Event Sales</span>
+      <span>Yggdrasil Event Sales</span>
     </a>
 
     <nav class="nav-links">
