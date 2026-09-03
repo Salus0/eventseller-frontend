@@ -1479,7 +1479,7 @@
   
   .badge { color: white; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 4px; text-transform: capitalize; }
   .status-onsale { background-color: #d97706; }
-  .status-payout { background-color: #ca8a04; }
+  .status-payout { background-color: #16a34a; } /* Grün-Ton für Payout */
   .status-close { background-color: #dc2626; }
 
   .expand-btn { background: none; border: 1px solid #475569; color: #cbd5e1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
