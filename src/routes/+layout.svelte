@@ -90,23 +90,35 @@
 </main>
 
 <style>
-  /* Globales Styling für die gesamte App */
+  /* CSS-Variablen für konsistente grüne Farben in der ganzen App */
+  :root {
+    --bg-main: #e8f5e9;        /* Helles Pastell-/Mintgrün als Seitenhintergrund */
+    --navbar-bg: #1b4332;      /* Tiefes Dunkelgrün für die Navigationsleiste */
+    --primary-green: #2d6a4f;   /* Waldgrün für Buttons & Akzente */
+    --primary-hover: #1b4332;   /* Dunkleres Grün bei Hover */
+    --text-dark: #1b4332;       /* Dunkles Waldgrün für Schriften auf hellem Grund */
+    --text-muted: #52796f;      /* Sanftes Grün-Grau für Subtitel */
+    --border-color: #b7e4c7;    /* Pastellgrüner Rahmen */
+  }
+
+  /* Globales Styling für den Seiten-Hintergrund */
   :global(body) {
     margin: 0;
     padding: 0;
-    background-color: #0f172a; /* Slate 900 Dunkelgrau/Blau */
-    color: #f8fafc;
+    background-color: var(--bg-main);
+    color: var(--text-dark);
     font-family: system-ui, -apple-system, sans-serif;
     min-height: 100vh;
   }
 
   /* Navigation Bar styling */
   .navbar {
-    background-color: #1e293b; /* Slate 800 */
-    border-bottom: 1px solid #334155;
+    background-color: var(--navbar-bg);
+    border-bottom: 1px solid #2d6a4f;
     position: sticky;
     top: 0;
     z-index: 50;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   }
 
   .nav-container {
@@ -124,7 +136,7 @@
     gap: 0.5rem;
     font-weight: 700;
     font-size: 1.125rem;
-    color: #fbbf24; /* Amber Gold */
+    color: #d8f3dc; /* Sehr helles Mintgrün */
     text-decoration: none;
   }
 
@@ -134,7 +146,7 @@
   }
 
   .nav-links a {
-    color: #94a3b8;
+    color: #b7e4c7;
     text-decoration: none;
     font-size: 0.95rem;
     font-weight: 500;
@@ -142,7 +154,7 @@
   }
 
   .nav-links a:hover {
-    color: #f8fafc;
+    color: #ffffff;
   }
 
   .nav-actions {
@@ -162,15 +174,17 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
+    border: 1px solid #b7e4c7;
   }
 
   .username {
     font-weight: 600;
     font-size: 0.95rem;
+    color: #e8f5e9;
   }
 
   .badge.admin {
-    background-color: #ef4444;
+    background-color: #d90429;
     color: white;
     font-size: 0.7rem;
     font-weight: 700;
@@ -181,8 +195,8 @@
 
   .logout-btn {
     background-color: transparent;
-    border: 1px solid #475569;
-    color: #cbd5e1;
+    border: 1px solid #52796f;
+    color: #b7e4c7;
     padding: 0.35rem 0.75rem;
     border-radius: 6px;
     font-size: 0.85rem;
@@ -191,12 +205,12 @@
   }
 
   .logout-btn:hover {
-    background-color: #334155;
+    background-color: #2d6a4f;
     color: white;
   }
 
   .login-btn {
-    background-color: #d97706; /* Amber Button */
+    background-color: #40916c;
     color: white;
     padding: 0.4rem 1rem;
     border-radius: 6px;
@@ -207,7 +221,7 @@
   }
 
   .login-btn:hover {
-    background-color: #b45309;
+    background-color: var(--primary-green);
   }
 
   /* Container für alle Seiten-Inhalte */
