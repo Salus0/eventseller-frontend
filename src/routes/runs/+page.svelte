@@ -1456,7 +1456,7 @@
 }
 
 h1 { 
-  color: #4DB982 !important; 
+  color: #D98A00 !important; /* Von #4DB982 auf Gold/Gelb angepasst */
   margin: 0; 
 }
 

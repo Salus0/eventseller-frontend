@@ -136,7 +136,7 @@
     gap: 0.5rem;
     font-weight: 700;
     font-size: 1.125rem;
-    color: #4DB982; /* Yggdrasil-Grün */
+    color: #D98A00 !important; /* warmes Gold/Gelb */
     text-decoration: none;
   }
 
