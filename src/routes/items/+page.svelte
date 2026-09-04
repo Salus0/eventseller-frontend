@@ -124,7 +124,6 @@
         // Stillschweigend ignorieren
       }
     });
-
     await Promise.all(promises);
     historyCache = { ...historyCache };
   }
@@ -143,7 +142,7 @@
     const payload = {
       item_id: Number(newItemId),
       name: newItemName.trim(),
-      image_url: `/items/${newItemId}.png`
+      image_url: `/items/${newItemId}.gif`
     };
 
     try {
@@ -193,7 +192,7 @@
     const payload = {
       item_id: Number(editItemId),
       name: editName.trim(),
-      image_url: `/items/${editItemId}.png`
+      image_url: `/items/${editItemId}.gif`
     };
 
     try {
@@ -217,7 +216,6 @@
 
   async function toggleHistory(item) {
     const targetId = item.item_id || item.id;
-
     if (activeHistoryItemId === targetId) {
       activeHistoryItemId = null;
       selectedItemHistory = null;
@@ -226,10 +224,12 @@
 
     activeHistoryItemId = targetId;
     historyLoading = true;
+
     try {
       const res = await fetch(`${backendUrl}/items/${targetId}/history`, {
         headers: getAuthHeaders()
       });
+
       if (res.ok) {
         selectedItemHistory = await res.json();
         if (Array.isArray(selectedItemHistory)) {
@@ -246,6 +246,19 @@
     } finally {
       historyLoading = false;
     }
+  }
+
+  // Ermittelt die Bild-URL: Wenn "card" im Namen ist -> card.gif, sonst zuerst .gif
+  function getItemImageUrl(item, overrideId = null) {
+    if (!item && !overrideId) return '/items/card.gif';
+
+    const itemName = item?.name || editName || '';
+    if (itemName.toLowerCase().includes('card')) {
+      return '/items/card.gif';
+    }
+
+    const targetId = overrideId || item?.item_id || item?.id || 501;
+    return `/items/${targetId}.gif`;
   }
 
   // Ermittelt exakt das sold_at Verkaufsdatum
@@ -309,13 +322,11 @@
   <h1>Item Datenbank</h1>
 </div>
 
-<!-- Nur angemeldete Nutzer sehen Inhalte -->
 {#if !isAuthenticated}
   <section class="card">
     <p class="error">{errorMessage || 'Bitte logge dich ein, um diese Seite zu sehen.'}</p>
   </section>
 {:else}
-  <!-- Nur Admins dürfen das Formular zum Anlegen sehen -->
   {#if isAdmin}
     <section class="card">
       <h2>Neues Item anlegen</h2>
@@ -372,38 +383,31 @@
               {@const displayDate = getBestSoldDate(item, historyCache)}
               {@const displayPrice = getBestPrice(item, historyCache)}
               {@const targetId = item.item_id || item.id}
-
+              
               {#if editingId === item.id && isAdmin}
-                <!-- BEARBEITUNGS-ZEILE (Nur für Admins) -->
                 <tr class="edit-row">
                   <td class="icon-cell">
                     <img 
-                      src={`/items/${editItemId || 501}.png`} 
-                      alt="Preview"
+                      src={getItemImageUrl(item, editItemId)} 
+                      alt="Preview" 
                       on:error={(e) => {
                         const img = e.target;
-                        if (img.src.endsWith('.png')) {
-                          img.src = `/items/${editItemId || 501}.gif`;
-                        } else if (img.src.endsWith('.gif')) {
+                        if (img.src.endsWith('.gif')) {
+                          // Erster Fallback: .png versuchen
+                          img.src = `/items/${editItemId || 501}.png`;
+                        } else if (img.src.endsWith('.png')) {
+                          // Zweiter Fallback: card.gif nutzen
                           img.onerror = null;
-                          img.src = '/items/default.png';
+                          img.src = '/items/card.gif';
                         }
-                      }}
+                      }} 
                     />
                   </td>
                   <td>
-                    <input 
-                      type="number" 
-                      bind:value={editItemId} 
-                      class="input-field edit-input-sm"
-                    />
+                    <input type="number" bind:value={editItemId} class="input-field edit-input-sm" />
                   </td>
                   <td>
-                    <input 
-                      type="text" 
-                      bind:value={editName} 
-                      class="input-field edit-input-lg"
-                    />
+                    <input type="text" bind:value={editName} class="input-field edit-input-lg" />
                   </td>
                   <td class="price-cell">{formatZeny(displayPrice)}</td>
                   <td class="date-cell">{formatDate(displayDate)}</td>
@@ -415,21 +419,22 @@
                   </td>
                 </tr>
               {:else}
-                <!-- NORMALZEILE -->
                 <tr>
                   <td class="icon-cell">
                     <img 
-                      src={`/items/${item.item_id}.png`} 
-                      alt={item.name}
+                      src={getItemImageUrl(item)} 
+                      alt={item.name} 
                       on:error={(e) => {
                         const img = e.target;
-                        if (img.src.endsWith('.png')) {
-                          img.src = `/items/${item.item_id}.gif`;
-                        } else if (img.src.endsWith('.gif')) {
+                        if (img.src.endsWith('.gif')) {
+                          // Erster Fallback: .png versuchen
+                          img.src = `/items/${item.item_id}.png`;
+                        } else if (img.src.endsWith('.png')) {
+                          // Zweiter Fallback: card.gif nutzen
                           img.onerror = null;
-                          img.src = '/items/default.png';
+                          img.src = '/items/card.gif';
                         }
-                      }}
+                      }} 
                     />
                   </td>
                   <td class="id-cell">#{item.item_id}</td>
@@ -489,7 +494,6 @@
 <style>
   .header-action { margin-bottom: 1.5rem; }
   h1 { color: #D98A00 !important; margin: 0; }
-  
   .card { 
     background-color: #14221F !important; 
     border: 1px solid #294039 !important; 
@@ -497,81 +501,63 @@
     padding: 1.5rem; 
   }
   .margin-top { margin-top: 1.5rem; }
-  h2 { color: #E8F1EC !important; font-size: 1.1rem; margin: 0 0 1rem 0; }
 
-  .add-form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-  
+  .add-form { display: flex; gap: 0.8rem; flex-wrap: wrap; }
   .input-field { 
-    padding: 0.5rem 0.8rem; 
     background-color: #071A14 !important; 
     border: 1px solid #294039 !important; 
-    border-radius: 6px; 
     color: #E8F1EC !important; 
+    padding: 0.5rem 0.8rem; 
+    border-radius: 4px; 
     font-size: 0.9rem; 
   }
-  .input-field::placeholder { color: #9DB5AA; }
-  
+  .input-field:focus { border-color: #D98A00 !important; outline: none; }
   .small-input { width: 140px; }
-  .search-input { width: 250px; }
-  
   .edit-input-sm { width: 90px; }
-  .edit-input-lg { width: 100%; box-sizing: border-box; }
+  .edit-input-lg { width: 100%; }
 
   .create-btn { 
-    background-color: #A855F7 !important; 
-    color: #FFFFFF !important; 
+    background-color: #D98A00 !important; 
+    color: #071A14 !important; 
+    font-weight: bold; 
     border: none; 
     padding: 0.5rem 1rem; 
-    border-radius: 6px; 
-    font-weight: 700; 
+    border-radius: 4px; 
     cursor: pointer; 
-    transition: background-color 0.2s;
   }
-  .create-btn:hover { background-color: #C084FC !important; }
+  .create-btn:hover { background-color: #f59e0b !important; }
 
   .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
+  .list-header h2 { margin: 0; font-size: 1.2rem; color: #E8F1EC; }
+  .search-input { width: 250px; }
 
   .table-container { overflow-x: auto; }
-  .item-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
-  
-  .item-table th { 
-    background-color: #071A14 !important; 
-    color: #D98A00 !important; 
-    padding: 0.75rem; 
-    border-bottom: 2px solid #294039 !important; 
-  }
-  
-  .item-table td { 
-    padding: 0.6rem 0.75rem; 
-    border-bottom: 1px solid #294039 !important; 
-    color: #E8F1EC !important; 
-    vertical-align: middle; 
-  }
+  .item-table { width: 100%; border-collapse: collapse; text-align: left; }
+  .item-table th, .item-table td { padding: 0.75rem 0.5rem; border-bottom: 1px solid #294039; }
+  .item-table th { color: #8FA89B; font-size: 0.85rem; text-transform: uppercase; }
 
-  .edit-row { background-color: #0d1a15 !important; }
+  .icon-cell { width: 40px; text-align: center; }
+  .icon-cell img { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
+  .id-cell { font-family: monospace; color: #8FA89B; }
+  .name-cell { font-weight: 500; color: #E8F1EC; }
+  .price-cell { color: #D98A00; font-weight: bold; }
+  .date-cell { color: #8FA89B; font-size: 0.85rem; }
 
-  .icon-cell img { width: 24px; height: 24px; object-fit: contain; }
-  .id-cell { color: #9DB5AA !important; font-family: monospace; }
-  .name-cell { font-weight: 600; color: #E8F1EC !important; }
-  .price-cell { color: #35A85B !important; font-weight: 600; }
-  .date-cell { color: #9DB5AA !important; font-size: 0.85rem; }
-
-  .btn-group { display: flex; gap: 0.4rem; align-items: center; }
-  
+  .btn-group { display: flex; gap: 0.4rem; }
   .action-btn { 
-    background-color: #182824 !important; 
-    border: 1px solid #294039 !important;
+    background-color: #294039 !important; 
     color: #E8F1EC !important; 
+    border: none; 
     padding: 0.35rem 0.6rem; 
     border-radius: 4px; 
     font-size: 0.8rem; 
     cursor: pointer; 
   }
-  .action-btn:hover { background-color: #294039 !important; }
+  .action-btn:hover { background-color: #3b5c52 !important; }
 
   .save-btn { 
-    background-color: #35A85B !important; 
-    color: #FFFFFF !important; 
+    background-color: #059669 !important; 
+    color: white !important; 
     border: none; 
     padding: 0.35rem 0.6rem; 
     border-radius: 4px; 
@@ -579,8 +565,8 @@
     cursor: pointer; 
   }
   .cancel-btn { 
-    background-color: #294039 !important; 
-    color: #E8F1EC !important; 
+    background-color: #475569 !important; 
+    color: white !important; 
     border: none; 
     padding: 0.35rem 0.6rem; 
     border-radius: 4px; 
@@ -612,17 +598,16 @@
   .history-list li { 
     display: flex; 
     justify-content: space-between; 
-    align-items: center; 
     padding: 0.4rem 0; 
-    border-bottom: 1px dashed #294039 !important; 
+    border-bottom: 1px solid #14221F; 
     font-size: 0.85rem; 
   }
-  .run-name { font-weight: 600; color: #E8F1EC !important; }
-  .run-date { color: #9DB5AA !important; }
-  .item-qty { color: #9DB5AA !important; }
-  .hist-price { color: #35A85B !important; font-weight: 600; }
+  .run-name { color: #E8F1EC; font-weight: 500; }
+  .run-date { color: #8FA89B; }
+  .item-qty { color: #8FA89B; }
+  .hist-price { color: #D98A00; font-weight: bold; }
 
-  .status-text { color: #9DB5AA !important; }
-  .empty-text { font-size: 0.85rem; color: #9DB5AA !important; font-style: italic; }
-  .error { color: #E64A5B !important; font-weight: 500; margin-bottom: 1rem; }
+  .status-text { color: #8FA89B; font-style: italic; }
+  .empty-text { color: #8FA89B; font-size: 0.85rem; margin: 0; }
+  .error { color: #ef4444; }
 </style>
