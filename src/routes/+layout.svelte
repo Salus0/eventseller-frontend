@@ -90,24 +90,24 @@
 </main>
 
 <style>
-  /* CSS-Variablen für das Dunkelgrün-Theme (Dark Emerald) */
+  /* CSS-Variablen angepasst an das Yggdrasil Custom Styling */
   :root {
-    --bg-main: #0a1f18;        /* Dunkles, tiefes Waldgrün als Hintergrund */
-    --navbar-bg: #112d23;      /* Etwas helleres Dunkelgrün für die Navigationsleiste */
-    --primary-green: #2d6a4f;   /* Sattes Smaragdgrün für Buttons & Icons */
-    --primary-hover: #40916c;   /* Hellers Grün bei Hover */
-    --text-dark: #e8f5e9;       /* Helles Mint/Weiß für sehr gute Lesbarkeit auf dunklem Grund */
-    --text-muted: #95d5b2;      /* Sanftes Hellgrün für Nebentexte */
-    --border-color: #1b4332;    /* Dezent dunkler grüner Rahmen */
+    --bg-main: #071A14;        /* Dunkles Basis-Grün */
+    --navbar-bg: #14221F;      /* Passender dunkler Karten-Hintergrund für die Leiste */
+    --primary-green: #4DB982;   /* Smaragd-Akzentgrün */
+    --primary-hover: #61CC95;   /* Hellere Hover-Abtönung */
+    --text-dark: #E8F1EC;       /* Helles Grün/Weiß für gute Lesbarkeit */
+    --text-muted: #9DB5AA;      /* Gedämpftes Hellgrün für Nebentexte & Links */
+    --border-color: #294039;    /* Exakter Rahmenfarbton */
   }
 
   /* Globales Styling für den Seiten-Hintergrund */
   :global(body) {
     margin: 0;
     padding: 0;
-    background-color: var(--bg-main);
-    color: var(--text-dark);
-    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-main) !important;
+    color: var(--text-dark) !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     min-height: 100vh;
   }
 
@@ -118,7 +118,7 @@
     position: sticky;
     top: 0;
     z-index: 50;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   }
 
   .nav-container {
@@ -136,7 +136,7 @@
     gap: 0.5rem;
     font-weight: 700;
     font-size: 1.125rem;
-    color: #52b788; /* Frisches Grün für das Logo */
+    color: #4DB982; /* Yggdrasil-Grün */
     text-decoration: none;
   }
 
@@ -154,7 +154,7 @@
   }
 
   .nav-links a:hover {
-    color: #ffffff;
+    color: #E8F1EC;
   }
 
   .nav-actions {
@@ -167,14 +167,14 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    color: white;
+    color: #E8F1EC;
   }
 
   .avatar {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    border: 1px solid #52b788;
+    border: 1px solid #4DB982;
   }
 
   .username {
@@ -184,8 +184,8 @@
   }
 
   .badge.admin {
-    background-color: #e63946;
-    color: white;
+    background-color: #E64A5B;
+    color: #E8F1EC;
     font-size: 0.7rem;
     font-weight: 700;
     padding: 0.15rem 0.4rem;
@@ -194,7 +194,7 @@
   }
 
   .logout-btn {
-    background-color: transparent;
+    background-color: #182824;
     border: 1px solid var(--border-color);
     color: var(--text-muted);
     padding: 0.35rem 0.75rem;
@@ -205,18 +205,18 @@
   }
 
   .logout-btn:hover {
-    background-color: var(--border-color);
-    color: white;
+    background-color: #1D352C;
+    color: #E8F1EC;
   }
 
   .login-btn {
     background-color: var(--primary-green);
-    color: white;
+    color: #071A14;
     padding: 0.4rem 1rem;
     border-radius: 6px;
     text-decoration: none;
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 700;
     transition: background-color 0.2s;
   }
 
