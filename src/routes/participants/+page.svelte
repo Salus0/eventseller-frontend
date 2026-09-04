@@ -51,7 +51,6 @@
     isLoading = true;
     errorMessage = '';
 
-    // Falls kein Token vorhanden ist (Nutzer nicht eingeloggt), gar nicht erst anfragen
     if (!jwtToken) {
       isLoading = false;
       errorMessage = 'Bitte logge dich ein, um die Teilnehmer zu sehen.';
@@ -61,7 +60,7 @@
     try {
       const res = await fetch(`${backendUrl}/participants/`, {
         headers: {
-          'Authorization': `Bearer ${jwtToken}` // <- WICHTIG: Authorization-Header mitsenden
+          'Authorization': `Bearer ${jwtToken}`
         }
       });
 
@@ -345,45 +344,137 @@
 
 <style>
   .header-action { margin-bottom: 1.5rem; }
-  h1 { color: #fbbf24; margin: 0; }
-  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
-  .margin-top { margin-top: 1.5rem; }
-  h2 { color: #f8fafc; font-size: 1.1rem; margin-top: 0; margin-bottom: 1rem; }
+  h1 { color: #D98A00 !important; margin: 0; }
 
-  .sync-card { border-color: #6366f1; background-color: #1e1b4b; }
-  .sync-card h2 { color: #a5b4fc; }
-  .sync-desc { color: #c7d2fe; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
-  .sync-input { max-width: 350px; border-color: #6366f1 !important; }
+  .card { 
+    background-color: #14221F !important; 
+    border: 1px solid #294039 !important; 
+    border-radius: 8px; 
+    padding: 1.5rem; 
+  }
+  .margin-top { margin-top: 1.5rem; }
+  h2 { color: #E8F1EC !important; font-size: 1.1rem; margin-top: 0; margin-bottom: 1rem; }
+
+  .sync-card { 
+    border-color: #A855F7 !important; 
+    background-color: #0d1a15 !important; 
+  }
+  .sync-card h2 { color: #C084FC !important; }
+  .sync-desc { color: #9DB5AA !important; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
+  .sync-input { max-width: 350px; border-color: #A855F7 !important; }
 
   .add-form { display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 750px; }
-  .input-field { flex: 1; min-width: 160px; padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
+  
+  .input-field { 
+    flex: 1; 
+    min-width: 160px; 
+    padding: 0.5rem 0.8rem; 
+    background-color: #071A14 !important; 
+    border: 1px solid #294039 !important; 
+    border-radius: 6px; 
+    color: #E8F1EC !important; 
+    font-size: 0.9rem; 
+  }
+  .input-field::placeholder { color: #9DB5AA; }
   .edit-input { min-width: 130px; }
 
-  .sync-btn { background-color: #4f46e5; color: white; border: none; padding: 0.5rem 0.8rem; border-radius: 6px; font-weight: 600; cursor: pointer; white-space: nowrap; font-size: 0.85rem; }
-  .sync-btn:hover { background-color: #4338ca; }
-  .sync-btn-small { background-color: #4f46e5; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; }
-  .sync-btn-small:hover { background-color: #4338ca; }
+  .sync-btn { 
+    background-color: #182824 !important; 
+    border: 1px solid #294039 !important; 
+    color: #E8F1EC !important; 
+    padding: 0.5rem 0.8rem; 
+    border-radius: 6px; 
+    font-weight: 600; 
+    cursor: pointer; 
+    white-space: nowrap; 
+    font-size: 0.85rem; 
+    transition: background-color 0.2s;
+  }
+  .sync-btn:hover { background-color: #294039 !important; }
+  
+  .sync-btn-small { 
+    background-color: #182824 !important; 
+    border: 1px solid #294039 !important; 
+    color: #E8F1EC !important; 
+    padding: 0.3rem 0.6rem; 
+    border-radius: 4px; 
+    cursor: pointer; 
+  }
+  .sync-btn-small:hover { background-color: #294039 !important; }
 
-  .create-btn { background-color: #d97706; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-  .create-btn:hover { background-color: #b45309; }
+  .create-btn { 
+    background-color: #A855F7 !important; 
+    color: #FFFFFF !important; 
+    border: none; 
+    padding: 0.5rem 1rem; 
+    border-radius: 6px; 
+    font-weight: 700; 
+    cursor: pointer; 
+    white-space: nowrap; 
+    transition: background-color 0.2s;
+  }
+  .create-btn:hover { background-color: #C084FC !important; }
 
   .participant-list { list-style: none; padding: 0; margin: 0; max-width: 750px; }
-  .participant-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem; border-bottom: 1px solid #334155; background-color: #0f172a; margin-bottom: 0.4rem; border-radius: 6px; }
-  .num { color: #fbbf24; font-weight: 600; min-width: 25px; }
+  .participant-item { 
+    display: flex; 
+    align-items: center; 
+    gap: 0.75rem; 
+    padding: 0.6rem; 
+    border-bottom: 1px solid #294039 !important; 
+    background-color: #071A14 !important; 
+    margin-bottom: 0.4rem; 
+    border-radius: 6px; 
+  }
+  .num { color: #D98A00 !important; font-weight: 600; min-width: 25px; }
   
   .info-group { flex: 1; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-  .name { color: #f8fafc; font-weight: 500; }
-  .discord-badge { background-color: #1e1b4b; color: #818cf8; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.75rem; border: 1px solid #312e81; font-family: monospace; }
+  .name { color: #E8F1EC !important; font-weight: 500; }
+  
+  .discord-badge { 
+    background-color: #182824 !important; 
+    color: #C084FC !important; 
+    padding: 0.15rem 0.4rem; 
+    border-radius: 4px; 
+    font-size: 0.75rem; 
+    border: 1px solid #294039 !important; 
+    font-family: monospace; 
+  }
 
   .edit-fields { flex: 1; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
 
-  .action-btn { background-color: #334155; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
-  .action-btn:hover { background-color: #475569; }
+  .action-btn { 
+    background-color: #182824 !important; 
+    border: 1px solid #294039 !important; 
+    color: #E8F1EC !important; 
+    padding: 0.3rem 0.6rem; 
+    border-radius: 4px; 
+    font-size: 0.8rem; 
+    cursor: pointer; 
+  }
+  .action-btn:hover { background-color: #294039 !important; }
 
   .btn-group { display: flex; gap: 0.4rem; }
-  .save-btn { background-color: #059669; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
-  .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+  
+  .save-btn { 
+    background-color: #35A85B !important; 
+    color: #FFFFFF !important; 
+    border: none; 
+    padding: 0.3rem 0.6rem; 
+    border-radius: 4px; 
+    font-size: 0.8rem; 
+    cursor: pointer; 
+  }
+  .cancel-btn { 
+    background-color: #294039 !important; 
+    color: #E8F1EC !important; 
+    border: none; 
+    padding: 0.3rem 0.6rem; 
+    border-radius: 4px; 
+    font-size: 0.8rem; 
+    cursor: pointer; 
+  }
 
-  .status-text { color: #94a3b8; }
-  .error { color: #ef4444; }
+  .status-text { color: #9DB5AA !important; }
+  .error { color: #E64A5B !important; font-weight: 500; }
 </style>
