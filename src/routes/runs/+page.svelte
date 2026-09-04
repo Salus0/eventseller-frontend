@@ -1469,8 +1469,8 @@ h2 {
 
 /* Buttons (Primary & Utility) */
 .create-btn { 
-  background-color: #4DB982 !important; 
-  color: #071A14 !important; 
+  background-color: #A855F7 !important; /* Kräftiges Violett/Lila */
+  color: #FFFFFF !important; 
   padding: 0.6rem 1.2rem; 
   border-radius: 6px; 
   text-decoration: none; 
@@ -1480,7 +1480,7 @@ h2 {
 }
 
 .create-btn:hover { 
-  background-color: #61CC95 !important; 
+  background-color: #C084FC !important; /* Hellerer Pink/Lila-Ton beim Hover */
 }
 
 .action-btn { 
