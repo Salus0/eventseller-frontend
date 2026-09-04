@@ -92,7 +92,6 @@
 
       if (res.ok) {
         availableParticipants = await res.json();
-        console.log('Geladene Teilnehmer:', availableParticipants);
       } else {
         console.error(`Fehler beim Laden der Teilnehmer: Status ${res.status}`);
       }
@@ -220,7 +219,6 @@
       ? `${trimmedType} - ${formattedDate} (${runNote.trim()})`
       : `${trimmedType} - ${formattedDate}`;
 
-    // 1. Gültige Teilnehmer filtern und Typen explizit als Numbers erzwingen
     const validParticipants = selectedParticipants
       .filter(p => p.participant_id !== '' && p.participant_id !== null)
       .map(p => ({
@@ -234,7 +232,6 @@
     }
 
     try {
-      // 2. Run in der Datenbank anlegen
       const res = await fetch(`${backendUrl}/runs/`, {
         method: 'POST',
         headers: { 
@@ -256,7 +253,6 @@
       const createdRun = await res.json();
       const runId = createdRun.id;
 
-      // 3. Teilnehmer explizit über den PUT-Endpoint dem Run zuweisen
       const partRes = await fetch(`${backendUrl}/runs/${runId}/participants`, {
         method: 'PUT',
         headers: {
@@ -302,7 +298,7 @@
       type="text" 
       placeholder="Raid-Helper Event ID (z.B. 112233445566)" 
       bind:value={raidHelperId}
-      class="import-input" 
+      class="input-field import-input" 
     />
     <button type="button" class="import-btn" on:click={importFromRaidHelper} disabled={isFetchingRaidHelper}>
       {isFetchingRaidHelper ? 'Lade...' : '📥 Event Importieren'}
@@ -312,28 +308,28 @@
 
 <form on:submit|preventDefault={createRun} class="form-container">
   <!-- Sektion 1: Grunddaten -->
-  <section class="card">
+  <section class="card margin-top">
     <h2>1. Allgemeine Infos</h2>
     <div class="form-grid">
       <div class="form-group">
         <label for="event-type">Event-Art *</label>
-        <input id="event-type" type="text" bind:value={eventType} placeholder="z. B. Endless Tower" required />
+        <input id="event-type" type="text" class="input-field" bind:value={eventType} placeholder="z. B. Endless Tower" required />
       </div>
 
       <div class="form-group">
         <label for="event-date">Datum *</label>
-        <input id="event-date" type="date" bind:value={eventDate} required />
+        <input id="event-date" type="date" class="input-field" bind:value={eventDate} required />
       </div>
 
       <div class="form-group full-width">
         <label for="run-note">Zusatzbezeichnung (Optional)</label>
-        <input id="run-note" type="text" bind:value={runNote} placeholder="z. B. Team Alpha" />
+        <input id="run-note" type="text" class="input-field" bind:value={runNote} placeholder="z. B. Team Alpha" />
       </div>
     </div>
   </section>
 
   <!-- Sektion 2: Teilnehmer & Klassenauswahl -->
-  <section class="card">
+  <section class="card margin-top">
     <h2>2. Teilnehmer & Klassen für diesen Run</h2>
     
     {#if isLoadingParticipants}
@@ -344,14 +340,14 @@
       <div class="dynamic-list">
         {#each selectedParticipants as entry, index (index)}
           <div class="row">
-            <select bind:value={selectedParticipants[index].participant_id} class="select-player" required>
+            <select bind:value={selectedParticipants[index].participant_id} class="input-field select-player" required>
               <option value="">-- Spieler wählen --</option>
               {#each availableParticipants as p}
                 <option value={p.id}>{p.name}</option>
               {/each}
             </select>
 
-            <select bind:value={selectedParticipants[index].class_name} class="select-class">
+            <select bind:value={selectedParticipants[index].class_name} class="input-field select-class">
               <option value="">-- Klasse wählen --</option>
               {#each roClasses as roClass}
                 <option value={roClass}>{roClass}</option>
@@ -369,43 +365,106 @@
     {/if}
   </section>
 
-  <div class="actions">
+  <div class="actions margin-top">
     <button type="submit" class="submit-btn">Run anlegen</button>
   </div>
 </form>
 
 <style>
   .header { margin-bottom: 1.5rem; }
-  .back-link { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
-  .back-link:hover { color: #fbbf24; }
-  h1 { color: #fbbf24; margin-top: 0.5rem; }
-  h2 { font-size: 1.1rem; color: #f8fafc; margin-bottom: 1rem; }
+  .back-link { color: #9DB5AA !important; text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+  .back-link:hover { color: #D98A00 !important; }
+  h1 { color: #D98A00 !important; margin-top: 0.5rem; margin-bottom: 0; }
+  h2 { font-size: 1.1rem; color: #E8F1EC !important; margin-top: 0; margin-bottom: 1rem; }
   
-  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .card { 
+    background-color: #14221F !important; 
+    border: 1px solid #294039 !important; 
+    border-radius: 8px; 
+    padding: 1.5rem; 
+  }
+  .margin-top { margin-top: 1.5rem; }
   
-  .raid-helper-card { border-color: #6366f1; background-color: #1e1b4b; }
-  .raid-helper-card h2 { color: #a5b4fc; }
-  .import-desc { color: #c7d2fe; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
+  .raid-helper-card { 
+    border-color: #A855F7 !important; 
+    background-color: #0d1a15 !important; 
+  }
+  .raid-helper-card h2 { color: #C084FC !important; }
+  .import-desc { color: #9DB5AA !important; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
   .import-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-  .import-input { flex: 1; min-width: 220px; border-color: #6366f1 !important; }
-  .import-btn { background-color: #4f46e5; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
-  .import-btn:hover { background-color: #4338ca; }
+  .import-input { flex: 1; min-width: 220px; border-color: #A855F7 !important; }
+  
+  .import-btn { 
+    background-color: #182824 !important; 
+    border: 1px solid #294039 !important; 
+    color: #E8F1EC !important; 
+    padding: 0.6rem 1.2rem; 
+    border-radius: 6px; 
+    font-weight: 600; 
+    cursor: pointer; 
+    transition: background-color 0.2s;
+  }
+  .import-btn:hover { background-color: #294039 !important; }
   .import-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .form-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
   .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 200px; }
   .full-width { width: 100%; flex: 100%; }
-  label { font-size: 0.875rem; font-weight: 600; color: #94a3b8; }
-  input, select { padding: 0.6rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.95rem; }
-  input:focus, select:focus { outline: none; border-color: #fbbf24; }
+  label { font-size: 0.875rem; font-weight: 600; color: #9DB5AA !important; }
+  
+  .input-field { 
+    padding: 0.6rem 0.8rem; 
+    background-color: #071A14 !important; 
+    border: 1px solid #294039 !important; 
+    border-radius: 6px; 
+    color: #E8F1EC !important; 
+    font-size: 0.95rem; 
+  }
+  .input-field::placeholder { color: #9DB5AA; }
+  .input-field:focus { outline: none; border-color: #D98A00 !important; }
+  
   .dynamic-list { display: flex; flex-direction: column; gap: 0.6rem; }
   .row { display: flex; gap: 0.5rem; align-items: center; }
   .select-player, .select-class { flex: 1; }
-  .add-btn { background-color: #334155; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; align-self: flex-start; font-size: 0.85rem; margin-top: 0.4rem; }
-  .add-btn:hover { background-color: #475569; }
-  .remove-btn { background-color: #ef4444; color: white; border: none; padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer; }
-  .remove-btn:hover { background-color: #dc2626; }
-  .submit-btn { background-color: #d97706; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; font-size: 1rem; }
-  .submit-btn:hover { background-color: #b45309; }
-  .status-text { color: #94a3b8; }
+  
+  .add-btn { 
+    background-color: #182824 !important; 
+    border: 1px solid #294039 !important; 
+    color: #E8F1EC !important; 
+    padding: 0.5rem 1rem; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    align-self: flex-start; 
+    font-size: 0.85rem; 
+    margin-top: 0.4rem; 
+    transition: background-color 0.2s;
+  }
+  .add-btn:hover { background-color: #294039 !important; }
+  
+  .remove-btn { 
+    background-color: #182824 !important; 
+    border: 1px solid #E64A5B !important; 
+    color: #E64A5B !important; 
+    padding: 0.6rem 0.8rem; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    transition: background-color 0.2s;
+  }
+  .remove-btn:hover { background-color: #E64A5B !important; color: #FFFFFF !important; }
+  
+  .submit-btn { 
+    background-color: #A855F7 !important; 
+    color: #FFFFFF !important; 
+    border: none; 
+    padding: 0.75rem 1.5rem; 
+    border-radius: 6px; 
+    font-weight: 700; 
+    cursor: pointer; 
+    width: 100%; 
+    font-size: 1rem; 
+    transition: background-color 0.2s;
+  }
+  .submit-btn:hover { background-color: #C084FC !important; }
+  
+  .status-text { color: #9DB5AA !important; }
 </style>
