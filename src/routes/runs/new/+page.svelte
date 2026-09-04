@@ -134,7 +134,23 @@
       const importedParticipants = [];
 
       for (const signup of signups) {
-        const isPrimary = signup.status === 'primary' && signup.className !== 'Bench';
+        // Status, Klasse und Rolle abfragen
+        const rawClass = (signup.className || signup.cClassName || '').trim().toLowerCase();
+        const rawRole = (signup.role || '').trim().toLowerCase();
+        const rawStatus = (signup.status || '').trim().toLowerCase();
+
+        // Prüfen auf Abwesenheit, Ersatzbank oder Verspätung
+        const isAbsent = 
+          rawStatus === 'absence' || 
+          rawStatus === 'absent' || 
+          rawClass === 'absence' || 
+          rawClass === 'absent' || 
+          rawClass === 'bench' ||
+          rawClass === 'late' ||
+          rawRole === 'absence' ||
+          rawRole === 'absent';
+
+        const isPrimary = signup.status === 'primary' && !isAbsent;
         if (!isPrimary) continue;
 
         const signupDiscordId = String(signup.userId || signup.discordId || '').trim();
