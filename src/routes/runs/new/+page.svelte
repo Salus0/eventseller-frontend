@@ -51,7 +51,8 @@
     return classMapping[cleaned] || classMapping[rawClass.trim().toLowerCase()] || 'Sonstiges';
   }
 
-  function checkAdminAccess() {
+  // Prüft, ob der Nutzer Admin ODER Seller ist
+  function checkSellerAccess() {
     const token = localStorage.getItem('jwt_token');
     if (!token) {
       goto('/runs');
@@ -67,7 +68,7 @@
           .join('')
       );
       const decoded = JSON.parse(jsonPayload);
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'admin' && decoded.role !== 'seller') {
         goto('/runs');
         return false;
       }
@@ -277,7 +278,7 @@
 
   onMount(() => {
     const token = localStorage.getItem('jwt_token');
-    if (checkAdminAccess()) {
+    if (checkSellerAccess()) {
       fetchAvailableParticipants(token);
     }
   });
