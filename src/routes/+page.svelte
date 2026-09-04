@@ -176,7 +176,9 @@
 	<h1>Mein Dashboard</h1>
 
 	{#if isLoading}
-		<p class="status">Lade deine Runs...</p>
+		<section class="card">
+			<p class="status">Lade deine Runs...</p>
+		</section>
 	{:else}
 		<section class="card">
 			<h2>Meine aktiven Runs</h2>
@@ -195,7 +197,9 @@
 										</span>
 									{/if}
 								</div>
-								<span class="run-date">{formatDate(run.created_at || run.date)}</span>
+								{#if run.created_at || run.date}
+									<span class="run-date">📅 {formatDate(run.created_at || run.date)}</span>
+								{/if}
 							</div>
 
 							<div class="run-details">
@@ -223,28 +227,31 @@
 
 <style>
 	.container {
-		max-width: 800px;
-		margin: 2rem auto;
-		font-family: sans-serif;
-		padding: 0 1rem;
-		color: #f8fafc;
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 0;
 	}
+
 	h1 {
-		color: #fbbf24;
+		color: #D98A00 !important; /* warmes Gold/Gelb */
+		margin-top: 0;
 		margin-bottom: 1.5rem;
 	}
+
 	.card {
-		background: #1e293b;
-		border: 1px solid #334155;
+		background-color: #14221F !important;
+		border: 1px solid #294039 !important;
 		padding: 1.5rem;
 		border-radius: 8px;
 	}
+
 	h2 {
 		font-size: 1.1rem;
-		color: #f8fafc;
+		color: #E8F1EC !important;
 		margin-top: 0;
 		margin-bottom: 1rem;
 	}
+
 	.run-list {
 		list-style: none;
 		padding: 0;
@@ -253,72 +260,98 @@
 		flex-direction: column;
 		gap: 0.75rem;
 	}
+
 	.run-item {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		background: #0f172a;
+		background-color: #182824 !important;
 		padding: 1rem;
 		border-radius: 6px;
-		border-left: 4px solid #6366f1;
+		border: 1px solid #294039 !important;
 		cursor: pointer;
 		transition: background-color 0.2s ease, transform 0.1s ease;
 	}
+
 	.run-item:hover {
-		background: #1e293b;
+		background-color: #1D352C !important;
 		transform: translateY(-2px);
 	}
+
 	.run-header {
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
 	}
+
 	.run-title-line {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 	}
+
 	.run-name {
-		font-size: 1rem;
-		color: #f8fafc;
+		font-size: 1.05rem;
+		font-weight: 600;
+		color: #E8F1EC !important;
 	}
-	
+
+	/* Status Badges - Exakt wie auf der Runs-Seite */
 	.badge { 
-		color: white; 
+		color: #E8F1EC !important; 
 		font-size: 0.75rem; 
 		font-weight: 600; 
 		padding: 0.25rem 0.6rem; 
 		border-radius: 4px; 
 		text-transform: capitalize; 
 	}
-	.status-onsale { background-color: #d97706; }
-	.status-payout { background-color: #ca8a04; }
-	.status-close { background-color: #dc2626; }
+
+	.status-onsale { 
+		background-color: #D98A00 !important; 
+		color: #071A14 !important;
+	}
+
+	.status-payout { 
+		background-color: #35A85B !important; 
+		color: #E8F1EC !important;
+	}
+
+	.status-close { 
+		background-color: #E64A5B !important; 
+		color: #E8F1EC !important;
+	}
 
 	.run-date {
-		font-size: 0.8rem;
-		color: #94a3b8;
+		font-size: 0.85rem;
+		color: #9DB5AA !important;
 	}
+
 	.run-details {
 		display: flex;
 		align-items: center;
 		gap: 1.5rem;
 	}
+
 	.sales-progress {
 		font-size: 0.85rem;
-		color: #38bdf8;
+		color: #4DB982 !important;
 	}
+
 	.no-sales {
 		font-size: 0.85rem;
-		color: #64748b;
+		color: #9DB5AA !important;
+		font-style: italic;
 	}
+
 	.split-amount {
-		color: #fbbf24;
+		color: #D98A00 !important;
 		font-weight: 600;
 		font-size: 0.95rem;
 	}
+
 	.empty-text, .status {
-		color: #94a3b8;
+		color: #9DB5AA !important;
 		font-style: italic;
+		margin: 0;
 	}
 </style>
