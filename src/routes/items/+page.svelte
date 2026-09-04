@@ -363,7 +363,7 @@
               <th>ID</th>
               <th>Name</th>
               <th>Letzter Preis</th>
-              <th>Verkauft am</th>
+              <th>Letzter Verkauf</th>
               <th>Aktion</th>
             </tr>
           </thead>
@@ -488,62 +488,141 @@
 
 <style>
   .header-action { margin-bottom: 1.5rem; }
-  h1 { color: #fbbf24; margin: 0; }
-  .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
+  h1 { color: #D98A00 !important; margin: 0; }
+  
+  .card { 
+    background-color: #14221F !important; 
+    border: 1px solid #294039 !important; 
+    border-radius: 8px; 
+    padding: 1.5rem; 
+  }
   .margin-top { margin-top: 1.5rem; }
-  h2 { color: #f8fafc; font-size: 1.1rem; margin: 0 0 1rem 0; }
-
-  .unauthorized-box { text-align: center; padding: 2rem; }
-  .login-btn { background-color: #d97706; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; }
-  .login-btn:hover { background-color: #b45309; }
+  h2 { color: #E8F1EC !important; font-size: 1.1rem; margin: 0 0 1rem 0; }
 
   .add-form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-  .input-field { padding: 0.5rem 0.8rem; background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 0.9rem; }
+  
+  .input-field { 
+    padding: 0.5rem 0.8rem; 
+    background-color: #071A14 !important; 
+    border: 1px solid #294039 !important; 
+    border-radius: 6px; 
+    color: #E8F1EC !important; 
+    font-size: 0.9rem; 
+  }
+  .input-field::placeholder { color: #9DB5AA; }
+  
   .small-input { width: 140px; }
   .search-input { width: 250px; }
   
   .edit-input-sm { width: 90px; }
   .edit-input-lg { width: 100%; box-sizing: border-box; }
 
-  .create-btn { background-color: #d97706; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
-  .create-btn:hover { background-color: #b45309; }
+  .create-btn { 
+    background-color: #A855F7 !important; 
+    color: #FFFFFF !important; 
+    border: none; 
+    padding: 0.5rem 1rem; 
+    border-radius: 6px; 
+    font-weight: 700; 
+    cursor: pointer; 
+    transition: background-color 0.2s;
+  }
+  .create-btn:hover { background-color: #C084FC !important; }
 
   .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
 
   .table-container { overflow-x: auto; }
   .item-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
-  .item-table th { background-color: #0f172a; color: #fbbf24; padding: 0.75rem; border-bottom: 2px solid #334155; }
-  .item-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #334155; color: #f8fafc; vertical-align: middle; }
+  
+  .item-table th { 
+    background-color: #071A14 !important; 
+    color: #D98A00 !important; 
+    padding: 0.75rem; 
+    border-bottom: 2px solid #294039 !important; 
+  }
+  
+  .item-table td { 
+    padding: 0.6rem 0.75rem; 
+    border-bottom: 1px solid #294039 !important; 
+    color: #E8F1EC !important; 
+    vertical-align: middle; 
+  }
 
-  .edit-row { background-color: #111827; }
+  .edit-row { background-color: #0d1a15 !important; }
 
   .icon-cell img { width: 24px; height: 24px; object-fit: contain; }
-  .id-cell { color: #94a3b8; font-family: monospace; }
-  .name-cell { font-weight: 600; }
-  .price-cell { color: #34d399; font-weight: 600; }
-  .date-cell { color: #94a3b8; font-size: 0.85rem; }
+  .id-cell { color: #9DB5AA !important; font-family: monospace; }
+  .name-cell { font-weight: 600; color: #E8F1EC !important; }
+  .price-cell { color: #35A85B !important; font-weight: 600; }
+  .date-cell { color: #9DB5AA !important; font-size: 0.85rem; }
 
   .btn-group { display: flex; gap: 0.4rem; align-items: center; }
-  .action-btn { background-color: #334155; color: white; border: none; padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
-  .action-btn:hover { background-color: #475569; }
+  
+  .action-btn { 
+    background-color: #182824 !important; 
+    border: 1px solid #294039 !important;
+    color: #E8F1EC !important; 
+    padding: 0.35rem 0.6rem; 
+    border-radius: 4px; 
+    font-size: 0.8rem; 
+    cursor: pointer; 
+  }
+  .action-btn:hover { background-color: #294039 !important; }
 
-  .save-btn { background-color: #059669; color: white; border: none; padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
-  .cancel-btn { background-color: #475569; color: white; border: none; padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
+  .save-btn { 
+    background-color: #35A85B !important; 
+    color: #FFFFFF !important; 
+    border: none; 
+    padding: 0.35rem 0.6rem; 
+    border-radius: 4px; 
+    font-size: 0.8rem; 
+    cursor: pointer; 
+  }
+  .cancel-btn { 
+    background-color: #294039 !important; 
+    color: #E8F1EC !important; 
+    border: none; 
+    padding: 0.35rem 0.6rem; 
+    border-radius: 4px; 
+    font-size: 0.8rem; 
+    cursor: pointer; 
+  }
 
-  .history-btn { background-color: #334155; color: white; border: none; padding: 0.35rem 0.7rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; }
-  .history-btn:hover { background-color: #475569; }
+  .history-btn { 
+    background-color: #182824 !important; 
+    border: 1px solid #294039 !important;
+    color: #E8F1EC !important; 
+    padding: 0.35rem 0.7rem; 
+    border-radius: 4px; 
+    font-size: 0.8rem; 
+    cursor: pointer; 
+  }
+  .history-btn:hover { background-color: #294039 !important; }
 
-  .history-row td { background-color: #090d16; padding: 1rem; }
-  .history-box { background-color: #0f172a; border: 1px solid #334155; padding: 1rem; border-radius: 6px; }
-  .history-box h4 { margin: 0 0 0.8rem 0; color: #fbbf24; font-size: 0.95rem; }
+  .history-row td { background-color: #0a1410 !important; padding: 1rem; }
+  
+  .history-box { 
+    background-color: #071A14 !important; 
+    border: 1px solid #294039 !important; 
+    padding: 1rem; 
+    border-radius: 6px; 
+  }
+  .history-box h4 { margin: 0 0 0.8rem 0; color: #D98A00 !important; font-size: 0.95rem; }
   .history-list { list-style: none; padding: 0; margin: 0; }
-  .history-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px dashed #334155; font-size: 0.85rem; }
-  .run-name { font-weight: 600; color: #e2e8f0; }
-  .run-date { color: #94a3b8; }
-  .item-qty { color: #cbd5e1; }
-  .hist-price { color: #34d399; font-weight: 600; }
+  .history-list li { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 0.4rem 0; 
+    border-bottom: 1px dashed #294039 !important; 
+    font-size: 0.85rem; 
+  }
+  .run-name { font-weight: 600; color: #E8F1EC !important; }
+  .run-date { color: #9DB5AA !important; }
+  .item-qty { color: #9DB5AA !important; }
+  .hist-price { color: #35A85B !important; font-weight: 600; }
 
-  .status-text { color: #94a3b8; }
-  .empty-text { font-size: 0.85rem; color: #64748b; font-style: italic; }
-  .error { color: #ef4444; font-weight: 500; margin-bottom: 1rem; }
+  .status-text { color: #9DB5AA !important; }
+  .empty-text { font-size: 0.85rem; color: #9DB5AA !important; font-style: italic; }
+  .error { color: #E64A5B !important; font-weight: 500; margin-bottom: 1rem; }
 </style>
