@@ -18,6 +18,7 @@
   let jwtToken = '';
   
   let expandedRunIds = new Set();
+  let loadingDetailsIds = new Set(); // Speichert IDs von Runs, die gerade nachgeladen werden
   let editingRunHeader = {};  // Inline-Edit Modus für Run-Name/Typ
   let runHeaderInputs = {};   // Eingabepuffer für Run-Name/Typ
 
@@ -171,8 +172,29 @@
     }
   }
 
-  // --- DYNAMISCHE STATUS-BERECHNUNG ---
+  // --- STATUS-AUSWERTUNG PRIMÄR AUS DB (runs.status) ---
   function getRunStatusInfo(run) {
+    // 1. Priorität: Auslesen aus der DB (runs.status)
+    if (run.status) {
+      const rawStatus = String(run.status).toLowerCase().trim();
+      switch (rawStatus) {
+        case 'closed':
+        case 'close':
+          return { label: 'Close', cssClass: 'status-close' };
+        case 'payout':
+        case 'paid':
+          return { label: 'Payout', cssClass: 'status-payout' };
+        case 'on_sale':
+        case 'onsale':
+        case 'on sale':
+          return { label: 'On Sale', cssClass: 'status-onsale' };
+        case 'open':
+        case 'offen':
+          return { label: 'Open', cssClass: 'status-open' };
+      }
+    }
+
+    // Fallback: Dynamische Berechnung (falls status in DB leer/null ist)
     const items = run.items || [];
     const participants = run.participants || [];
 
@@ -184,22 +206,16 @@
     const paidParticipants = participants.filter(p => p.is_paid).length;
     const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
 
-    // 1. Close: Alle Items verkauft UND alle Teilnehmer ausgezahlt
     if (allItemsSold && allPaidOut) {
       return { label: 'Close', cssClass: 'status-close' };
     }
-    
-    // 2. Payout: Alle Items verkauft, aber Auszahlung noch offen
     if (allItemsSold) {
       return { label: 'Payout', cssClass: 'status-payout' };
     }
-    
-    // 3. On Sale: Mindestens 1 Item im Run vorhanden
     if (totalItems > 0) {
       return { label: 'On Sale', cssClass: 'status-onsale' };
     }
     
-    // Kein Item vorhanden -> Kein Badge
     return null;
   }
 
@@ -313,14 +329,23 @@
   async function toggleExpand(id) {
     if (expandedRunIds.has(id)) {
       expandedRunIds.delete(id);
+      expandedRunIds = new Set(expandedRunIds);
     } else {
       expandedRunIds.add(id);
-      await loadRunDetails(id);
+      expandedRunIds = new Set(expandedRunIds);
+      
+      const targetRun = runs.find(r => r.id === id);
+      // Nur nachladen, wenn die Details nicht bereits geladen sind
+      if (targetRun && !targetRun.detailsLoaded) {
+        await loadRunDetails(id);
+      }
     }
-    expandedRunIds = new Set(expandedRunIds);
   }
 
   async function loadRunDetails(runId) {
+    loadingDetailsIds.add(runId);
+    loadingDetailsIds = new Set(loadingDetailsIds);
+
     try {
       const headers = getAuthHeaders();
       const [partsRes, itemsRes, salesRes, summaryRes] = await Promise.all([
@@ -387,16 +412,21 @@
             participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
             items: expandedItems,
             sales: safeSales,
-            summary: loadedSummary
+            summary: loadedSummary,
+            detailsLoaded: true // Marker, dass Details erfolgreich geladen wurden
           };
         }
         return r;
       });
     } catch (err) {
       console.error(`Fehler beim Nachladen der Details für Run ${runId}:`, err);
+    } finally {
+      loadingDetailsIds.delete(runId);
+      loadingDetailsIds = new Set(loadingDetailsIds);
     }
   }
 
+  // --- LAZY LOADING: HIER WERDEN VORERST NUR DIE BILD-STAND-DATEN DER RUNS GELADEN ---
   async function fetchData() {
     isLoading = true;
     errorMessage = '';
@@ -413,9 +443,19 @@
       const runsRes = await fetch(`${backendUrl}/runs/`, { headers });
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
-        runs = Array.isArray(loadedRuns) ? loadedRuns : [];
-        await Promise.all(runs.map(r => loadRunDetails(r.id)));
+        const baseRuns = Array.isArray(loadedRuns) ? loadedRuns : [];
+        
+        // Initialisieren der Runs-Struktur (Details werden erst bei Klick geholt)
+        runs = baseRuns.map(r => ({
+          ...r,
+          detailsLoaded: false,
+          participants: r.participants || [],
+          items: r.items || [],
+          sales: r.sales || [],
+          summary: r.summary || null
+        }));
 
+        // Falls ein Deeplink (?open=ID) gesetzt ist, diesen gezielt aufklappen & nachladen
         const openIdParam = $page.url.searchParams.get('open');
         if (openIdParam) {
           const runToOpen = Number(openIdParam);
