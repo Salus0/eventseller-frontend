@@ -180,7 +180,7 @@
       switch (rawStatus) {
         case 'closed':
         case 'close':
-          return { label: 'Close', cssClass: 'status-close' };
+          return { label: 'close', cssClass: 'status-close' };
         case 'payout':
         case 'paid':
           return { label: 'Payout', cssClass: 'status-payout' };
@@ -207,7 +207,7 @@
     const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
 
     if (allItemsSold && allPaidOut) {
-      return { label: 'Close', cssClass: 'status-close' };
+      return { label: 'close', cssClass: 'status-close' };
     }
     if (allItemsSold) {
       return { label: 'Payout', cssClass: 'status-payout' };
@@ -228,8 +228,8 @@
 
   // --- REAKTIVE SORTIERUNG & KATEGORISIERUNG ---
   $: sortedRuns = [...runs].sort((a, b) => getRunTimestamp(b) - getRunTimestamp(a));
-  $: activeRuns = sortedRuns.filter(r => getRunStatusInfo(r)?.label !== 'Close');
-  $: closedRuns = sortedRuns.filter(r => getRunStatusInfo(r)?.label === 'Close');
+  $: activeRuns = sortedRuns.filter(r => getRunStatusInfo(r)?.label !== 'close');
+  $: closedRuns = sortedRuns.filter(r => getRunStatusInfo(r)?.label === 'close');
 
   // --- RUN HEADER EDITIEREN & LÖSCHEN ---
   function startEditRunHeader(run, e) {
