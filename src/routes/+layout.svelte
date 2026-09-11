@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { page } from '$app/stores'; // Holt die aktuelle Seiten-URL
 
   export let data;
 
@@ -54,10 +55,10 @@
     </a>
 
     <nav class="nav-links">
-      <a href="/">Dashboard</a>
-      <a href="/runs">Runs</a>
-      <a href="/items">Items</a>
-      <a href="/participants">Teilnehmer</a>
+      <a href="/" class:active={$page.url.pathname === '/'}>Dashboard</a>
+      <a href="/runs" class:active={$page.url.pathname.startsWith('/runs')}>Runs</a>
+      <a href="/items" class:active={$page.url.pathname.startsWith('/items')}>Items</a>
+      <a href="/participants" class:active={$page.url.pathname.startsWith('/participants')}>Teilnehmer</a>
     </nav>
 
     <div class="nav-actions">
@@ -150,11 +151,20 @@
     text-decoration: none;
     font-size: 0.95rem;
     font-weight: 500;
-    transition: color 0.2s;
+    padding: 0.25rem 0;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease-in-out;
   }
 
   .nav-links a:hover {
     color: #E8F1EC;
+  }
+
+  /* Hervorhebung für den aktiven Navigationslink */
+  .nav-links a.active {
+    color: var(--primary-green);
+    font-weight: 700;
+    border-bottom: 2px solid var(--primary-green);
   }
 
   .nav-actions {
