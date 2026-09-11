@@ -128,9 +128,9 @@
 		const paidParticipants = participants.filter(p => p.is_paid).length;
 		const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
 
-		// 1. Alle Items verkauft & alle bezahlt -> Close
+		// 1. Alle Items verkauft & alle bezahlt -> close
 		if (allItemsSold && allPaidOut) {
-			return { label: 'Close', cssClass: 'status-close' };
+			return { label: 'close', cssClass: 'status-close' };
 		}
 		// 2. Alle Items verkauft (aber noch nicht alle ausbezahlt) -> Payout
 		if (allItemsSold) {
