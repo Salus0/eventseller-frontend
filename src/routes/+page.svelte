@@ -185,12 +185,12 @@
     <section class="card">
       <h2>Meine aktiven Runs</h2>
       {#if userRuns.length > 0}
-        <ul class="run-list">
+        <ul class="run-list is--dashboard">
           {#each userRuns as run}
             {@const sales = getItemSalesInfo(run)}
             {@const status = getRunStatusInfo(run)}
             <li class="run-item" on:click={() => openRunDetails(run.id)} role="button" tabindex="0">
-              <div class="run-header">
+              <div class="run-header-dashboard">
                 <div class="run-title-line">
                   <strong class="run-name">{run.name}</strong>
                   {#if status}
@@ -204,7 +204,7 @@
                 {/if}
               </div>
 
-              <div class="run-details">
+              <div class="run-details-dashboard">
                 {#if sales.total > 0}
                   <span class="sales-progress">🛒 {sales.sold} / {sales.total} Items verkauft</span>
                 {:else if sales.sold > 0}

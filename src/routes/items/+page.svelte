@@ -335,7 +335,7 @@
           type="number" 
           placeholder="Item-ID (z.B. 2554)" 
           bind:value={newItemId} 
-          class="input-field small-input" 
+          class="input-field input-sm"
           required
         />
         <input 
@@ -469,7 +469,7 @@
                         <ul class="history-list">
                           {#each selectedItemHistory as h}
                             <li>
-                              <span class="run-name">🏰 {h.run_name || 'Event Run'}</span>
+                              <span class="run-name">{h.run_name || 'Event Run'}</span>
                               <span class="run-date">📅 {formatDate(h.sold_at || h.created_at || h.run_date)}</span>
                               <span class="item-qty">Menge: x{h.quantity || 1}</span>
                               <span class="hist-price">{formatZeny(h.price ?? h.actual_price ?? h.sale_price)}</span>

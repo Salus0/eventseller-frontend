@@ -285,6 +285,7 @@ label {
 .btn-small {
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
+    font-weight: 400;
     border-radius: 4px;
 }
 
@@ -440,6 +441,12 @@ li.run-item[role="button"]:hover {
     transform: translateY(-2px);
 }
 
+.is--dashboard li.run-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
 .closed-run-item {
     opacity: 0.85;
 }
@@ -509,6 +516,9 @@ li.run-item[role="button"]:hover {
     font-weight: 600;
     color: var(--text-dark);
     font-size: 1.05rem;
+}
+
+.history-list .run-name {
     width: 50%;
 }
 
@@ -534,6 +544,9 @@ li.run-item[role="button"]:hover {
     padding: 1rem;
     border-top: 1px solid var(--border-color);
     background-color: var(--bg-main);
+}
+
+.run-details-dashboard {
     display: flex;
     align-items: center;
     gap: 1.5rem;
@@ -578,7 +591,6 @@ li.run-item[role="button"]:hover {
 .split-zeny, .split-amount {
     color: var(--accent-gold);
     font-weight: 600;
-    font-size: 0.95rem;
 }
 
 .status-badge {
@@ -612,6 +624,10 @@ li.run-item[role="button"]:hover {
     flex-direction: column;
     justify-content: flex-start;
     align-items: stretch;
+}
+.detail-block.item-block,
+.detail-block.participant-block {
+    display: block;
 }
 
 .detail-block h3 {
@@ -824,12 +840,9 @@ li.run-item[role="button"]:hover {
 .add-form { max-width: 750px; }
 .sales-form { gap: 0.6rem; }
 
-input[type="text"],
-input[type="number"],
-input[type="date"],
+input,
 select,
-textarea,
-.input-field {
+textarea {
     padding: 0.6rem 0.8rem;
     background-color: var(--bg-main);
     border: 1px solid var(--border-color);
@@ -841,11 +854,11 @@ textarea,
     transition: border-color 0.2s ease-in-out;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator {
+input::-webkit-calendar-picker-indicator {
     filter: invert(1);
     cursor: pointer;
 }
-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+input::-webkit-calendar-picker-indicator:hover {
     opacity: 0.8;
 }
 
@@ -863,16 +876,13 @@ input::placeholder,
 }
 
 .input-sm,
-.edit-input-sm,
-.qty-field,
-.sm-input {
+.edit-input-sm {
     padding: 0.4rem;
     font-size: 0.8rem;
     border-radius: 4px;
 }
 
-.small-input { width: 140px; }
-.sm-input { width: 80px; }
+.input-sm { max-width: 150px; }
 .qty-field { width: 65px; }
 .edit-input { min-width: 130px; }
 .edit-input-lg { width: 100%; }
@@ -959,7 +969,7 @@ input::placeholder,
 
 .edit-row {
     background-color: var(--card-bg-subtle);
-    padding: 0.3rem 0.5rem;
+    padding: 0.4rem !important;
     border-radius: 4px;
     margin-bottom: 0.2rem;
     display: flex;
@@ -968,7 +978,13 @@ input::placeholder,
     border: 1px solid var(--border-color);
 }
 
-.edit-name { font-size: 0.8rem; }
+.edit-name {
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 120px;
+}
 .inline-select { flex: none; width: auto; }
 
 .add-row {
@@ -977,6 +993,7 @@ input::placeholder,
     margin-bottom: 0.6rem;
     align-items: center;
     flex-wrap: wrap;
+    justify-content: space-between;
 }
 
 .checkbox-label {
@@ -1070,19 +1087,6 @@ input::placeholder,
     display: flex;
     align-items: center;
     gap: 0.3rem;
-    flex-wrap: wrap;
-}
-
-.wide-price-input {
-    width: 130px;
-    padding: 0.3rem 0.5rem;
-    background-color: var(--bg-main);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    color: var(--success-green);
-    font-weight: 600;
-    font-size: 0.85rem;
-    text-align: right;
 }
 
 /* ==========================================
@@ -1109,4 +1113,8 @@ input::placeholder,
 .error {
     color: var(--danger-red);
     font-weight: 500;
+}
+
+.flex-grow-1 {
+    flex-grow: 1;
 }

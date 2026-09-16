@@ -866,7 +866,7 @@
 {:else}
   <!-- 1. SEKTION: AKTIVE RUNS -->
   <section class="card section-margin">
-    <h2>🔥 Aktive Runs ({activeRuns.length})</h2>
+    <h2>Aktive Runs ({activeRuns.length})</h2>
     {#if activeRuns.length === 0}
       <p class="empty-text">Keine aktiven Runs vorhanden.</p>
     {:else}
@@ -882,13 +882,13 @@
                   <input 
                     type="text" 
                     bind:value={runHeaderInputs[run.id].name} 
-                    class="small-input header-edit-input" 
+                    class="header-edit-input input-sm"
                     placeholder="Run Name" 
                   />
                   <input 
                     type="text" 
                     bind:value={runHeaderInputs[run.id].run_type} 
-                    class="small-input header-edit-input" 
+                    class="input-sm header-edit-input"
                     placeholder="Typ (z.B. ET, WoE)" 
                   />
                   <button type="button" class="btn btn-primary btn-small" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
@@ -975,32 +975,32 @@
                         <p class="empty-text">Keine Teilnehmer eingetragen</p>
                       {/if}
                       {#if canEdit}
-                        <button type="button" class="btn btn-secondary" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => enableParticipantEditing(run)}>➕ Add/Edit</button>
                       {/if}
                     {:else}
                       <ul class="edit-list">
                         {#each participantInputs[run.id]?.list || [] as p, idx}
                           <li class="edit-row">
                             <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
-                            <select bind:value={p.class_name} class="small-select inline-select">
+                            <select bind:value={p.class_name} class="input-sm inline-select">
                               {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                             </select>
-                            <button type="button" class="btn btn-danger" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
+                            <button type="button" class="btn btn-danger btn-small" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
                       <div class="add-row">
-                        <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
+                        <select bind:value={participantInputs[run.id].newParticipantId} class="input-sm">
                           <option value="">-- Spieler wählen --</option>
                           {#each availableParticipants.filter(ap => !(participantInputs[run.id]?.list || []).some(p => Number(p.participant_id) === Number(ap.id))) as ap}
                             <option value={ap.id}>{ap.name}</option>
                           {/each}
                         </select>
-                        <select bind:value={participantInputs[run.id].newClass} class="small-select">
+                        <select bind:value={participantInputs[run.id].newClass} class="input-sm">
                           <option value="">-- Klasse --</option>
                           {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                         </select>
-                        <button type="button" class="btn btn-primary btn-small" on:click={() => addParticipantToBuffer(run.id)}>+</button>
+                        <button type="button" class="btn btn-secondary btn-small" on:click={() => addParticipantToBuffer(run.id)}>+</button>
                       </div>
                       <div class="btn-group">
                         <button type="button" class="btn btn-primary" on:click={() => saveParticipants(run.id)}>Speichern</button>
@@ -1043,12 +1043,12 @@
                                         placeholder="Preis" 
                                         value={editSaleInputs[item.id].priceDisplay || ''} 
                                         on:input={(e) => handleEditPriceInput(item.id, e)}
-                                        class="price-input wide-price-input" 
+                                        class="price-input input-sm"
                                       />
                                       <input 
                                         type="datetime-local" 
                                         bind:value={editSaleInputs[item.id].saleDate} 
-                                        class="date-input"
+                                        class="date-input input-sm"
                                       />
                                       <label class="checkbox-label">
                                         <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
@@ -1056,7 +1056,7 @@
                                       </label>
                                     {/if}
                                     <button type="button" class="btn btn-primary btn-small" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="btn btn-danger" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
+                                    <button type="button" class="btn btn-danger btn-small" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
                                     <button type="button" class="btn btn-secondary btn-small" on:click={() => cancelEditSale(item.id)}>✕</button>
                                   </div>
                                 {:else if item.sale_price || item.price || item.actual_price}
@@ -1081,12 +1081,12 @@
                                         placeholder="Preis (z.B. 1.000.000)" 
                                         value={saleInputs[item.id].priceDisplay || ''} 
                                         on:input={(e) => handlePriceInput(item.id, e)}
-                                        class="price-input wide-price-input" 
+                                        class="price-input input-sm"
                                       />
                                       <input 
                                         type="datetime-local" 
                                         bind:value={saleInputs[item.id].saleDate} 
-                                        class="date-input"
+                                        class="date-input input-sm"
                                       />
                                       <label class="checkbox-label">
                                         <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
@@ -1097,7 +1097,7 @@
                                     <button type="button" class="btn btn-secondary btn-small" on:click={() => closeSaleForm(item.id)}>✕</button>
                                   </div>
                                 {:else if canEdit}
-                                  <button type="button" class="btn btn-secondary" on:click={() => openSaleForm(item.id)}>
+                                  <button type="button" class="btn btn-secondary btn-small" on:click={() => openSaleForm(item.id)}>
                                     + Verkauf hinzufügen
                                   </button>
                                 {:else}
@@ -1136,7 +1136,7 @@
                               {/if}
                               <span>{getItemName(item, item.name)}</span>
                             </span>
-                            <button type="button" class="btn btn-danger" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
+                            <button type="button" class="btn btn-danger btn-small" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
@@ -1154,9 +1154,9 @@
                           placeholder="Item Name oder RO-ID" 
                           list="master-items-list"
                           bind:value={itemInputs[run.id].newNameOrId}
-                          class="small-input"
+                          class="flex-grow-1"
                         />
-                        <button type="button" class="btn btn-primary btn-small" on:click={() => addItemToBuffer(run.id)}>+</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => addItemToBuffer(run.id)}>+</button>
                       </div>
 
                       <div class="btn-group">
@@ -1177,7 +1177,7 @@
 
   <!-- 2. SEKTION: ABGESCHLOSSENE RUNS -->
   <section class="card closed-card">
-    <h2>✅ Abgeschlossene Runs ({closedRuns.length})</h2>
+    <h2>Abgeschlossene Runs ({closedRuns.length})</h2>
     {#if closedRuns.length === 0}
       <p class="empty-text">Noch keine abgeschlossenen Runs vorhanden.</p>
     {:else}
@@ -1193,13 +1193,13 @@
                   <input 
                     type="text" 
                     bind:value={runHeaderInputs[run.id].name} 
-                    class="small-input header-edit-input" 
+                    class="input-sm header-edit-input"
                     placeholder="Run Name" 
                   />
                   <input 
                     type="text" 
                     bind:value={runHeaderInputs[run.id].run_type} 
-                    class="small-input header-edit-input" 
+                    class="input-sm header-edit-input"
                     placeholder="Typ (z.B. ET, WoE)" 
                   />
                   <button type="button" class="btn btn-primary btn-small" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
@@ -1286,32 +1286,32 @@
                         <p class="empty-text">Keine Teilnehmer eingetragen</p>
                       {/if}
                       {#if canEdit}
-                        <button type="button" class="btn btn-secondary" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => enableParticipantEditing(run)}>➕ Add/Edit</button>
                       {/if}
                     {:else}
                       <ul class="edit-list">
                         {#each participantInputs[run.id]?.list || [] as p, idx}
                           <li class="edit-row">
                             <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
-                            <select bind:value={p.class_name} class="small-select inline-select">
+                            <select bind:value={p.class_name} class="input-sm inline-select">
                               {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                             </select>
-                            <button type="button" class="btn btn-danger" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
+                            <button type="button" class="btn btn-danger btn-small" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
                       <div class="add-row">
-                        <select bind:value={participantInputs[run.id].newParticipantId} class="small-select">
+                        <select bind:value={participantInputs[run.id].newParticipantId} class="input-sm">
                           <option value="">-- Spieler wählen --</option>
                           {#each availableParticipants.filter(ap => !(participantInputs[run.id]?.list || []).some(p => Number(p.participant_id) === Number(ap.id))) as ap}
                             <option value={ap.id}>{ap.name}</option>
                           {/each}
                         </select>
-                        <select bind:value={participantInputs[run.id].newClass} class="small-select">
+                        <select bind:value={participantInputs[run.id].newClass} class="input-sm">
                           <option value="">-- Klasse --</option>
                           {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                         </select>
-                        <button type="button" class="btn btn-primary btn-small" on:click={() => addParticipantToBuffer(run.id)}>+</button>
+                        <button type="button" class="btn btn-secondary btn-small" on:click={() => addParticipantToBuffer(run.id)}>+</button>
                       </div>
                       <div class="btn-group">
                         <button type="button" class="btn btn-primary" on:click={() => saveParticipants(run.id)}>Speichern</button>
@@ -1354,12 +1354,12 @@
                                         placeholder="Preis" 
                                         value={editSaleInputs[item.id].priceDisplay || ''} 
                                         on:input={(e) => handleEditPriceInput(item.id, e)}
-                                        class="price-input wide-price-input" 
+                                        class="price-input input-sm"
                                       />
                                       <input 
                                         type="datetime-local" 
                                         bind:value={editSaleInputs[item.id].saleDate} 
-                                        class="date-input"
+                                        class="date-input input-sm"
                                       />
                                       <label class="checkbox-label">
                                         <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
@@ -1392,12 +1392,12 @@
                                         placeholder="Preis (z.B. 1.000.000)" 
                                         value={saleInputs[item.id].priceDisplay || ''} 
                                         on:input={(e) => handlePriceInput(item.id, e)}
-                                        class="price-input wide-price-input" 
+                                        class="price-input input-sm"
                                       />
                                       <input 
                                         type="datetime-local" 
                                         bind:value={saleInputs[item.id].saleDate} 
-                                        class="date-input"
+                                        class="date-input input-sm"
                                       />
                                       <label class="checkbox-label">
                                         <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
@@ -1408,7 +1408,7 @@
                                     <button type="button" class="btn btn-secondary btn-small" on:click={() => closeSaleForm(item.id)}>✕</button>
                                   </div>
                                 {:else if canEdit}
-                                  <button type="button" class="btn btn-secondary" on:click={() => openSaleForm(item.id)}>
+                                  <button type="button" class="btn btn-secondary btn-small" on:click={() => openSaleForm(item.id)}>
                                     + Verkauf hinzufügen
                                   </button>
                                 {:else}
@@ -1465,9 +1465,9 @@
                           placeholder="Item Name oder RO-ID" 
                           list="master-items-list"
                           bind:value={itemInputs[run.id].newNameOrId}
-                          class="small-input"
+                          class="flex-grow-1"
                         />
-                        <button type="button" class="btn btn-primary btn-small" on:click={() => addItemToBuffer(run.id)}>+</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => addItemToBuffer(run.id)}>+</button>
                       </div>
 
                       <div class="btn-group">

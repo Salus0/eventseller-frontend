@@ -67,3 +67,17 @@ Klicke auf den Link im Terminal oder öffne deinen Webbrowser (z. B. Chrome, Saf
    Wenn du fertig bist und den lokalen Server stoppen möchtest:
 
 * Drücke im Terminal die Tastenkombination **Strg + C** (Windows) bzw. **Cmd + C** (macOS).
+
+## 7. Lokales Frontend mit Live-DB benutzen
+
+Du musst dein lokales Backend gar nicht starten. Lass dein lokales Svelte-Frontend einfach direkt mit der Live-API kommunizieren, erstelle aber eine lokale Token-Session.
+
+1. Ändere deine lokale .env.local im Svelte-Projekt:
+```bash
+PUBLIC_BACKEND_URL=https://yggdrasil-eventseller-backend.up.railway.app
+```
+2. Der Trick für den Login: Logge dich einmal ganz normal auf deiner Live-Webseite ein.
+3. Öffne auf der Live-Webseite die Entwicklertools im Browser (F12 -> Reiter Anwendung / Application -> Lokaler Speicher / Local Storage).
+4. Kopiere den Wert des Keys jwt_token.
+5. Öffne dein lokales Frontend (http://localhost:5173), öffne dort ebenfalls die Entwicklertools -> Local Storage, erstelle einen neuen Eintrag mit dem Namen jwt_token und füge den kopierten Wert ein.
+6. Seite neu laden – du bist lokal eingeloggt und siehst alle Live-Daten im neuen Design.
