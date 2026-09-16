@@ -301,9 +301,9 @@
 
 </script>
 
-<div class="header">
-  <a href="/runs" class="back-link">← Zurück zur Übersicht</a>
+<div class="header-action">
   <h1>Neuen Event-Run anlegen</h1>
+  <a href="/runs" class="btn btn-link">← Zurück zur Übersicht</a>
 </div>
 
 <!-- RAID HELPER IMPORT BOX -->
@@ -317,7 +317,7 @@
       bind:value={raidHelperId}
       class="input-field import-input" 
     />
-    <button type="button" class="import-btn" on:click={importFromRaidHelper} disabled={isFetchingRaidHelper}>
+    <button type="button" class="btn btn-secondary" on:click={importFromRaidHelper} disabled={isFetchingRaidHelper}>
       {isFetchingRaidHelper ? 'Lade...' : '📥 Event Importieren'}
     </button>
   </div>
@@ -372,116 +372,17 @@
             </select>
 
             {#if selectedParticipants.length > 1}
-              <button type="button" class="remove-btn" on:click={() => removeParticipant(index)}>✕</button>
+              <button type="button" class="btn btn-danger" on:click={() => removeParticipant(index)}>✕</button>
             {/if}
           </div>
         {/each}
 
-        <button type="button" class="add-btn" on:click={addParticipant}>+ Spieler hinzufügen</button>
+        <button type="button" class="btn btn-primary" on:click={addParticipant}>+ Spieler hinzufügen</button>
       </div>
     {/if}
   </section>
 
   <div class="actions margin-top">
-    <button type="submit" class="submit-btn">Run anlegen</button>
+    <button type="submit" class="btn btn-primary">Run anlegen</button>
   </div>
 </form>
-
-<style>
-  .header { margin-bottom: 1.5rem; }
-  .back-link { color: #9DB5AA !important; text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
-  .back-link:hover { color: #D98A00 !important; }
-  h1 { color: #D98A00 !important; margin-top: 0.5rem; margin-bottom: 0; }
-  h2 { font-size: 1.1rem; color: #E8F1EC !important; margin-top: 0; margin-bottom: 1rem; }
-  
-  .card { 
-    background-color: #14221F !important; 
-    border: 1px solid #294039 !important; 
-    border-radius: 8px; 
-    padding: 1.5rem; 
-  }
-  .margin-top { margin-top: 1.5rem; }
-  
-  .raid-helper-card { 
-    border-color: #A855F7 !important; 
-    background-color: #0d1a15 !important; 
-  }
-  .raid-helper-card h2 { color: #C084FC !important; }
-  .import-desc { color: #9DB5AA !important; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
-  .import-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-  .import-input { flex: 1; min-width: 220px; border-color: #A855F7 !important; }
-  
-  .import-btn { 
-    background-color: #182824 !important; 
-    border: 1px solid #294039 !important; 
-    color: #E8F1EC !important; 
-    padding: 0.6rem 1.2rem; 
-    border-radius: 6px; 
-    font-weight: 600; 
-    cursor: pointer; 
-    transition: background-color 0.2s;
-  }
-  .import-btn:hover { background-color: #294039 !important; }
-  .import-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-  .form-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
-  .form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 200px; }
-  .full-width { width: 100%; flex: 100%; }
-  label { font-size: 0.875rem; font-weight: 600; color: #9DB5AA !important; }
-  
-  .input-field { 
-    padding: 0.6rem 0.8rem; 
-    background-color: #071A14 !important; 
-    border: 1px solid #294039 !important; 
-    border-radius: 6px; 
-    color: #E8F1EC !important; 
-    font-size: 0.95rem; 
-  }
-  .input-field::placeholder { color: #9DB5AA; }
-  .input-field:focus { outline: none; border-color: #D98A00 !important; }
-  
-  .dynamic-list { display: flex; flex-direction: column; gap: 0.6rem; }
-  .row { display: flex; gap: 0.5rem; align-items: center; }
-  .select-player, .select-class { flex: 1; }
-  
-  .add-btn { 
-    background-color: #182824 !important; 
-    border: 1px solid #294039 !important; 
-    color: #E8F1EC !important; 
-    padding: 0.5rem 1rem; 
-    border-radius: 6px; 
-    cursor: pointer; 
-    align-self: flex-start; 
-    font-size: 0.85rem; 
-    margin-top: 0.4rem; 
-    transition: background-color 0.2s;
-  }
-  .add-btn:hover { background-color: #294039 !important; }
-  
-  .remove-btn { 
-    background-color: #182824 !important; 
-    border: 1px solid #E64A5B !important; 
-    color: #E64A5B !important; 
-    padding: 0.6rem 0.8rem; 
-    border-radius: 6px; 
-    cursor: pointer; 
-    transition: background-color 0.2s;
-  }
-  .remove-btn:hover { background-color: #E64A5B !important; color: #FFFFFF !important; }
-  
-  .submit-btn { 
-    background-color: #A855F7 !important; 
-    color: #FFFFFF !important; 
-    border: none; 
-    padding: 0.75rem 1.5rem; 
-    border-radius: 6px; 
-    font-weight: 700; 
-    cursor: pointer; 
-    width: 100%; 
-    font-size: 1rem; 
-    transition: background-color 0.2s;
-  }
-  .submit-btn:hover { background-color: #C084FC !important; }
-  
-  .status-text { color: #9DB5AA !important; }
-</style>
