@@ -30,24 +30,3 @@
     <p>{statusMessage}</p>
   </div>
 </div>
-
-<style>
-  .callback-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 60vh;
-  }
-  .card {
-    background-color: #1e293b;
-    border: 1px solid #334155;
-    padding: 2rem;
-    border-radius: 8px;
-    text-align: center;
-    color: white;
-  }
-  h2 {
-    color: #fbbf24;
-    margin-bottom: 1rem;
-  }
-</style>

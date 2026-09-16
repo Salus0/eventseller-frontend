@@ -1,357 +1,227 @@
 <script>
-	import { onMount } from 'svelte';
-	import { env } from '$env/dynamic/public';
-	import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import { env } from '$env/dynamic/public';
+  import { goto } from '$app/navigation';
 
-	const backendUrl = env.PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
-	let runs = [];
-	let isLoading = true;
-	let authToken = '';
-	let currentDiscordId = '';
+  const backendUrl = env.PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
+  let runs = [];
+  let isLoading = true;
+  let authToken = '';
+  let currentDiscordId = '';
 
-	function checkUserSession() {
-		const token = localStorage.getItem('jwt_token');
-		if (token) {
-			authToken = token;
-			try {
-				const base64Url = token.split('.')[1];
-				const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-				const jsonPayload = decodeURIComponent(
-					atob(base64)
-						.split('')
-						.map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-						.join('')
-				);
-				const decoded = JSON.parse(jsonPayload);
-				currentDiscordId = String(decoded.discord_id || decoded.discordId || decoded.sub || '').trim();
-			} catch (e) {
-				console.error('Fehler beim Lesen des Tokens:', e);
-			}
-		}
-	}
+  function checkUserSession() {
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+      authToken = token;
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        currentDiscordId = String(decoded.discord_id || decoded.discordId || decoded.sub || '').trim();
+      } catch (e) {
+        console.error('Fehler beim Lesen des Tokens:', e);
+      }
+    }
+  }
 
-	function getAuthHeaders() {
-		return {
-			'Content-Type': 'application/json',
-			...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-		};
-	}
+  function getAuthHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+    };
+  }
 
-	async function loadRunDetails(runId) {
-		try {
-			const headers = getAuthHeaders();
-			const [partsRes, itemsRes, salesRes, summaryRes] = await Promise.all([
-				fetch(`${backendUrl}/runs/${runId}/participants`, { headers }),
-				fetch(`${backendUrl}/runs/${runId}/items`, { headers }),
-				fetch(`${backendUrl}/runs/${runId}/sales`, { headers }),
-				fetch(`${backendUrl}/runs/${runId}/summary`, { headers })
-			]);
+  async function loadRunDetails(runId) {
+    try {
+      const headers = getAuthHeaders();
+      const [partsRes, itemsRes, salesRes, summaryRes] = await Promise.all([
+        fetch(`${backendUrl}/runs/${runId}/participants`, { headers }),
+        fetch(`${backendUrl}/runs/${runId}/items`, { headers }),
+        fetch(`${backendUrl}/runs/${runId}/sales`, { headers }),
+        fetch(`${backendUrl}/runs/${runId}/summary`, { headers })
+      ]);
 
-			let loadedParticipants = [];
-			let loadedItems = [];
-			let loadedSales = [];
-			let loadedSummary = null;
+      let loadedParticipants = [];
+      let loadedItems = [];
+      let loadedSales = [];
+      let loadedSummary = null;
 
-			if (partsRes.ok) loadedParticipants = await partsRes.json();
-			if (itemsRes.ok) loadedItems = await itemsRes.json();
-			if (salesRes.ok) loadedSales = await salesRes.json();
-			if (summaryRes.ok) loadedSummary = await summaryRes.json();
+      if (partsRes.ok) loadedParticipants = await partsRes.json();
+      if (itemsRes.ok) loadedItems = await itemsRes.json();
+      if (salesRes.ok) loadedSales = await salesRes.json();
+      if (summaryRes.ok) loadedSummary = await summaryRes.json();
 
-			runs = runs.map(r => {
-				if (r.id === runId) {
-					return {
-						...r,
-						participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
-						items: Array.isArray(loadedItems) ? loadedItems : [],
-						sales: Array.isArray(loadedSales) ? loadedSales : [],
-						summary: loadedSummary
-					};
-				}
-				return r;
-			});
-		} catch (err) {
-			console.error(`Fehler beim Laden der Details für Run ${runId}:`, err);
-		}
-	}
+      runs = runs.map(r => {
+        if (r.id === runId) {
+          return {
+            ...r,
+            participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
+            items: Array.isArray(loadedItems) ? loadedItems : [],
+            sales: Array.isArray(loadedSales) ? loadedSales : [],
+            summary: loadedSummary
+          };
+        }
+        return r;
+      });
+    } catch (err) {
+      console.error(`Fehler beim Laden der Details für Run ${runId}:`, err);
+    }
+  }
 
-	async function loadRuns() {
-		isLoading = true;
-		try {
-			const res = await fetch(`${backendUrl}/runs/`, {
-				headers: getAuthHeaders()
-			});
+  async function loadRuns() {
+    isLoading = true;
+    try {
+      const res = await fetch(`${backendUrl}/runs/`, {
+        headers: getAuthHeaders()
+      });
 
-			if (res.ok) {
-				const loadedRuns = await res.json();
-				runs = Array.isArray(loadedRuns) ? loadedRuns : [];
-				await Promise.all(runs.map(r => loadRunDetails(r.id)));
-			}
-		} catch (err) {
-			console.error('Fehler beim Laden der Runs:', err);
-		} finally {
-			isLoading = false;
-		}
-	}
+      if (res.ok) {
+        const loadedRuns = await res.json();
+        runs = Array.isArray(loadedRuns) ? loadedRuns : [];
+        await Promise.all(runs.map(r => loadRunDetails(r.id)));
+      }
+    } catch (err) {
+      console.error('Fehler beim Laden der Runs:', err);
+    } finally {
+      isLoading = false;
+    }
+  }
 
-	function isUserUnpaidInRun(run) {
-		if (!currentDiscordId || !run?.participants || !Array.isArray(run.participants)) {
-			return false;
-		}
+  function isUserUnpaidInRun(run) {
+    if (!currentDiscordId || !run?.participants || !Array.isArray(run.participants)) {
+      return false;
+    }
 
-		const participant = run.participants.find(p => {
-			const pDiscordId = String(p.discord_id || p.discordId || '').trim();
-			return pDiscordId !== '' && pDiscordId === currentDiscordId;
-		});
+    const participant = run.participants.find(p => {
+      const pDiscordId = String(p.discord_id || p.discordId || '').trim();
+      return pDiscordId !== '' && pDiscordId === currentDiscordId;
+    });
 
-		return participant ? !participant.is_paid : false;
-	}
+    return participant ? !participant.is_paid : false;
+  }
 
-	function getItemSalesInfo(run) {
-		const totalDrops = (run.items || []).reduce((sum, item) => sum + (Number(item.quantity || item.amount) || 1), 0);
-		const totalSold = (run.sales || []).reduce((sum, sale) => sum + (Number(sale.quantity) || 1), 0);
-		
-		return { 
-			sold: totalSold, 
-			total: totalDrops
-		};
-	}
+  function getItemSalesInfo(run) {
+    const totalDrops = (run.items || []).reduce((sum, item) => sum + (Number(item.quantity || item.amount) || 1), 0);
+    const totalSold = (run.sales || []).reduce((sum, sale) => sum + (Number(sale.quantity) || 1), 0);
+    
+    return { 
+      sold: totalSold, 
+      total: totalDrops
+    };
+  }
 
-	function getRunStatusInfo(run) {
-		const items = run.items || [];
-		const participants = run.participants || [];
+  function getRunStatusInfo(run) {
+    const items = run.items || [];
+    const participants = run.participants || [];
 
-		const totalItems = items.length;
-		const soldItems = (run.sales || []).length;
-		const allItemsSold = totalItems > 0 && soldItems >= totalItems;
+    const totalItems = items.length;
+    const soldItems = (run.sales || []).length;
+    const allItemsSold = totalItems > 0 && soldItems >= totalItems;
 
-		const totalParticipants = participants.length;
-		const paidParticipants = participants.filter(p => p.is_paid).length;
-		const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
+    const totalParticipants = participants.length;
+    const paidParticipants = participants.filter(p => p.is_paid).length;
+    const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
 
-		// 1. Alle Items verkauft & alle bezahlt -> close
-		if (allItemsSold && allPaidOut) {
-			return { label: 'close', cssClass: 'status-close' };
-		}
-		// 2. Alle Items verkauft (aber noch nicht alle ausbezahlt) -> Payout
-		if (allItemsSold) {
-			return { label: 'Payout', cssClass: 'status-payout' };
-		}
-		// 3. Sobald mindestens ein Item eingetragen wurde -> On Sale
-		if (totalItems > 0) {
-			return { label: 'On Sale', cssClass: 'status-onsale' };
-		}
+    // 1. Alle Items verkauft & alle bezahlt -> close
+    if (allItemsSold && allPaidOut) {
+      return { label: 'close', cssClass: 'status-close' };
+    }
+    // 2. Alle Items verkauft (aber noch nicht alle ausbezahlt) -> Payout
+    if (allItemsSold) {
+      return { label: 'Payout', cssClass: 'status-payout' };
+    }
+    // 3. Sobald mindestens ein Item eingetragen wurde -> On Sale
+    if (totalItems > 0) {
+      return { label: 'On Sale', cssClass: 'status-onsale' };
+    }
 
-		// Fallback (falls noch keine Items eingetragen sind)
-		return null;
-	}
+    // Fallback (falls noch keine Items eingetragen sind)
+    return null;
+  }
 
-	function formatDate(dateString) {
-		if (!dateString) return '';
-		return new Date(dateString).toLocaleDateString('de-DE', {
-			day: '2-digit',
-			month: '2-digit',
-			year: 'numeric'
-		});
-	}
+  function formatDate(dateString) {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  }
 
-	function formatZeny(amount) {
-		return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
-	}
+  function formatZeny(amount) {
+    return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
+  }
 
-	function openRunDetails(runId) {
-		goto(`/runs?open=${runId}`);
-	}
+  function openRunDetails(runId) {
+    goto(`/runs?open=${runId}`);
+  }
 
-	$: userRuns = runs
-		.filter(run => isUserUnpaidInRun(run))
-		.sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0));
+  $: userRuns = runs
+    .filter(run => isUserUnpaidInRun(run))
+    .sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0));
 
-	onMount(() => {
-		checkUserSession();
-		loadRuns();
-	});
+  onMount(() => {
+    checkUserSession();
+    loadRuns();
+  });
 </script>
 
-<main class="container">
-	<h1>Mein Dashboard</h1>
+<div class="header-action">
+  <h1>Mein Dashboard</h1>
+</div>
 
-	{#if isLoading}
-		<section class="card">
-			<p class="status">Lade deine Runs...</p>
-		</section>
-	{:else}
-		<section class="card">
-			<h2>Meine aktiven Runs</h2>
-			{#if userRuns.length > 0}
-				<ul class="run-list">
-					{#each userRuns as run}
-						{@const sales = getItemSalesInfo(run)}
-						{@const status = getRunStatusInfo(run)}
-						<li class="run-item" on:click={() => openRunDetails(run.id)} role="button" tabindex="0">
-							<div class="run-header">
-								<div class="run-title-line">
-									<strong class="run-name">{run.name}</strong>
-									{#if status}
-										<span class="badge {status.cssClass}">
-											{status.label}
-										</span>
-									{/if}
-								</div>
-								{#if run.created_at || run.date}
-									<span class="run-date">📅 {formatDate(run.created_at || run.date)}</span>
-								{/if}
-							</div>
 
-							<div class="run-details">
-								{#if sales.total > 0}
-									<span class="sales-progress">🛒 {sales.sold} / {sales.total} Items verkauft</span>
-								{:else if sales.sold > 0}
-									<span class="sales-progress">🛒 {sales.sold} Items verkauft</span>
-								{:else}
-									<span class="no-sales">Keine Verkäufe</span>
-								{/if}
+  {#if isLoading}
+    <section class="card">
+      <p class="status">Lade deine Runs...</p>
+    </section>
+  {:else}
+    <section class="card">
+      <h2>Meine aktiven Runs</h2>
+      {#if userRuns.length > 0}
+        <ul class="run-list">
+          {#each userRuns as run}
+            {@const sales = getItemSalesInfo(run)}
+            {@const status = getRunStatusInfo(run)}
+            <li class="run-item" on:click={() => openRunDetails(run.id)} role="button" tabindex="0">
+              <div class="run-header">
+                <div class="run-title-line">
+                  <strong class="run-name">{run.name}</strong>
+                  {#if status}
+                    <span class="badge {status.cssClass}">
+                      {status.label}
+                    </span>
+                  {/if}
+                </div>
+                {#if run.created_at || run.date}
+                  <span class="run-date">📅 {formatDate(run.created_at || run.date)}</span>
+                {/if}
+              </div>
 
-								{#if run.summary}
-									<span class="split-amount">Split: {formatZeny(run.summary.payout_per_player)}</span>
-								{/if}
-							</div>
-						</li>
-					{/each}
-				</ul>
-			{:else}
-				<p class="empty-text">Du hast aktuell keine offenen Payouts oder bist in keinen aktiven Runs eingetragen.</p>
-			{/if}
-		</section>
-	{/if}
-</main>
+              <div class="run-details">
+                {#if sales.total > 0}
+                  <span class="sales-progress">🛒 {sales.sold} / {sales.total} Items verkauft</span>
+                {:else if sales.sold > 0}
+                  <span class="sales-progress">🛒 {sales.sold} Items verkauft</span>
+                {:else}
+                  <span class="no-sales">Keine Verkäufe</span>
+                {/if}
 
-<style>
-	.container {
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 0;
-	}
-
-	h1 {
-		color: #D98A00 !important; /* warmes Gold/Gelb */
-		margin-top: 0;
-		margin-bottom: 1.5rem;
-	}
-
-	.card {
-		background-color: #14221F !important;
-		border: 1px solid #294039 !important;
-		padding: 1.5rem;
-		border-radius: 8px;
-	}
-
-	h2 {
-		font-size: 1.1rem;
-		color: #E8F1EC !important;
-		margin-top: 0;
-		margin-bottom: 1rem;
-	}
-
-	.run-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.run-item {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		background-color: #182824 !important;
-		padding: 1rem;
-		border-radius: 6px;
-		border: 1px solid #294039 !important;
-		cursor: pointer;
-		transition: background-color 0.2s ease, transform 0.1s ease;
-	}
-
-	.run-item:hover {
-		background-color: #1D352C !important;
-		transform: translateY(-2px);
-	}
-
-	.run-header {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.run-title-line {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.run-name {
-		font-size: 1.05rem;
-		font-weight: 600;
-		color: #E8F1EC !important;
-	}
-
-	/* Status Badges - Exakt wie auf der Runs-Seite */
-	.badge { 
-		color: #E8F1EC !important; 
-		font-size: 0.75rem; 
-		font-weight: 600; 
-		padding: 0.25rem 0.6rem; 
-		border-radius: 4px; 
-		text-transform: capitalize; 
-	}
-
-	.status-onsale { 
-		background-color: #D98A00 !important; 
-		color: #071A14 !important;
-	}
-
-	.status-payout { 
-		background-color: #35A85B !important; 
-		color: #E8F1EC !important;
-	}
-
-	.status-close { 
-		background-color: #E64A5B !important; 
-		color: #E8F1EC !important;
-	}
-
-	.run-date {
-		font-size: 0.85rem;
-		color: #9DB5AA !important;
-	}
-
-	.run-details {
-		display: flex;
-		align-items: center;
-		gap: 1.5rem;
-	}
-
-	.sales-progress {
-		font-size: 0.85rem;
-		color: #4DB982 !important;
-	}
-
-	.no-sales {
-		font-size: 0.85rem;
-		color: #9DB5AA !important;
-		font-style: italic;
-	}
-
-	.split-amount {
-		color: #D98A00 !important;
-		font-weight: 600;
-		font-size: 0.95rem;
-	}
-
-	.empty-text, .status {
-		color: #9DB5AA !important;
-		font-style: italic;
-		margin: 0;
-	}
-</style>
+                {#if run.summary}
+                  <span class="split-amount">Split: {formatZeny(run.summary.payout_per_player)}</span>
+                {/if}
+              </div>
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="empty-text">Du hast aktuell keine offenen Payouts oder bist in keinen aktiven Runs eingetragen.</p>
+      {/if}
+    </section>
+  {/if}

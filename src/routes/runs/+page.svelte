@@ -841,7 +841,7 @@
 <div class="header-action">
   <h1>Event Runs</h1>
   {#if canEdit}
-    <a href="/runs/new" class="create-btn">+ Neuen Run anlegen</a>
+    <a href="/runs/new" class="btn btn-primary">+ Neuen Run anlegen</a>
   {/if}
 </div>
 
@@ -891,9 +891,9 @@
                     class="small-input header-edit-input" 
                     placeholder="Typ (z.B. ET, WoE)" 
                   />
-                  <button type="button" class="save-mini-btn" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
-                  <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
-                  <button type="button" class="cancel-mini-btn" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
+                  <button type="button" class="btn btn-primary btn-small" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
+                  <button type="button" class="btn btn-danger" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
+                  <button type="button" class="btn btn-secondary btn-small" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
                 </div>
               {:else}
                 <div class="run-info">
@@ -910,10 +910,10 @@
                 {/if}
 
                 {#if isAdmin && !editingRunHeader[run.id]}
-                  <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
+                  <button type="button" class="btn btn-icon" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
                 {/if}
 
-                <button class="expand-btn" type="button">
+                <button class="btn btn-secondary" type="button">
                   {isExpanded ? '▲ Verbergen' : '▼ Details'}
                 </button>
               </div>
@@ -975,7 +975,7 @@
                         <p class="empty-text">Keine Teilnehmer eingetragen</p>
                       {/if}
                       {#if canEdit}
-                        <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
                       {/if}
                     {:else}
                       <ul class="edit-list">
@@ -985,7 +985,7 @@
                             <select bind:value={p.class_name} class="small-select inline-select">
                               {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                             </select>
-                            <button type="button" class="del-btn" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
+                            <button type="button" class="btn btn-danger" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
@@ -1000,11 +1000,11 @@
                           <option value="">-- Klasse --</option>
                           {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                         </select>
-                        <button type="button" class="mini-add-btn" on:click={() => addParticipantToBuffer(run.id)}>+</button>
+                        <button type="button" class="btn btn-primary btn-small" on:click={() => addParticipantToBuffer(run.id)}>+</button>
                       </div>
                       <div class="btn-group">
-                        <button type="button" class="save-btn" on:click={() => saveParticipants(run.id)}>Speichern</button>
-                        <button type="button" class="cancel-btn" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
+                        <button type="button" class="btn btn-primary" on:click={() => saveParticipants(run.id)}>Speichern</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
                       </div>
                     {/if}
                   </div>
@@ -1055,9 +1055,9 @@
                                         Shop
                                       </label>
                                     {/if}
-                                    <button type="button" class="save-mini-btn" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
-                                    <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
+                                    <button type="button" class="btn btn-primary btn-small" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="btn btn-danger" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
+                                    <button type="button" class="btn btn-secondary btn-small" on:click={() => cancelEditSale(item.id)}>✕</button>
                                   </div>
                                 {:else if item.sale_price || item.price || item.actual_price}
                                   <div class="sale-details-col">
@@ -1071,7 +1071,7 @@
                                     <span class="shop-badge">Shop (-2%)</span>
                                   {/if}
                                   {#if canEdit}
-                                    <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
+                                    <button type="button" class="btn btn-icon" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
                                   {/if}
                                 {:else if addingSaleForItemId[item.id] && canEdit}
                                   <div class="inline-sale-form">
@@ -1093,11 +1093,11 @@
                                         Shop
                                       </label>
                                     {/if}
-                                    <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
+                                    <button type="button" class="btn btn-primary btn-small" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="btn btn-secondary btn-small" on:click={() => closeSaleForm(item.id)}>✕</button>
                                   </div>
                                 {:else if canEdit}
-                                  <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
+                                  <button type="button" class="btn btn-secondary" on:click={() => openSaleForm(item.id)}>
                                     + Verkauf hinzufügen
                                   </button>
                                 {:else}
@@ -1112,7 +1112,7 @@
                       {/if}
 
                       {#if canEdit}
-                        <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
+                        <button type="button" class="btn btn-secondary" on:click={() => enableItemEditing(run)}>
                           ➕ Add/Edit
                         </button>
                       {/if}
@@ -1136,7 +1136,7 @@
                               {/if}
                               <span>{getItemName(item, item.name)}</span>
                             </span>
-                            <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
+                            <button type="button" class="btn btn-danger" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
@@ -1156,12 +1156,12 @@
                           bind:value={itemInputs[run.id].newNameOrId}
                           class="small-input"
                         />
-                        <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
+                        <button type="button" class="btn btn-primary btn-small" on:click={() => addItemToBuffer(run.id)}>+</button>
                       </div>
 
                       <div class="btn-group">
-                        <button type="button" class="save-btn" on:click={() => saveItems(run.id)}>Speichern</button>
-                        <button type="button" class="cancel-btn" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
+                        <button type="button" class="btn btn-primary" on:click={() => saveItems(run.id)}>Speichern</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
                       </div>
                     {/if}
                   </div>
@@ -1202,9 +1202,9 @@
                     class="small-input header-edit-input" 
                     placeholder="Typ (z.B. ET, WoE)" 
                   />
-                  <button type="button" class="save-mini-btn" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
-                  <button type="button" class="del-btn" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
-                  <button type="button" class="cancel-mini-btn" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
+                  <button type="button" class="btn btn-primary btn-small" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
+                  <button type="button" class="btn btn-danger" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
+                  <button type="button" class="btn btn-secondary btn-small" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
                 </div>
               {:else}
                 <div class="run-info">
@@ -1221,10 +1221,10 @@
                 {/if}
 
                 {#if isAdmin && !editingRunHeader[run.id]}
-                  <button type="button" class="edit-sale-btn" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
+                  <button type="button" class="btn btn-icon" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
                 {/if}
 
-                <button class="expand-btn" type="button">
+                <button class="btn btn-secondary" type="button">
                   {isExpanded ? '▲ Verbergen' : '▼ Details'}
                 </button>
               </div>
@@ -1286,7 +1286,7 @@
                         <p class="empty-text">Keine Teilnehmer eingetragen</p>
                       {/if}
                       {#if canEdit}
-                        <button type="button" class="action-btn" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => enableParticipantEditing(run)}>✏️ Edit</button>
                       {/if}
                     {:else}
                       <ul class="edit-list">
@@ -1296,7 +1296,7 @@
                             <select bind:value={p.class_name} class="small-select inline-select">
                               {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                             </select>
-                            <button type="button" class="del-btn" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
+                            <button type="button" class="btn btn-danger" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
@@ -1311,11 +1311,11 @@
                           <option value="">-- Klasse --</option>
                           {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
                         </select>
-                        <button type="button" class="mini-add-btn" on:click={() => addParticipantToBuffer(run.id)}>+</button>
+                        <button type="button" class="btn btn-primary btn-small" on:click={() => addParticipantToBuffer(run.id)}>+</button>
                       </div>
                       <div class="btn-group">
-                        <button type="button" class="save-btn" on:click={() => saveParticipants(run.id)}>Speichern</button>
-                        <button type="button" class="cancel-btn" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
+                        <button type="button" class="btn btn-primary" on:click={() => saveParticipants(run.id)}>Speichern</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
                       </div>
                     {/if}
                   </div>
@@ -1366,9 +1366,9 @@
                                         Shop
                                       </label>
                                     {/if}
-                                    <button type="button" class="save-mini-btn" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="del-btn" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
-                                    <button type="button" class="cancel-mini-btn" on:click={() => cancelEditSale(item.id)}>✕</button>
+                                    <button type="button" class="btn btn-primary btn-small" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="btn btn-danger" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
+                                    <button type="button" class="btn btn-secondary btn-small" on:click={() => cancelEditSale(item.id)}>✕</button>
                                   </div>
                                 {:else if item.sale_price || item.price || item.actual_price}
                                   <div class="sale-details-col">
@@ -1382,7 +1382,7 @@
                                     <span class="shop-badge">Shop (-2%)</span>
                                   {/if}
                                   {#if canEdit}
-                                    <button type="button" class="edit-sale-btn" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
+                                    <button type="button" class="btn btn-icon" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
                                   {/if}
                                 {:else if addingSaleForItemId[item.id] && canEdit}
                                   <div class="inline-sale-form">
@@ -1404,11 +1404,11 @@
                                         Shop
                                       </label>
                                     {/if}
-                                    <button type="button" class="save-mini-btn" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="cancel-mini-btn" on:click={() => closeSaleForm(item.id)}>✕</button>
+                                    <button type="button" class="btn btn-primary btn-small" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
+                                    <button type="button" class="btn btn-secondary btn-small" on:click={() => closeSaleForm(item.id)}>✕</button>
                                   </div>
                                 {:else if canEdit}
-                                  <button type="button" class="add-sale-btn" on:click={() => openSaleForm(item.id)}>
+                                  <button type="button" class="btn btn-secondary" on:click={() => openSaleForm(item.id)}>
                                     + Verkauf hinzufügen
                                   </button>
                                 {:else}
@@ -1423,7 +1423,7 @@
                       {/if}
 
                       {#if canEdit}
-                        <button type="button" class="action-btn" on:click={() => enableItemEditing(run)}>
+                        <button type="button" class="btn btn-secondary" on:click={() => enableItemEditing(run)}>
                           ➕ Add/Edit
                         </button>
                       {/if}
@@ -1447,7 +1447,7 @@
                               {/if}
                               <span>{getItemName(item, item.name)}</span>
                             </span>
-                            <button type="button" class="del-btn" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
+                            <button type="button" class="btn btn-danger" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
                           </li>
                         {/each}
                       </ul>
@@ -1467,12 +1467,12 @@
                           bind:value={itemInputs[run.id].newNameOrId}
                           class="small-input"
                         />
-                        <button type="button" class="mini-add-btn" on:click={() => addItemToBuffer(run.id)}>+</button>
+                        <button type="button" class="btn btn-primary btn-small" on:click={() => addItemToBuffer(run.id)}>+</button>
                       </div>
 
                       <div class="btn-group">
-                        <button type="button" class="save-btn" on:click={() => saveItems(run.id)}>Speichern</button>
-                        <button type="button" class="cancel-btn" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
+                        <button type="button" class="btn btn-primary" on:click={() => saveItems(run.id)}>Speichern</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
                       </div>
                     {/if}
                   </div>
@@ -1486,599 +1486,3 @@
     {/if}
   </section>
 {/if}
-
-<style>
-.header-action { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  margin-bottom: 1.5rem; 
-}
-
-h1 { 
-  color: #D98A00 !important; /* Von #4DB982 auf Gold/Gelb angepasst */
-  margin: 0; 
-}
-
-h2 { 
-  font-size: 1.1rem; 
-  color: #E8F1EC !important; 
-  margin-top: 0; 
-  margin-bottom: 1rem; 
-}
-
-/* Buttons (Primary & Utility) */
-.create-btn { 
-  background-color: #A855F7 !important; /* Kräftiges Violett/Lila */
-  color: #FFFFFF !important; 
-  padding: 0.6rem 1.2rem; 
-  border-radius: 6px; 
-  text-decoration: none; 
-  font-weight: 700; 
-  font-size: 0.9rem; 
-  transition: background-color 0.2s, transform 0.1s; 
-}
-
-.create-btn:hover { 
-  background-color: #C084FC !important; /* Hellerer Pink/Lila-Ton beim Hover */
-}
-
-.action-btn { 
-  background-color: #1D352C !important; 
-  color: #E8F1EC !important; 
-  border: 1px solid #294039 !important; 
-  padding: 0.4rem 0.8rem; 
-  border-radius: 4px; 
-  font-size: 0.8rem; 
-  cursor: pointer; 
-  align-self: flex-start; 
-  margin-top: 0.5rem; 
-  transition: background-color 0.2s;
-}
-
-.action-btn:hover { 
-  background-color: #294039 !important; 
-}
-
-.save-btn, .mini-add-btn, .save-mini-btn { 
-  background-color: #4DB982 !important; 
-  color: #071A14 !important; 
-  border: none; 
-  padding: 0.4rem 0.8rem; 
-  border-radius: 4px; 
-  font-size: 0.8rem; 
-  font-weight: bold; 
-  cursor: pointer; 
-}
-
-.save-btn:hover, .mini-add-btn:hover, .save-mini-btn:hover {
-  background-color: #61CC95 !important;
-}
-
-.cancel-btn, .cancel-mini-btn { 
-  background-color: #182824 !important; 
-  color: #9DB5AA !important; 
-  border: 1px solid #294039 !important; 
-  padding: 0.4rem 0.8rem; 
-  border-radius: 4px; 
-  font-size: 0.8rem; 
-  cursor: pointer; 
-}
-
-.cancel-btn:hover, .cancel-mini-btn:hover {
-  background-color: #1D352C !important;
-  color: #E8F1EC !important;
-}
-
-.del-btn { 
-  background: none; 
-  border: none; 
-  color: #E64A5B !important; 
-  font-weight: bold; 
-  cursor: pointer; 
-}
-
-/* Haupt-Container & Karten */
-.card { 
-  background-color: #14221F !important; 
-  border: 1px solid #294039 !important; 
-  border-radius: 8px; 
-  padding: 1.5rem; 
-}
-
-.section-margin { 
-  margin-bottom: 1.5rem; 
-}
-
-.closed-card { 
-  border-color: #294039 !important; 
-  background-color: #0D2A20 !important; 
-}
-
-.closed-card h2 { 
-  color: #9DB5AA !important; 
-}
-
-.closed-run-item { 
-  opacity: 0.85; 
-}
-
-.closed-run-item:hover { 
-  opacity: 1; 
-}
-
-/* Runs Liste & Reihen */
-.runs-list { 
-  list-style: none; 
-  padding: 0; 
-  margin: 0; 
-}
-
-.run-item { 
-  background-color: #182824 !important; 
-  border: 1px solid #294039 !important; 
-  border-radius: 6px; 
-  margin-bottom: 0.75rem; 
-  overflow: hidden; 
-}
-
-.run-header { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  padding: 1rem; 
-  cursor: pointer; 
-  user-select: none; 
-  transition: background-color 0.2s;
-}
-
-.run-header:hover { 
-  background-color: #1D352C !important; 
-}
-
-.run-info { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 0.25rem; 
-}
-
-.run-name { 
-  font-weight: 600; 
-  color: #E8F1EC !important; 
-  font-size: 1.05rem; 
-}
-
-.run-meta { 
-  font-size: 0.85rem; 
-  color: #9DB5AA !important; 
-}
-
-.run-edit-inline { 
-  display: flex; 
-  align-items: center; 
-  gap: 0.4rem; 
-  flex-wrap: wrap; 
-}
-
-.header-edit-input { 
-  width: 140px !important; 
-  flex: none !important; 
-}
-
-.header-right { 
-  display: flex; 
-  align-items: center; 
-  gap: 0.75rem; 
-}
-
-/* Badges & Status-Farben */
-.badge { 
-  color: #E8F1EC !important; 
-  font-size: 0.75rem; 
-  font-weight: 600; 
-  padding: 0.25rem 0.6rem; 
-  border-radius: 4px; 
-  text-transform: capitalize; 
-}
-
-.status-onsale { 
-  background-color: #D98A00 !important; 
-  color: #071A14 !important;
-}
-
-.status-payout { 
-  background-color: #35A85B !important; 
-  color: #E8F1EC !important;
-}
-
-.status-close { 
-  background-color: #E64A5B !important; 
-  color: #E8F1EC !important;
-}
-
-.expand-btn { 
-  background: none; 
-  border: 1px solid #294039 !important; 
-  color: #9DB5AA !important; 
-  padding: 0.3rem 0.6rem; 
-  border-radius: 4px; 
-  font-size: 0.8rem; 
-  cursor: pointer; 
-}
-
-.expand-btn:hover { 
-  background-color: #1D352C !important; 
-  color: #E8F1EC !important;
-}
-
-/* Run Details & Zusammenfassung */
-.run-details { 
-  padding: 1rem; 
-  border-top: 1px solid #294039 !important; 
-  background-color: #071A14 !important; 
-}
-
-.summary-banner {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.75rem;
-  background-color: #14221F !important;
-  border: 1px solid #4DB982 !important;
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
-}
-
-.summary-card { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 0.2rem; 
-}
-
-.summary-label { 
-  font-size: 0.75rem; 
-  color: #9DB5AA !important; 
-  text-transform: uppercase; 
-  font-weight: 600; 
-}
-
-.summary-value { 
-  font-size: 1.1rem; 
-  font-weight: 700; 
-  color: #E8F1EC !important; 
-}
-
-.total-zeny { 
-  color: #4DB982 !important; 
-}
-
-.split-zeny { 
-  color: #D98A00 !important; 
-}
-
-.status-badge { 
-  font-size: 0.9rem; 
-  color: #D98A00 !important; 
-}
-
-.status-badge.all-paid { 
-  color: #35A85B !important; 
-}
-
-.details-grid { 
-  display: grid; 
-  grid-template-columns: 1fr 2fr; 
-  gap: 1rem; 
-  align-items: start; 
-}
-
-@media (max-width: 768px) {
-  .details-grid { 
-    grid-template-columns: 1fr; 
-  }
-}
-
-/* Detail-Blöcke (Teilnehmer & Items) */
-.detail-block { 
-  background-color: #14221F !important; 
-  padding: 0.8rem; 
-  border-radius: 6px; 
-  border: 1px solid #294039 !important; 
-  display: flex; 
-  flex-direction: column; 
-  justify-content: flex-start;
-  align-items: stretch;
-}
-
-.detail-block h3 { 
-  font-size: 0.9rem; 
-  color: #4DB982 !important; 
-  margin-top: 0; 
-  margin-bottom: 0.5rem; 
-}
-
-.detail-block ul { 
-  list-style: none; 
-  padding: 0; 
-  margin: 0 0 0.8rem 0; 
-  width: 100%; 
-}
-
-.detail-block li { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  font-size: 0.875rem; 
-  color: #E8F1EC !important; 
-  padding: 0.4rem 0; 
-  border-bottom: 1px dashed #294039 !important; 
-}
-
-.participant-row { 
-  transition: background 0.2s; 
-}
-
-.participant-row.paid-row { 
-  opacity: 0.5; 
-}
-
-.participant-row.paid-row span { 
-  text-decoration: line-through; 
-}
-
-.p-info { 
-  display: flex; 
-  align-items: center; 
-  gap: 0.4rem; 
-}
-
-.payout-toggle { 
-  display: flex; 
-  align-items: center; 
-  gap: 0.3rem; 
-  font-size: 0.75rem; 
-  cursor: pointer; 
-  color: #9DB5AA !important; 
-}
-
-.payout-toggle input { 
-  cursor: pointer; 
-  accent-color: #4DB982;
-}
-
-.payout-label { 
-  font-weight: 500; 
-}
-
-.payout-status-text { 
-  font-size: 0.75rem; 
-  color: #9DB5AA !important; 
-  font-weight: 500; 
-}
-
-.payout-status-text.paid { 
-  color: #35A85B !important; 
-}
-
-.num-prefix { 
-  color: #4DB982 !important; 
-  font-weight: 600; 
-  margin-right: 0.3rem; 
-}
-
-.class-tag { 
-  background-color: #182824 !important; 
-  color: #9DB5AA !important; 
-  border: 1px solid #294039 !important;
-  font-size: 0.75rem; 
-  padding: 0.1rem 0.4rem; 
-  border-radius: 4px; 
-}
-
-/* Bearbeitungs-Listen & Formularelmente */
-.edit-list { 
-  margin-bottom: 0.5rem !important; 
-}
-
-.edit-row { 
-  background-color: #182824 !important; 
-  padding: 0.3rem 0.5rem !important; 
-  border-radius: 4px; 
-  margin-bottom: 0.2rem; 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  border: 1px solid #294039 !important; 
-}
-
-.edit-name { 
-  font-size: 0.8rem; 
-}
-
-.inline-select { 
-  flex: none; 
-  width: auto; 
-}
-
-.add-row { 
-  display: flex; 
-  gap: 0.4rem; 
-  margin-bottom: 0.6rem; 
-  align-items: center; 
-  flex-wrap: wrap; 
-}
-
-.small-select, .small-input, .date-input { 
-  flex: 2; 
-  min-width: 140px; 
-  padding: 0.4rem; 
-  background-color: #071A14 !important; 
-  border: 1px solid #294039 !important; 
-  border-radius: 4px; 
-  color: #E8F1EC !important; 
-  font-size: 0.8rem; 
-}
-
-.qty-field { 
-  width: 65px; 
-  padding: 0.4rem; 
-  background-color: #071A14 !important; 
-  border: 1px solid #294039 !important; 
-  border-radius: 4px; 
-  color: #E8F1EC !important; 
-  font-size: 0.8rem; 
-}
-
-/* Items & Verkäufe */
-.items-sales-list { 
-  margin-bottom: 0.5rem !important; 
-}
-
-.item-sale-row { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  gap: 0.5rem; 
-}
-
-.item-info { 
-  display: flex; 
-  align-items: center; 
-  gap: 0.5rem; 
-}
-
-.item-qty { 
-  color: #4DB982 !important; 
-  font-weight: 600; 
-  font-size: 0.85rem; 
-  min-width: 24px; 
-}
-
-.item-icon-img { 
-  width: 24px; 
-  height: 24px; 
-  object-fit: contain; 
-  vertical-align: middle; 
-}
-
-.item-id-badge { 
-  color: #9DB5AA !important; 
-  font-size: 0.75rem; 
-  font-family: monospace; 
-  font-weight: 600; 
-}
-
-.item-name { 
-  font-weight: 500; 
-}
-
-.sale-action-area { 
-  display: flex; 
-  align-items: center; 
-  gap: 0.5rem; 
-}
-
-.sale-details-col { 
-  display: flex; 
-  flex-direction: column; 
-  align-items: flex-end; 
-}
-
-.sale-date-tag { 
-  font-size: 0.7rem; 
-  color: #9DB5AA !important; 
-}
-
-.price-tag { 
-  color: #35A85B !important; 
-  font-weight: 600; 
-  font-size: 0.85rem; 
-}
-
-.add-sale-btn { 
-  background-color: #182824 !important; 
-  color: #4DB982 !important; 
-  border: 1px solid #294039 !important; 
-  padding: 0.2rem 0.5rem; 
-  border-radius: 4px; 
-  font-size: 0.75rem; 
-  cursor: pointer; 
-  transition: background-color 0.2s;
-}
-
-.add-sale-btn:hover { 
-  background-color: #1D352C !important; 
-  color: #61CC95 !important; 
-}
-
-.edit-sale-btn { 
-  background: none; 
-  border: none; 
-  cursor: pointer; 
-  font-size: 0.85rem; 
-  padding: 0 0.2rem; 
-}
-
-.edit-sale-btn:hover { 
-  opacity: 0.8; 
-}
-
-.inline-sale-form { 
-  display: flex; 
-  align-items: center; 
-  gap: 0.3rem; 
-  flex-wrap: wrap; 
-}
-
-.wide-price-input { 
-  width: 130px; 
-  padding: 0.3rem 0.5rem; 
-  background-color: #071A14 !important; 
-  border: 1px solid #294039 !important; 
-  border-radius: 4px; 
-  color: #35A85B !important; 
-  font-weight: 600; 
-  font-size: 0.85rem; 
-  text-align: right; 
-}
-
-.checkbox-label { 
-  font-size: 0.75rem; 
-  color: #E8F1EC !important; 
-  display: flex; 
-  align-items: center; 
-  gap: 0.2rem; 
-  cursor: pointer; 
-}
-
-.shop-badge { 
-  background: #D98A00 !important; 
-  color: #071A14 !important; 
-  font-size: 0.7rem; 
-  padding: 0.1rem 0.3rem; 
-  border-radius: 3px; 
-  font-weight: 700; 
-}
-
-.btn-group { 
-  display: flex; 
-  gap: 0.4rem; 
-  margin-top: 0.5rem; 
-}
-
-/* Status- & Fehler-Texte */
-.status-text { 
-  color: #9DB5AA !important; 
-}
-
-.empty-text { 
-  font-size: 0.85rem; 
-  color: #9DB5AA !important; 
-  font-style: italic; 
-  margin-bottom: 0.5rem; 
-}
-
-.error { 
-  color: #E64A5B !important; 
-}
-</style>

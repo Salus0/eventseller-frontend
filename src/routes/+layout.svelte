@@ -1,9 +1,14 @@
+<svelte:head>
+    <title>Yggdrasil Event Sales</title>
+</svelte:head>
+
 <script>
+  import '../app.css';
   import { onMount } from 'svelte';
-  import { page } from '$app/stores'; // Holt die aktuelle Seiten-URL
+  import { page } from '$app/stores';
+  import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
   export let data;
-
   let user = null;
 
   // Hilfsfunktion zum Dekodieren des JWT-Tokens ohne externe Library
@@ -75,10 +80,10 @@
           {#if user.role === 'admin'}
             <span class="badge admin">Admin</span>
           {/if}
-          <button on:click={logout} class="logout-btn">Logout</button>
+          <button on:click={logout} class="btn btn-secondary btn-small">Logout</button>
         </div>
       {:else}
-        <a href="https://yggdrasil-eventseller-backend.up.railway.app/auth/login" class="login-btn">
+        <a href="{PUBLIC_BACKEND_URL}/auth/login" class="btn btn-primary">
           Login
         </a>
       {/if}
@@ -89,155 +94,3 @@
 <main class="page-content">
   <slot />
 </main>
-
-<style>
-  /* CSS-Variablen angepasst an das Yggdrasil Custom Styling */
-  :root {
-    --bg-main: #071A14;        /* Dunkles Basis-Grün */
-    --navbar-bg: #14221F;      /* Passender dunkler Karten-Hintergrund für die Leiste */
-    --primary-green: #4DB982;   /* Smaragd-Akzentgrün */
-    --primary-hover: #61CC95;   /* Hellere Hover-Abtönung */
-    --text-dark: #E8F1EC;       /* Helles Grün/Weiß für gute Lesbarkeit */
-    --text-muted: #9DB5AA;      /* Gedämpftes Hellgrün für Nebentexte & Links */
-    --border-color: #294039;    /* Exakter Rahmenfarbton */
-  }
-
-  /* Globales Styling für den Seiten-Hintergrund */
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    background-color: var(--bg-main) !important;
-    color: var(--text-dark) !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    min-height: 100vh;
-  }
-
-  /* Navigation Bar styling */
-  .navbar {
-    background-color: var(--navbar-bg);
-    border-bottom: 1px solid var(--border-color);
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  }
-
-  .nav-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0.75rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 700;
-    font-size: 1.125rem;
-    color: #D98A00 !important; /* warmes Gold/Gelb */
-    text-decoration: none;
-  }
-
-  .nav-links {
-    display: flex;
-    gap: 1.5rem;
-  }
-
-  .nav-links a {
-    color: var(--text-muted);
-    text-decoration: none;
-    font-size: 0.95rem;
-    font-weight: 500;
-    padding: 0.25rem 0;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s ease-in-out;
-  }
-
-  .nav-links a:hover {
-    color: #E8F1EC;
-  }
-
-  /* Hervorhebung für den aktiven Navigationslink */
-  .nav-links a.active {
-    color: var(--primary-green);
-    font-weight: 700;
-    border-bottom: 2px solid var(--primary-green);
-  }
-
-  .nav-actions {
-    display: flex;
-    align-items: center;
-  }
-
-  /* User Profile Styling */
-  .user-profile {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    color: #E8F1EC;
-  }
-
-  .avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 1px solid #4DB982;
-  }
-
-  .username {
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--text-dark);
-  }
-
-  .badge.admin {
-    background-color: #E64A5B;
-    color: #E8F1EC;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 0.15rem 0.4rem;
-    border-radius: 4px;
-    text-transform: uppercase;
-  }
-
-  .logout-btn {
-    background-color: #182824;
-    border: 1px solid var(--border-color);
-    color: var(--text-muted);
-    padding: 0.35rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .logout-btn:hover {
-    background-color: #1D352C;
-    color: #E8F1EC;
-  }
-
-  .login-btn {
-    background-color: var(--primary-green);
-    color: #071A14;
-    padding: 0.4rem 1rem;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 700;
-    transition: background-color 0.2s;
-  }
-
-  .login-btn:hover {
-    background-color: var(--primary-hover);
-  }
-
-  /* Container für alle Seiten-Inhalte */
-  .page-content {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 1.5rem;
-  }
-</style>

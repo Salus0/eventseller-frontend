@@ -345,7 +345,7 @@
           class="input-field" 
           required
         />
-        <button type="submit" class="create-btn">+ Speichern</button>
+        <button type="submit" class="btn btn-primary">+ Speichern</button>
       </form>
     </section>
   {/if}
@@ -413,8 +413,8 @@
                   <td class="date-cell">{formatDate(displayDate)}</td>
                   <td>
                     <div class="btn-group">
-                      <button type="button" class="save-btn" on:click={() => saveItem(item.id)}>Speichern</button>
-                      <button type="button" class="cancel-btn" on:click={cancelEditing}>Abbrechen</button>
+                      <button type="button" class="btn btn-primary" on:click={() => saveItem(item.id)}>Speichern</button>
+                      <button type="button" class="btn btn-secondary" on:click={cancelEditing}>Abbrechen</button>
                     </div>
                   </td>
                 </tr>
@@ -444,11 +444,11 @@
                   <td>
                     <div class="btn-group">
                       {#if isAdmin}
-                        <button type="button" class="action-btn" on:click={() => startEditing(item)}>✏️ Edit</button>
+                        <button type="button" class="btn btn-secondary" on:click={() => startEditing(item)}>✏️ Edit</button>
                       {/if}
                       <button 
                         type="button" 
-                        class="history-btn" 
+                        class="btn btn-secondary"
                         on:click={() => toggleHistory(item)}
                       >
                         {activeHistoryItemId === targetId ? '▲ Verbergen' : '📊 Preishistorie'}
@@ -490,124 +490,3 @@
     {/if}
   </section>
 {/if}
-
-<style>
-  .header-action { margin-bottom: 1.5rem; }
-  h1 { color: #D98A00 !important; margin: 0; }
-  .card { 
-    background-color: #14221F !important; 
-    border: 1px solid #294039 !important; 
-    border-radius: 8px; 
-    padding: 1.5rem; 
-  }
-  .margin-top { margin-top: 1.5rem; }
-
-  .add-form { display: flex; gap: 0.8rem; flex-wrap: wrap; }
-  .input-field { 
-    background-color: #071A14 !important; 
-    border: 1px solid #294039 !important; 
-    color: #E8F1EC !important; 
-    padding: 0.5rem 0.8rem; 
-    border-radius: 4px; 
-    font-size: 0.9rem; 
-  }
-  .input-field:focus { border-color: #D98A00 !important; outline: none; }
-  .small-input { width: 140px; }
-  .edit-input-sm { width: 90px; }
-  .edit-input-lg { width: 100%; }
-
-  .create-btn { 
-    background-color: #D98A00 !important; 
-    color: #071A14 !important; 
-    font-weight: bold; 
-    border: none; 
-    padding: 0.5rem 1rem; 
-    border-radius: 4px; 
-    cursor: pointer; 
-  }
-  .create-btn:hover { background-color: #f59e0b !important; }
-
-  .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
-  .list-header h2 { margin: 0; font-size: 1.2rem; color: #E8F1EC; }
-  .search-input { width: 250px; }
-
-  .table-container { overflow-x: auto; }
-  .item-table { width: 100%; border-collapse: collapse; text-align: left; }
-  .item-table th, .item-table td { padding: 0.75rem 0.5rem; border-bottom: 1px solid #294039; }
-  .item-table th { color: #8FA89B; font-size: 0.85rem; text-transform: uppercase; }
-
-  .icon-cell { width: 40px; text-align: center; }
-  .icon-cell img { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
-  .id-cell { font-family: monospace; color: #8FA89B; }
-  .name-cell { font-weight: 500; color: #E8F1EC; }
-  .price-cell { color: #D98A00; font-weight: bold; }
-  .date-cell { color: #8FA89B; font-size: 0.85rem; }
-
-  .btn-group { display: flex; gap: 0.4rem; }
-  .action-btn { 
-    background-color: #294039 !important; 
-    color: #E8F1EC !important; 
-    border: none; 
-    padding: 0.35rem 0.6rem; 
-    border-radius: 4px; 
-    font-size: 0.8rem; 
-    cursor: pointer; 
-  }
-  .action-btn:hover { background-color: #3b5c52 !important; }
-
-  .save-btn { 
-    background-color: #059669 !important; 
-    color: white !important; 
-    border: none; 
-    padding: 0.35rem 0.6rem; 
-    border-radius: 4px; 
-    font-size: 0.8rem; 
-    cursor: pointer; 
-  }
-  .cancel-btn { 
-    background-color: #475569 !important; 
-    color: white !important; 
-    border: none; 
-    padding: 0.35rem 0.6rem; 
-    border-radius: 4px; 
-    font-size: 0.8rem; 
-    cursor: pointer; 
-  }
-
-  .history-btn { 
-    background-color: #182824 !important; 
-    border: 1px solid #294039 !important;
-    color: #E8F1EC !important; 
-    padding: 0.35rem 0.7rem; 
-    border-radius: 4px; 
-    font-size: 0.8rem; 
-    cursor: pointer; 
-  }
-  .history-btn:hover { background-color: #294039 !important; }
-
-  .history-row td { background-color: #0a1410 !important; padding: 1rem; }
-  
-  .history-box { 
-    background-color: #071A14 !important; 
-    border: 1px solid #294039 !important; 
-    padding: 1rem; 
-    border-radius: 6px; 
-  }
-  .history-box h4 { margin: 0 0 0.8rem 0; color: #D98A00 !important; font-size: 0.95rem; }
-  .history-list { list-style: none; padding: 0; margin: 0; }
-  .history-list li { 
-    display: flex; 
-    justify-content: space-between; 
-    padding: 0.4rem 0; 
-    border-bottom: 1px solid #14221F; 
-    font-size: 0.85rem; 
-  }
-  .run-name { color: #E8F1EC; font-weight: 500; }
-  .run-date { color: #8FA89B; }
-  .item-qty { color: #8FA89B; }
-  .hist-price { color: #D98A00; font-weight: bold; }
-
-  .status-text { color: #8FA89B; font-style: italic; }
-  .empty-text { color: #8FA89B; font-size: 0.85rem; margin: 0; }
-  .error { color: #ef4444; }
-</style>
