@@ -377,7 +377,9 @@
           </div>
         {/each}
 
-        <button type="button" class="btn btn-primary" on:click={addParticipant}>+ Spieler hinzufügen</button>
+        <div>
+          <button type="button" class="btn btn-secondary" on:click={addParticipant}>+ Spieler hinzufügen</button>
+        </div>
       </div>
     {/if}
   </section>

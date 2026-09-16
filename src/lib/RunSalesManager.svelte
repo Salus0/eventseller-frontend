@@ -164,7 +164,7 @@
       placeholder="Menge" 
       bind:value={quantityInput} 
       min="1" 
-      class="input-field sm-input" 
+      class="input-field input-sm"
     />
 
     <input 
