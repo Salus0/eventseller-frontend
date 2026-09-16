@@ -1,4 +1,6 @@
 <script>
+  import RunCard from '$lib/components/RunCard.svelte';
+  import { parseJwt } from '$lib/utils/jwt';
   import { onMount } from 'svelte';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
   import { page } from '$app/stores';
@@ -11,26 +13,25 @@
   let isLoading = true;
   let errorMessage = '';
 
-  // Auth, Admin & Seller Status
+  // Auth & Rechte
   let isAdmin = false;
   let isSeller = false;
-  let canEdit = false; // Erlaubt Aktionen für Admin ODER Seller
+  let canEdit = false;
   let jwtToken = '';
-  
+
   let expandedRunIds = new Set();
-  let loadingDetailsIds = new Set(); // Speichert IDs von Runs, die gerade nachgeladen werden
-  let editingRunHeader = {};  // Inline-Edit Modus für Run-Name/Typ
-  let runHeaderInputs = {};   // Eingabepuffer für Run-Name/Typ
+  let loadingDetailsIds = new Set();
 
-  let editingParticipants = {};
-  let editingItems = {};
-  let addingSaleForItemId = {};
-  let editingSaleForItemId = {}; // State für die Inline-Bearbeitung von Verkäufen
+  // KONTROLLE FÜR DIE ABGESCHLOSSENE RUNS SEKTION (Initial zugeklappt)
+  let showClosedRuns = false;
 
-  let participantInputs = {};
-  let itemInputs = {};
-  let saleInputs = {};
-  let editSaleInputs = {}; // Eingabepuffer für das Editieren eines Verkaufs
+  // ZENTRALER UI-STATE (Ersetzt die 8 einzelnen Puffer-Objekte)
+  let uiState = {
+    headers: {},      // [runId]: { isEditing, name, run_type }
+    participants: {}, // [runId]: { isEditing, list, newParticipantId, newClass }
+    items: {},        // [runId]: { isEditing, list, newNameOrId, newAmount }
+    sales: {}         // [itemId]: { mode: 'add'|'edit', price, priceDisplay, isShop, saleDate }
+  };
 
   const roClasses = [
     'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
@@ -38,21 +39,16 @@
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
-  // Helper zum Formatieren von UTC/ISO-Daten in DD.MM.YY, HH:mm
   function formatDate(dateStr) {
     if (!dateStr) return '';
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return '';
     return new Intl.DateTimeFormat('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: '2-digit',
+      hour: '2-digit', minute: '2-digit'
     }).format(date);
   }
 
-  // Helper um ISO Date für datetime-local Input Vorzubelegen (YYYY-MM-THH:mm)
   function toLocalDatetimeInput(dateStr) {
     const d = dateStr ? new Date(dateStr) : new Date();
     if (isNaN(d.getTime())) return '';
@@ -60,7 +56,6 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  // Helper zum Erzeugen der Standard-Auth-Header
   function getAuthHeaders() {
     const token = localStorage.getItem('jwt_token') || jwtToken;
     return {
@@ -73,32 +68,15 @@
     const token = localStorage.getItem('jwt_token');
     if (token) {
       jwtToken = token;
-      try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(
-          atob(base64)
-            .split('')
-            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-            .join('')
-        );
-        const decoded = JSON.parse(jsonPayload);
-        
-        // Rollenprüfung erweitert: Admin & Seller identifizieren
+      const decoded = parseJwt(token);
+      if (decoded) {
         const userRole = (decoded.role || '').toLowerCase();
         isAdmin = userRole === 'admin';
         isSeller = userRole === 'seller';
         canEdit = isAdmin || isSeller;
-      } catch (e) {
-        isAdmin = false;
-        isSeller = false;
-        canEdit = false;
       }
     } else {
-      isAdmin = false;
-      isSeller = false;
-      canEdit = false;
-      jwtToken = '';
+      isAdmin = false; isSeller = false; canEdit = false; jwtToken = '';
     }
   }
 
@@ -106,23 +84,16 @@
     if (rawId === null || rawId === undefined || rawId === '') return null;
     const num = Number(rawId);
     if (isNaN(num)) return null;
-
-    return masterItems.find(m => 
-      Number(m?.item_id) === num || 
-      Number(m?.ro_item_id) === num || 
-      Number(m?.id) === num
-    ) || null;
+    return masterItems.find(m => Number(m?.item_id) === num || Number(m?.ro_item_id) === num || Number(m?.id) === num) || null;
   }
 
   function getROItemId(item) {
     if (!item) return null;
-
     const master = getMasterItem(item.item_id ?? item.ro_item_id ?? item.master_item_id);
     if (master) {
       const masterRoId = master.item_id ?? master.ro_item_id;
       if (masterRoId) return Number(masterRoId);
     }
-
     const directId = item.item_id ?? item.ro_item_id ?? item.master_item_id;
     return directId && !isNaN(Number(directId)) ? Number(directId) : null;
   }
@@ -131,25 +102,16 @@
     const roId = getROItemId(item);
     const master = getMasterItem(roId);
     if (master && master.name) return master.name;
-    if (fallbackName && fallbackName !== 'Unbekannt' && !fallbackName.startsWith('Item #')) {
-      return fallbackName;
-    }
+    if (fallbackName && fallbackName !== 'Unbekannt' && !fallbackName.startsWith('Item #')) return fallbackName;
     return roId ? `Item #${roId}` : 'Unbekanntes Item';
   }
 
   function getItemIconUrl(item) {
     if (!item) return '/items/default.png';
-    
     const roId = getROItemId(item);
     const master = getMasterItem(roId);
-    
-    if (master && (master.image_url || master.icon_url || master.icon)) {
-      return master.image_url || master.icon_url || master.icon;
-    }
-    if (item.image_url || item.icon_url || item.icon) {
-      return item.image_url || item.icon_url || item.icon;
-    }
-
+    if (master && (master.image_url || master.icon_url || master.icon)) return master.image_url || master.icon_url || master.icon;
+    if (item.image_url || item.icon_url || item.icon) return item.image_url || item.icon_url || item.icon;
     return roId ? `/items/${roId}.png` : '/items/default.png';
   }
 
@@ -157,195 +119,109 @@
     const img = e.target;
     if (!img) return;
     const roId = getROItemId(item);
-
-    if (!roId) {
-      img.onerror = null;
-      img.src = '/items/default.png';
-      return;
-    }
-
-    if (img.src.endsWith('.png')) {
-      img.src = `/items/${roId}.gif`;
-    } else if (img.src.endsWith('.gif')) {
-      img.onerror = null;
-      img.src = '/items/default.png';
-    }
+    if (!roId) { img.onerror = null; img.src = '/items/default.png'; return; }
+    if (img.src.endsWith('.png')) img.src = `/items/${roId}.gif`;
+    else if (img.src.endsWith('.gif')) { img.onerror = null; img.src = '/items/default.png'; }
   }
 
-  // --- STATUS-AUSWERTUNG PRIMÄR AUS DB (runs.status) ---
   function getRunStatusInfo(run) {
-    // 1. Priorität: Auslesen aus der DB (runs.status)
     if (run.status) {
       const rawStatus = String(run.status).toLowerCase().trim();
       switch (rawStatus) {
-        case 'closed':
-        case 'close':
-          return { label: 'close', cssClass: 'status-close' };
-        case 'payout':
-        case 'paid':
-          return { label: 'Payout', cssClass: 'status-payout' };
-        case 'on_sale':
-        case 'onsale':
-        case 'on sale':
-          return { label: 'On Sale', cssClass: 'status-onsale' };
-        case 'open':
-        case 'offen':
-          return { label: 'Open', cssClass: 'status-open' };
+        case 'closed': case 'close': return { label: 'close', cssClass: 'status-close' };
+        case 'payout': case 'paid': return { label: 'Payout', cssClass: 'status-payout' };
+        case 'on_sale': case 'onsale': case 'on sale': return { label: 'On Sale', cssClass: 'status-onsale' };
+        case 'open': case 'offen': return { label: 'Open', cssClass: 'status-open' };
       }
     }
-
-    // Fallback: Dynamische Berechnung (falls status in DB leer/null ist)
     const items = run.items || [];
     const participants = run.participants || [];
+    const allItemsSold = items.length > 0 && items.filter(i => Boolean(i.sale_price || i.price || i.actual_price)).length === items.length;
+    const allPaidOut = participants.length > 0 && participants.filter(p => p.is_paid).length === participants.length;
 
-    const totalItems = items.length;
-    const soldItems = items.filter(i => Boolean(i.sale_price || i.price || i.actual_price)).length;
-    const allItemsSold = totalItems > 0 && soldItems === totalItems;
-
-    const totalParticipants = participants.length;
-    const paidParticipants = participants.filter(p => p.is_paid).length;
-    const allPaidOut = totalParticipants > 0 && paidParticipants === totalParticipants;
-
-    if (allItemsSold && allPaidOut) {
-      return { label: 'close', cssClass: 'status-close' };
-    }
-    if (allItemsSold) {
-      return { label: 'Payout', cssClass: 'status-payout' };
-    }
-    if (totalItems > 0) {
-      return { label: 'On Sale', cssClass: 'status-onsale' };
-    }
-    
+    if (allItemsSold && allPaidOut) return { label: 'close', cssClass: 'status-close' };
+    if (allItemsSold) return { label: 'Payout', cssClass: 'status-payout' };
+    if (items.length > 0) return { label: 'On Sale', cssClass: 'status-onsale' };
     return null;
   }
 
-  // Helper zum Ermitteln des Zeitstempels für die Datums-Sortierung
   function getRunTimestamp(run) {
     const dateVal = run.created_at || run.date || run.updated_at;
-    if (!dateVal) return 0;
-    return new Date(dateVal).getTime() || 0;
+    return dateVal ? new Date(dateVal).getTime() || 0 : 0;
   }
 
-  // --- REAKTIVE SORTIERUNG & KATEGORISIERUNG ---
   $: sortedRuns = [...runs].sort((a, b) => getRunTimestamp(b) - getRunTimestamp(a));
   $: activeRuns = sortedRuns.filter(r => getRunStatusInfo(r)?.label !== 'close');
   $: closedRuns = sortedRuns.filter(r => getRunStatusInfo(r)?.label === 'close');
 
-  // --- RUN HEADER EDITIEREN & LÖSCHEN ---
+  // --- RUN HEADER EDITIEREN ---
   function startEditRunHeader(run, e) {
     if (e) e.stopPropagation();
-    runHeaderInputs[run.id] = { name: run.name, run_type: run.run_type || '' };
-    editingRunHeader[run.id] = true;
-    editingRunHeader = { ...editingRunHeader };
+    uiState.headers[run.id] = { isEditing: true, name: run.name, run_type: run.run_type || '' };
   }
 
   function cancelEditRunHeader(runId, e) {
     if (e) e.stopPropagation();
-    editingRunHeader[runId] = false;
-    editingRunHeader = { ...editingRunHeader };
+    if (uiState.headers[runId]) uiState.headers[runId].isEditing = false;
   }
 
   async function saveRunHeader(runId, e) {
     if (e) e.stopPropagation();
     if (!isAdmin) return;
-
-    const input = runHeaderInputs[runId];
-    if (!input || !input.name.trim()) {
-      alert('Bitte gib einen gültigen Run-Namen ein.');
-      return;
-    }
+    const input = uiState.headers[runId];
+    if (!input || !input.name.trim()) return alert('Bitte gib einen gültigen Run-Namen ein.');
 
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: input.name.trim(),
-          run_type: input.run_type.trim() || null
-        })
+        body: JSON.stringify({ name: input.name.trim(), run_type: input.run_type.trim() || null })
       });
-
       if (res.ok) {
-        editingRunHeader[runId] = false;
-        editingRunHeader = { ...editingRunHeader };
+        uiState.headers[runId].isEditing = false;
         await fetchData();
-      } else {
-        alert('Fehler beim Aktualisieren des Runs.');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Netzwerkfehler beim Aktualisieren.');
-    }
+      } else alert('Fehler beim Aktualisieren des Runs.');
+    } catch (err) { alert('Netzwerkfehler beim Aktualisieren.'); }
   }
 
   async function deleteRun(runId, runName, e) {
     if (e) e.stopPropagation();
-    if (!isAdmin) return;
-
-    if (!confirm(`Möchtest du den Run "${runName}" wirklich löschen?`)) return;
-
+    if (!isAdmin || !confirm(`Möchtest du den Run "${runName}" wirklich löschen?`)) return;
     try {
-      const res = await fetch(`${backendUrl}/runs/${runId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-
-      if (res.ok) {
-        runs = runs.filter(r => r.id !== runId);
-      } else {
-        alert('Fehler beim Löschen des Runs.');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Netzwerkfehler beim Löschen des Runs.');
-    }
+      const res = await fetch(`${backendUrl}/runs/${runId}`, { method: 'DELETE', headers: getAuthHeaders() });
+      if (res.ok) runs = runs.filter(r => r.id !== runId);
+      else alert('Fehler beim Löschen des Runs.');
+    } catch (err) { alert('Netzwerkfehler beim Löschen.'); }
   }
 
-  // --- 1000er TRENNPUNKTE FORMATIERUNG BEIM EINGEBEN ---
-  function handlePriceInput(runItemId, e) {
+  // --- HELPER FÜR PREISEINGABEN ---
+  function handlePriceInput(itemId, e, isEdit = false) {
     const rawValue = e.target.value.replace(/\D/g, '');
+    if (!uiState.sales[itemId]) return;
     if (!rawValue) {
-      saleInputs[runItemId].priceDisplay = '';
-      saleInputs[runItemId].price = 0;
+      uiState.sales[itemId].priceDisplay = '';
+      uiState.sales[itemId].price = 0;
       return;
     }
     const num = parseInt(rawValue, 10);
-    saleInputs[runItemId].price = num;
-    saleInputs[runItemId].priceDisplay = new Intl.NumberFormat('de-DE').format(num);
-  }
-
-  function handleEditPriceInput(runItemId, e) {
-    const rawValue = e.target.value.replace(/\D/g, '');
-    if (!rawValue) {
-      editSaleInputs[runItemId].priceDisplay = '';
-      editSaleInputs[runItemId].price = 0;
-      return;
-    }
-    const num = parseInt(rawValue, 10);
-    editSaleInputs[runItemId].price = num;
-    editSaleInputs[runItemId].priceDisplay = new Intl.NumberFormat('de-DE').format(num);
+    uiState.sales[itemId].price = num;
+    uiState.sales[itemId].priceDisplay = new Intl.NumberFormat('de-DE').format(num);
   }
 
   async function toggleExpand(id) {
     if (expandedRunIds.has(id)) {
       expandedRunIds.delete(id);
-      expandedRunIds = new Set(expandedRunIds);
     } else {
       expandedRunIds.add(id);
-      expandedRunIds = new Set(expandedRunIds);
-      
       const targetRun = runs.find(r => r.id === id);
-      // Nur nachladen, wenn die Details nicht bereits geladen sind
-      if (targetRun && !targetRun.detailsLoaded) {
-        await loadRunDetails(id);
-      }
+      if (targetRun && !targetRun.detailsLoaded) await loadRunDetails(id);
     }
+    expandedRunIds = new Set(expandedRunIds);
   }
 
   async function loadRunDetails(runId) {
     loadingDetailsIds.add(runId);
     loadingDetailsIds = new Set(loadingDetailsIds);
-
     try {
       const headers = getAuthHeaders();
       const [partsRes, itemsRes, salesRes, summaryRes] = await Promise.all([
@@ -355,21 +231,13 @@
         fetch(`${backendUrl}/runs/${runId}/summary`, { headers })
       ]);
 
-      let loadedParticipants = [];
-      let loadedItems = [];
-      let loadedSales = [];
-      let loadedSummary = null;
-
-      if (partsRes.ok) loadedParticipants = await partsRes.json();
-      if (itemsRes.ok) loadedItems = await itemsRes.json();
-      if (salesRes.ok) loadedSales = await salesRes.json();
-      if (summaryRes.ok) loadedSummary = await summaryRes.json();
+      const loadedParticipants = partsRes.ok ? await partsRes.json() : [];
+      const loadedItems = itemsRes.ok ? await itemsRes.json() : [];
+      const loadedSales = salesRes.ok ? await salesRes.json() : [];
+      const loadedSummary = summaryRes.ok ? await summaryRes.json() : null;
 
       let expandedItems = [];
-      const safeItems = Array.isArray(loadedItems) ? loadedItems : [];
-      const safeSales = Array.isArray(loadedSales) ? loadedSales : [];
-
-      safeItems.forEach((item, itemIdx) => {
+      loadedItems.forEach((item, itemIdx) => {
         const rawRoId = item.ro_item_id ?? item.item_id ?? item.master_item_id;
         const master = getMasterItem(rawRoId);
         const finalRoId = master ? (master.item_id ?? master.ro_item_id) : rawRoId;
@@ -378,20 +246,17 @@
         const qty = Number(item.amount || item.quantity || 1);
 
         for (let i = 0; i < qty; i++) {
-          const existingSale = safeSales.find(s => 
+          const existingSale = loadedSales.find(s =>
             (Number(s.item_id) === Number(numericRoId) || Number(s.ro_item_id) === Number(numericRoId) || Number(s.id) === Number(item.sale_id)) &&
             !expandedItems.some(exp => Number(exp.sale_id) === Number(s.id))
           );
 
-          const uniqueKey = realDbId 
-            ? `db-${realDbId}-${i}` 
+          const uniqueKey = realDbId
+            ? `db-${realDbId}-${i}`
             : `run-${runId}-item-${itemIdx}-${i}-${Math.random().toString(36).substring(2, 7)}`;
 
           expandedItems.push({
-            ...item,
-            amount: 1,
-            quantity: 1,
-            id: uniqueKey,
+            ...item, amount: 1, quantity: 1, id: uniqueKey,
             real_db_id: realDbId ? Number(realDbId) : null,
             ro_item_id: numericRoId,
             image_url: master?.image_url || master?.icon_url || item.image_url || null,
@@ -405,421 +270,197 @@
         }
       });
 
-      runs = runs.map(r => {
-        if (r.id === runId) {
-          return {
-            ...r,
-            participants: Array.isArray(loadedParticipants) ? loadedParticipants : [],
-            items: expandedItems,
-            sales: safeSales,
-            summary: loadedSummary,
-            detailsLoaded: true // Marker, dass Details erfolgreich geladen wurden
-          };
-        }
-        return r;
-      });
-    } catch (err) {
-      console.error(`Fehler beim Nachladen der Details für Run ${runId}:`, err);
-    } finally {
-      loadingDetailsIds.delete(runId);
-      loadingDetailsIds = new Set(loadingDetailsIds);
-    }
+      runs = runs.map(r => r.id === runId ? {
+        ...r, participants: loadedParticipants, items: expandedItems, sales: loadedSales, summary: loadedSummary, detailsLoaded: true
+      } : r);
+    } catch (err) { console.error(err); }
+    finally { loadingDetailsIds.delete(runId); loadingDetailsIds = new Set(loadingDetailsIds); }
   }
 
-  // --- LAZY LOADING: HIER WERDEN VORERST NUR DIE BILD-STAND-DATEN DER RUNS GELADEN ---
   async function fetchData() {
-    isLoading = true;
-    errorMessage = '';
+    isLoading = true; errorMessage = '';
     try {
       const headers = getAuthHeaders();
       const [partsRes, itemsRes] = await Promise.all([
         fetch(`${backendUrl}/participants/`, { headers }),
         fetch(`${backendUrl}/items/`, { headers })
       ]);
-
       if (itemsRes.ok) masterItems = await itemsRes.json();
       if (partsRes.ok) availableParticipants = await partsRes.json();
 
       const runsRes = await fetch(`${backendUrl}/runs/`, { headers });
       if (runsRes.ok) {
         const loadedRuns = await runsRes.json();
-        const baseRuns = Array.isArray(loadedRuns) ? loadedRuns : [];
-        
-        // Initialisieren der Runs-Struktur (Details werden erst bei Klick geholt)
-        runs = baseRuns.map(r => ({
-          ...r,
-          detailsLoaded: false,
-          participants: r.participants || [],
-          items: r.items || [],
-          sales: r.sales || [],
-          summary: r.summary || null
+        runs = (Array.isArray(loadedRuns) ? loadedRuns : []).map(r => ({
+          ...r, detailsLoaded: false, participants: r.participants || [], items: r.items || [], sales: r.sales || [], summary: r.summary || null
         }));
 
-        // Falls ein Deeplink (?open=ID) gesetzt ist, diesen gezielt aufklappen & nachladen
         const openIdParam = $page.url.searchParams.get('open');
-        if (openIdParam) {
+        if (openIdParam && runs.some(r => r.id === Number(openIdParam))) {
           const runToOpen = Number(openIdParam);
-          if (runs.some(r => r.id === runToOpen)) {
-            await toggleExpand(runToOpen);
-            setTimeout(() => {
-              document.getElementById(`run-${runToOpen}`)?.scrollIntoView({ behavior: 'smooth' });
-            }, 100);
+          // Falls ein geschlossener Run via Link aufgerufen wird, klappe auch die Sektion auf
+          const targetRun = runs.find(r => r.id === runToOpen);
+          if (targetRun && getRunStatusInfo(targetRun)?.label === 'close') {
+            showClosedRuns = true;
           }
+          await toggleExpand(runToOpen);
         }
-      } else if (runsRes.status === 401) {
-        errorMessage = 'Nicht autorisiert! Bitte neu einloggen.';
-      } else {
-        errorMessage = `Fehler beim Laden der Runs (Status: ${runsRes.status})`;
-      }
-    } catch (err) {
-      errorMessage = 'Verbindungsfehler zum Backend!';
-      console.error(err);
-    } finally {
-      isLoading = false;
-    }
+      } else if (runsRes.status === 401) errorMessage = 'Nicht autorisiert!';
+      else errorMessage = `Fehler beim Laden der Runs (${runsRes.status})`;
+    } catch (err) { errorMessage = 'Verbindungsfehler zum Backend!'; }
+    finally { isLoading = false; }
   }
 
-  // --- TEILNEHMER EDITIEREN ---
+  // --- TEILNEHMER ---
   function enableParticipantEditing(run) {
     if (!canEdit) return;
-    participantInputs[run.id] = {
+    uiState.participants[run.id] = {
+      isEditing: true,
       list: run.participants ? JSON.parse(JSON.stringify(run.participants)) : [],
-      newParticipantId: '',
-      newClass: ''
+      newParticipantId: '', newClass: ''
     };
-    editingParticipants[run.id] = true;
   }
 
   function addParticipantToBuffer(runId) {
-    const input = participantInputs[runId];
+    const input = uiState.participants[runId];
     if (!input || !input.newParticipantId) return;
-
     const selectedId = Number(input.newParticipantId);
-    if (input.list.some(p => Number(p.participant_id) === selectedId)) {
-      alert('Dieser Teilnehmer befindet sich bereits in der Liste!');
-      return;
-    }
+    if (input.list.some(p => Number(p.participant_id) === selectedId)) return alert('Teilnehmer bereits in der Liste!');
 
     const pObj = availableParticipants.find(p => Number(p.id) === selectedId);
     input.list = [...input.list, { participant_id: selectedId, name: pObj ? pObj.name : 'Unbekannt', class_name: input.newClass || 'Unbekannt', is_paid: false }];
-    input.newParticipantId = '';
-    input.newClass = '';
-    participantInputs = { ...participantInputs };
+    input.newParticipantId = ''; input.newClass = '';
   }
 
   function removeParticipantFromBuffer(runId, index) {
-    if (!participantInputs[runId]?.list) return;
-    participantInputs[runId].list.splice(index, 1);
-    participantInputs[runId].list = [...participantInputs[runId].list];
-    participantInputs = { ...participantInputs };
+    if (uiState.participants[runId]?.list) uiState.participants[runId].list.splice(index, 1);
   }
 
   async function saveParticipants(runId) {
     if (!canEdit) return;
-    const updatedList = (participantInputs[runId]?.list || []).map(p => ({
-      participant_id: Number(p.participant_id),
-      class_name: p.class_name || 'Unbekannt'
+    const updatedList = (uiState.participants[runId]?.list || []).map(p => ({
+      participant_id: Number(p.participant_id), class_name: p.class_name || 'Unbekannt'
     }));
-
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/participants`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updatedList)
+        method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(updatedList)
       });
       if (res.ok) {
-        editingParticipants[runId] = false;
+        uiState.participants[runId].isEditing = false;
         await loadRunDetails(runId);
       }
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   }
 
   async function togglePayoutStatus(runId, participantId, currentStatus) {
     if (!canEdit) return;
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/participants/${participantId}/payout`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ is_paid: !currentStatus })
+        method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ is_paid: !currentStatus })
       });
-      if (res.ok) {
-        await loadRunDetails(runId);
-      } else {
-        alert('Auszahlungsstatus konnte nicht geändert werden.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
+      if (res.ok) await loadRunDetails(runId);
+    } catch (err) { console.error(err); }
   }
 
-  // --- DROPS / ITEMS EDITIEREN ---
+  // --- ITEMS ---
   function enableItemEditing(run) {
     if (!canEdit) return;
-    itemInputs[run.id] = {
-      list: run.items ? run.items.map(item => {
-        const roId = getROItemId(item);
-        return {
-          id: item.id,
-          item_id: roId,
-          ro_item_id: roId,
-          name: getItemName(item, item.name || item.item_name),
-          amount: 1
-        };
-      }) : [],
-      newNameOrId: '',
-      newAmount: 1
+    uiState.items[run.id] = {
+      isEditing: true,
+      list: run.items ? run.items.map(i => ({ id: i.id, item_id: getROItemId(i), ro_item_id: getROItemId(i), name: getItemName(i, i.name), amount: 1 })) : [],
+      newNameOrId: '', newAmount: 1
     };
-    editingItems[run.id] = true;
   }
 
   function addItemToBuffer(runId) {
-    const input = itemInputs[runId];
+    const input = uiState.items[runId];
     if (!input || !input.newNameOrId.trim()) return;
+    const rawInput = input.newNameOrId.trim().toLowerCase();
+    const matchedMasterItem = masterItems.find(i => String(i.item_id || i.ro_item_id || i.id) === rawInput || i.name.toLowerCase() === rawInput);
 
-    const rawInput = input.newNameOrId.trim();
-    const query = rawInput.toLowerCase();
+    let finalItemId = matchedMasterItem ? Number(matchedMasterItem.item_id ?? matchedMasterItem.ro_item_id ?? matchedMasterItem.id) : (!isNaN(rawInput) ? Number(rawInput) : null);
+    let finalName = matchedMasterItem ? matchedMasterItem.name : getItemName({ item_id: finalItemId }, input.newNameOrId.trim());
 
-    const matchedMasterItem = masterItems.find(
-      i => String(i.item_id || i.ro_item_id || i.id) === query ||
-           i.name.toLowerCase() === query ||
-           `${i.name} (id: ${i.item_id || i.ro_item_id || i.id})`.toLowerCase() === query
-    );
+    const newItems = Array.from({ length: Number(input.newAmount) || 1 }, () => ({
+      item_id: finalItemId, ro_item_id: finalItemId, name: finalName, amount: 1
+    }));
 
-    let finalItemId = null;
-    let finalName = rawInput;
-
-    if (matchedMasterItem) {
-      finalItemId = Number(matchedMasterItem.item_id ?? matchedMasterItem.ro_item_id ?? matchedMasterItem.id);
-      finalName = matchedMasterItem.name;
-    } else if (!isNaN(query)) {
-      finalItemId = Number(query);
-      finalName = getItemName({ item_id: finalItemId }, finalName);
-    }
-
-    const amountToTake = Number(input.newAmount) || 1;
-    const newItemsArray = [];
-
-    for (let i = 0; i < amountToTake; i++) {
-      newItemsArray.push({
-        item_id: finalItemId,
-        ro_item_id: finalItemId,
-        name: finalName,
-        amount: 1
-      });
-    }
-
-    input.list = [...input.list, ...newItemsArray];
-
-    input.newNameOrId = '';
-    input.newAmount = 1;
-    itemInputs = { ...itemInputs };
+    input.list = [...input.list, ...newItems];
+    input.newNameOrId = ''; input.newAmount = 1;
   }
 
   function removeItemFromBuffer(runId, index) {
-    if (!itemInputs[runId]?.list) return;
-    itemInputs[runId].list.splice(index, 1);
-    itemInputs[runId].list = [...itemInputs[runId].list];
-    itemInputs = { ...itemInputs };
+    if (uiState.items[runId]?.list) uiState.items[runId].list.splice(index, 1);
   }
 
   async function saveItems(runId) {
     if (!canEdit) return;
-    const updatedList = (itemInputs[runId]?.list || []).map(item => {
-      const resolvedId = getROItemId(item);
-      const resolvedName = getItemName(item, item.name);
-
-      return {
-        item_id: resolvedId ? Number(resolvedId) : null,
-        ro_item_id: resolvedId ? Number(resolvedId) : null,
-        name: resolvedName,
-        amount: 1,
-        quantity: 1
-      };
-    });
-
+    const updatedList = (uiState.items[runId]?.list || []).map(item => ({
+      item_id: getROItemId(item), ro_item_id: getROItemId(item), name: getItemName(item, item.name), amount: 1, quantity: 1
+    }));
     try {
       const res = await fetch(`${backendUrl}/runs/${runId}/items`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updatedList)
+        method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(updatedList)
       });
-
       if (res.ok) {
-        editingItems[runId] = false;
+        uiState.items[runId].isEditing = false;
         await loadRunDetails(runId);
-      } else {
-        const errDetails = await res.json().catch(() => null);
-        alert(`Fehler beim Speichern (HTTP ${res.status}):\n${JSON.stringify(errDetails || res.statusText)}`);
       }
-    } catch (err) {
-      console.error(err);
-      alert('Netzwerkfehler beim Speichern der Items.');
-    }
+    } catch (err) { console.error(err); }
   }
 
-  // --- VERKAUF NEU EINGEBEN, SPÄTER EDITIEREN ODER ZURÜCKSETZEN ---
+  // --- KONSOLIDIERTER VERKAUFS-REQUEST ---
   function openSaleForm(runItemId) {
     if (!canEdit) return;
-    saleInputs = {
-      ...saleInputs,
-      [runItemId]: { price: 0, priceDisplay: '', isShop: false, saleDate: toLocalDatetimeInput() }
-    };
-    addingSaleForItemId = {
-      ...addingSaleForItemId,
-      [runItemId]: true
-    };
-  }
-
-  function closeSaleForm(runItemId) {
-    addingSaleForItemId = {
-      ...addingSaleForItemId,
-      [runItemId]: false
-    };
+    uiState.sales[runItemId] = { mode: 'add', price: 0, priceDisplay: '', isShop: false, saleDate: toLocalDatetimeInput() };
   }
 
   function startEditSale(item) {
     if (!canEdit) return;
     const currentPrice = Number(item.sale_price || item.actual_price || item.price || 0);
     const rawPrice = item.is_shop ? Math.round(currentPrice / 0.98) : currentPrice;
-
-    editSaleInputs = {
-      ...editSaleInputs,
-      [item.id]: {
-        price: rawPrice,
-        priceDisplay: new Intl.NumberFormat('de-DE').format(rawPrice),
-        isShop: Boolean(item.is_shop || item.sale_type === 'Shop'),
-        saleDate: toLocalDatetimeInput(item.sale_date)
-      }
-    };
-    editingSaleForItemId = {
-      ...editingSaleForItemId,
-      [item.id]: true
+    uiState.sales[item.id] = {
+      mode: 'edit', price: rawPrice, priceDisplay: new Intl.NumberFormat('de-DE').format(rawPrice),
+      isShop: Boolean(item.is_shop || item.sale_type === 'Shop'), saleDate: toLocalDatetimeInput(item.sale_date)
     };
   }
 
-  function cancelEditSale(runItemId) {
-    editingSaleForItemId = {
-      ...editingSaleForItemId,
-      [runItemId]: false
-    };
+  function closeSaleForm(runItemId) {
+    if (uiState.sales[runItemId]) delete uiState.sales[runItemId];
+    uiState = { ...uiState };
   }
 
-  async function saveSaleForItem(runId, runItem) {
+  async function persistSale(runId, runItem, isUpdate = false) {
     if (!canEdit) return;
-    const input = saleInputs[runItem.id];
-    if (!input || !input.price || Number(input.price) <= 0) {
-      alert('Bitte gib einen gültigen Verkaufspreis ein.');
-      return;
-    }
+    const input = uiState.sales[runItem.id];
+    if (!input || !input.price || Number(input.price) <= 0) return alert('Bitte gib einen gültigen Verkaufspreis ein.');
 
+    const endpoint = isUpdate ? `${backendUrl}/runs/sales/${runItem.sale_id}` : `${backendUrl}/runs/${runId}/sales`;
     const itemId = getROItemId(runItem) || runItem.item_id || runItem.id;
 
-    if (!itemId || isNaN(Number(itemId))) {
-      alert('Fehler: Für dieses Item konnte keine gültige Item-ID ermittelt werden.');
-      return;
-    }
-
     const payload = {
-      item_id: Number(itemId),
-      quantity: 1,
-      actual_price: Number(input.price),
-      is_shop: Boolean(input.isShop),
+      ...(isUpdate ? {} : { item_id: Number(itemId) }),
+      quantity: 1, actual_price: Number(input.price), is_shop: Boolean(input.isShop),
       created_at: input.saleDate ? new Date(input.saleDate).toISOString() : new Date().toISOString()
     };
 
     try {
-      const res = await fetch(`${backendUrl}/runs/${runId}/sales`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
+      const res = await fetch(endpoint, {
+        method: isUpdate ? 'PUT' : 'POST', headers: getAuthHeaders(), body: JSON.stringify(payload)
       });
-
       if (res.ok) {
         closeSaleForm(runItem.id);
-        delete saleInputs[runItem.id];
-        saleInputs = { ...saleInputs };
         await loadRunDetails(runId);
-      } else {
-        const errorData = await res.json().catch(() => null);
-        alert(`Verkauf konnte nicht gespeichert werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Netzwerkfehler beim Speichern des Verkaufs.');
-    }
-  }
-
-  async function updateSaleForItem(runId, runItem) {
-    if (!canEdit) return;
-    const input = editSaleInputs[runItem.id];
-    if (!input || !input.price || Number(input.price) <= 0) {
-      alert('Bitte gib einen gültigen Verkaufspreis ein.');
-      return;
-    }
-
-    if (!runItem.sale_id) {
-      alert('Fehler: Es konnte keine Verkaufs-ID für dieses Item gefunden werden.');
-      return;
-    }
-
-    const payload = {
-      quantity: 1,
-      actual_price: Number(input.price),
-      is_shop: Boolean(input.isShop),
-      created_at: input.saleDate ? new Date(input.saleDate).toISOString() : undefined
-    };
-
-    try {
-      const res = await fetch(`${backendUrl}/runs/sales/${runItem.sale_id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        cancelEditSale(runItem.id);
-        delete editSaleInputs[runItem.id];
-        editSaleInputs = { ...editSaleInputs };
-        await loadRunDetails(runId);
-      } else {
-        const errorData = await res.json().catch(() => null);
-        alert(`Verkauf konnte nicht aktualisiert werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Netzwerkfehler beim Aktualisieren des Verkaufs.');
-    }
+      } else alert(`Fehler beim Speichern (Status ${res.status})`);
+    } catch (err) { alert('Netzwerkfehler beim Speichern des Verkaufs.'); }
   }
 
   async function deleteSaleForItem(runId, runItem) {
-    if (!canEdit) return;
-    if (!runItem.sale_id) {
-      alert('Fehler: Es konnte keine Verkaufs-ID für dieses Item gefunden werden.');
-      return;
-    }
-
-    if (!confirm(`Möchtest du den Verkauf von "${getItemName(runItem)}" wirklich zurücksetzen?`)) {
-      return;
-    }
-
+    if (!canEdit || !runItem.sale_id || !confirm(`Verkauf von "${getItemName(runItem)}" zurücksetzen?`)) return;
     try {
-      const res = await fetch(`${backendUrl}/runs/sales/${runItem.sale_id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-
-      if (res.ok) {
-        await loadRunDetails(runId);
-      } else {
-        const errorData = await res.json().catch(() => null);
-        alert(`Verkauf konnte nicht zurückgesetzt werden (Status ${res.status}).\n${JSON.stringify(errorData || res.statusText)}`);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Netzwerkfehler beim Zurücksetzen des Verkaufs.');
-    }
+      const res = await fetch(`${backendUrl}/runs/sales/${runItem.sale_id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      if (res.ok) await loadRunDetails(runId);
+    } catch (err) { console.error(err); }
   }
 
   function formatZeny(amount) {
@@ -846,643 +487,120 @@
 </div>
 
 {#if isLoading}
-  <section class="card">
-    <p class="status-text">Lade Runs...</p>
-  </section>
+  <section class="card"><p class="status-text">Lade Runs...</p></section>
 {:else if errorMessage}
-  <section class="card">
-    <p class="error">{errorMessage}</p>
-  </section>
+  <section class="card"><p class="error">{errorMessage}</p></section>
 {:else if runs.length === 0}
-  <section class="card">
-    <p class="status-text">
-      {#if canEdit}
-        Noch keine Runs vorhanden. Klicke oben auf "+ Neuen Run anlegen"!
-      {:else}
-        Noch keine Runs vorhanden.
-      {/if}
-    </p>
-  </section>
+  <section class="card"><p class="status-text">{canEdit ? 'Noch keine Runs vorhanden. Klicke oben auf "+ Neuen Run anlegen"!' : 'Noch keine Runs vorhanden.'}</p></section>
 {:else}
-  <!-- 1. SEKTION: AKTIVE RUNS -->
   <section class="card section-margin">
     <h2>Aktive Runs ({activeRuns.length})</h2>
     {#if activeRuns.length === 0}
       <p class="empty-text">Keine aktiven Runs vorhanden.</p>
     {:else}
       <ul class="runs-list">
-        {#each activeRuns as run, index (run.id ? `${run.id}-${index}` : index)}
-          {@const isExpanded = expandedRunIds.has(run.id)}
-          {@const statusInfo = getRunStatusInfo(run)}
-          <li class="run-item" id="run-{run.id}">
-            <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
-              
-              {#if editingRunHeader[run.id]}
-                <div class="run-edit-inline" on:click|stopPropagation>
-                  <input 
-                    type="text" 
-                    bind:value={runHeaderInputs[run.id].name} 
-                    class="header-edit-input input-sm"
-                    placeholder="Run Name" 
-                  />
-                  <input 
-                    type="text" 
-                    bind:value={runHeaderInputs[run.id].run_type} 
-                    class="input-sm header-edit-input"
-                    placeholder="Typ (z.B. ET, WoE)" 
-                  />
-                  <button type="button" class="btn btn-primary btn-small" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
-                  <button type="button" class="btn btn-danger" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
-                  <button type="button" class="btn btn-secondary btn-small" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
-                </div>
-              {:else}
-                <div class="run-info">
-                  <span class="run-name">{run.name}</span>
-                  {#if run.run_type}
-                    <span class="run-meta">📌 {run.run_type}</span>
-                  {/if}
-                </div>
-              {/if}
-
-              <div class="header-right">
-                {#if statusInfo}
-                  <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
-                {/if}
-
-                {#if isAdmin && !editingRunHeader[run.id]}
-                  <button type="button" class="btn btn-icon" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
-                {/if}
-
-                <button class="btn btn-secondary" type="button">
-                  {isExpanded ? '▲ Verbergen' : '▼ Details'}
-                </button>
-              </div>
-            </div>
-
-            {#if isExpanded}
-              <div class="run-details">
-                {#if run.summary}
-                  <div class="summary-banner">
-                    <div class="summary-card">
-                      <span class="summary-label">Gesamteinnahmen</span>
-                      <span class="summary-value total-zeny">{formatZeny(run.summary.total_zeny)}</span>
-                    </div>
-                    <div class="summary-card">
-                      <span class="summary-label">Split pro Spieler ({run.summary.participant_count}x)</span>
-                      <span class="summary-value split-zeny">{formatZeny(run.summary.payout_per_player)}</span>
-                    </div>
-                    <div class="summary-card">
-                      <span class="summary-label">Auszahlungs-Status</span>
-                      <span class="summary-value status-badge" class:all-paid={run.summary.all_paid_out}>
-                        {run.summary.participants_paid} / {run.summary.participant_count} Ausgezahlt
-                      </span>
-                    </div>
-                  </div>
-                {/if}
-
-                <div class="details-grid">
-                  <!-- TEILNEHMER -->
-                  <div class="detail-block participant-block">
-                    <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
-                    {#if !editingParticipants[run.id]}
-                      {#if run.participants && run.participants.length > 0}
-                        <ul>
-                          {#each run.participants as p, i}
-                            <li class="participant-row" class:paid-row={p.is_paid}>
-                              <div class="p-info">
-                                <strong class="num-prefix">{i + 1}.</strong> 
-                                <span>{p.name}</span>
-                                {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
-                              </div>
-                              {#if canEdit}
-                                <label class="payout-toggle" title="Auszahlungs-Status ändern">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={p.is_paid} 
-                                    on:change={() => togglePayoutStatus(run.id, p.participant_id, p.is_paid)} 
-                                  />
-                                  <span class="payout-label">{p.is_paid ? 'Ausgezahlt' : 'Offen'}</span>
-                                </label>
-                              {:else}
-                                <span class="payout-status-text" class:paid={p.is_paid}>
-                                  {p.is_paid ? '✓ Ausgezahlt' : '⏳ Offen'}
-                                </span>
-                              {/if}
-                            </li>
-                          {/each}
-                        </ul>
-                      {:else}
-                        <p class="empty-text">Keine Teilnehmer eingetragen</p>
-                      {/if}
-                      {#if canEdit}
-                        <button type="button" class="btn btn-secondary" on:click={() => enableParticipantEditing(run)}>➕ Add/Edit</button>
-                      {/if}
-                    {:else}
-                      <ul class="edit-list">
-                        {#each participantInputs[run.id]?.list || [] as p, idx}
-                          <li class="edit-row">
-                            <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
-                            <select bind:value={p.class_name} class="input-sm inline-select">
-                              {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
-                            </select>
-                            <button type="button" class="btn btn-danger btn-small" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
-                          </li>
-                        {/each}
-                      </ul>
-                      <div class="add-row">
-                        <select bind:value={participantInputs[run.id].newParticipantId} class="input-sm">
-                          <option value="">-- Spieler wählen --</option>
-                          {#each availableParticipants.filter(ap => !(participantInputs[run.id]?.list || []).some(p => Number(p.participant_id) === Number(ap.id))) as ap}
-                            <option value={ap.id}>{ap.name}</option>
-                          {/each}
-                        </select>
-                        <select bind:value={participantInputs[run.id].newClass} class="input-sm">
-                          <option value="">-- Klasse --</option>
-                          {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
-                        </select>
-                        <button type="button" class="btn btn-secondary btn-small" on:click={() => addParticipantToBuffer(run.id)}>+</button>
-                      </div>
-                      <div class="btn-group">
-                        <button type="button" class="btn btn-primary" on:click={() => saveParticipants(run.id)}>Speichern</button>
-                        <button type="button" class="btn btn-secondary" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
-                      </div>
-                    {/if}
-                  </div>
-
-                  <!-- DROPS / ITEMS -->
-                  <div class="detail-block item-block">
-                    <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
-                    
-                    {#if !editingItems[run.id]}
-                      {#if run.items && run.items.length > 0}
-                        <ul class="items-sales-list">
-                          {#each run.items as item (item.id)}
-                            {@const iconSrc = getItemIconUrl(item)}
-                            {@const roId = getROItemId(item)}
-                            <li class="item-sale-row">
-                              <div class="item-info">
-                                <span class="item-qty">{item.amount || item.quantity || 1}x</span>
-                                <img 
-                                  src={iconSrc} 
-                                  alt={item.name} 
-                                  class="item-icon-img"
-                                  on:error={(e) => handleImgError(e, item)} 
-                                />
-                                {#if roId}
-                                  <span class="item-id-badge">#{roId}</span>
-                                {/if}
-                                <span class="item-name">{getItemName(item, item.name || item.item_name)}</span>
-                              </div>
-
-                              <div class="sale-action-area">
-                                {#if editingSaleForItemId[item.id] && canEdit}
-                                  <div class="inline-sale-form">
-                                    {#if editSaleInputs[item.id]}
-                                      <input 
-                                        type="text" 
-                                        placeholder="Preis" 
-                                        value={editSaleInputs[item.id].priceDisplay || ''} 
-                                        on:input={(e) => handleEditPriceInput(item.id, e)}
-                                        class="price-input input-sm"
-                                      />
-                                      <input 
-                                        type="datetime-local" 
-                                        bind:value={editSaleInputs[item.id].saleDate} 
-                                        class="date-input input-sm"
-                                      />
-                                      <label class="checkbox-label">
-                                        <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
-                                        Shop
-                                      </label>
-                                    {/if}
-                                    <button type="button" class="btn btn-primary btn-small" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="btn btn-danger btn-small" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
-                                    <button type="button" class="btn btn-secondary btn-small" on:click={() => cancelEditSale(item.id)}>✕</button>
-                                  </div>
-                                {:else if item.sale_price || item.price || item.actual_price}
-                                  <div class="sale-details-col">
-                                    <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
-                                    {#if item.sale_date}
-                                      <span class="sale-date-tag">📅 {formatDate(item.sale_date)}</span>
-                                    {/if}
-                                  </div>
-
-                                  {#if item.is_shop || item.sale_type === 'Shop'}
-                                    <span class="shop-badge">Shop (-2%)</span>
-                                  {/if}
-                                  {#if canEdit}
-                                    <button type="button" class="btn btn-icon" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
-                                  {/if}
-                                {:else if addingSaleForItemId[item.id] && canEdit}
-                                  <div class="inline-sale-form">
-                                    {#if saleInputs[item.id]}
-                                      <input 
-                                        type="text" 
-                                        placeholder="Preis (z.B. 1.000.000)" 
-                                        value={saleInputs[item.id].priceDisplay || ''} 
-                                        on:input={(e) => handlePriceInput(item.id, e)}
-                                        class="price-input input-sm"
-                                      />
-                                      <input 
-                                        type="datetime-local" 
-                                        bind:value={saleInputs[item.id].saleDate} 
-                                        class="date-input input-sm"
-                                      />
-                                      <label class="checkbox-label">
-                                        <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
-                                        Shop
-                                      </label>
-                                    {/if}
-                                    <button type="button" class="btn btn-primary btn-small" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="btn btn-secondary btn-small" on:click={() => closeSaleForm(item.id)}>✕</button>
-                                  </div>
-                                {:else if canEdit}
-                                  <button type="button" class="btn btn-secondary btn-small" on:click={() => openSaleForm(item.id)}>
-                                    + Verkauf hinzufügen
-                                  </button>
-                                {:else}
-                                  <span class="empty-text">Offen</span>
-                                {/if}
-                              </div>
-                            </li>
-                          {/each}
-                        </ul>
-                      {:else}
-                        <p class="empty-text">Keine Items eingetragen</p>
-                      {/if}
-
-                      {#if canEdit}
-                        <button type="button" class="btn btn-secondary" on:click={() => enableItemEditing(run)}>
-                          ➕ Add/Edit
-                        </button>
-                      {/if}
-
-                    {:else}
-                      <ul class="edit-list">
-                        {#each itemInputs[run.id]?.list || [] as item, idx}
-                          {@const iconSrc = getItemIconUrl(item)}
-                          {@const roId = getROItemId(item)}
-                          <li class="edit-row">
-                            <span class="item-info">
-                              <span class="item-qty">{item.amount || 1}x</span>
-                              <img 
-                                src={iconSrc} 
-                                alt={item.name} 
-                                class="item-icon-img" 
-                                on:error={(e) => handleImgError(e, item)} 
-                              />
-                              {#if roId}
-                                <span class="item-id-badge">#{roId}</span>
-                              {/if}
-                              <span>{getItemName(item, item.name)}</span>
-                            </span>
-                            <button type="button" class="btn btn-danger btn-small" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
-                          </li>
-                        {/each}
-                      </ul>
-
-                      <div class="add-row">
-                        <input 
-                          type="number" 
-                          min="1" 
-                          placeholder="Anzahl" 
-                          bind:value={itemInputs[run.id].newAmount}
-                          class="qty-field"
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="Item Name oder RO-ID" 
-                          list="master-items-list"
-                          bind:value={itemInputs[run.id].newNameOrId}
-                          class="flex-grow-1"
-                        />
-                        <button type="button" class="btn btn-secondary" on:click={() => addItemToBuffer(run.id)}>+</button>
-                      </div>
-
-                      <div class="btn-group">
-                        <button type="button" class="btn btn-primary" on:click={() => saveItems(run.id)}>Speichern</button>
-                        <button type="button" class="btn btn-secondary" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
-                      </div>
-                    {/if}
-                  </div>
-
-                </div>
-              </div>
-            {/if}
-          </li>
+        {#each activeRuns as run (run.id)}
+          <RunCard
+            {run}
+            isExpanded={expandedRunIds.has(run.id)}
+            statusInfo={getRunStatusInfo(run)}
+            {canEdit}
+            {isAdmin}
+            {roClasses}
+            {availableParticipants}
+            bind:uiState
+            {getItemIconUrl}
+            {getROItemId}
+            {getItemName}
+            {handleImgError}
+            {formatDate}
+            {formatZeny}
+            onToggleExpand={toggleExpand}
+            onStartEditHeader={startEditRunHeader}
+            onSaveHeader={saveRunHeader}
+            onCancelEditHeader={cancelEditRunHeader}
+            onDeleteRun={deleteRun}
+            {togglePayoutStatus}
+            {enableParticipantEditing}
+            {removeParticipantFromBuffer}
+            {addParticipantToBuffer}
+            {saveParticipants}
+            {startEditSale}
+            {handlePriceInput}
+            {persistSale}
+            {deleteSaleForItem}
+            {closeSaleForm}
+            {openSaleForm}
+            {enableItemEditing}
+            {removeItemFromBuffer}
+            {addItemToBuffer}
+            {saveItems}
+          />
         {/each}
       </ul>
     {/if}
   </section>
 
-  <!-- 2. SEKTION: ABGESCHLOSSENE RUNS -->
   <section class="card closed-card">
-    <h2>Abgeschlossene Runs ({closedRuns.length})</h2>
-    {#if closedRuns.length === 0}
-      <p class="empty-text">Noch keine abgeschlossenen Runs vorhanden.</p>
-    {:else}
-      <ul class="runs-list">
-        {#each closedRuns as run, index (run.id ? `${run.id}-${index}` : index)}
-          {@const isExpanded = expandedRunIds.has(run.id)}
-          {@const statusInfo = getRunStatusInfo(run)}
-          <li class="run-item closed-run-item" id="run-{run.id}">
-            <div class="run-header" on:click={() => toggleExpand(run.id)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggleExpand(run.id)}>
-              
-              {#if editingRunHeader[run.id]}
-                <div class="run-edit-inline" on:click|stopPropagation>
-                  <input 
-                    type="text" 
-                    bind:value={runHeaderInputs[run.id].name} 
-                    class="input-sm header-edit-input"
-                    placeholder="Run Name" 
-                  />
-                  <input 
-                    type="text" 
-                    bind:value={runHeaderInputs[run.id].run_type} 
-                    class="input-sm header-edit-input"
-                    placeholder="Typ (z.B. ET, WoE)" 
-                  />
-                  <button type="button" class="btn btn-primary btn-small" on:click={(e) => saveRunHeader(run.id, e)}>✓</button>
-                  <button type="button" class="btn btn-danger" title="Run löschen" on:click={(e) => deleteRun(run.id, run.name, e)}>🗑️</button>
-                  <button type="button" class="btn btn-secondary btn-small" on:click={(e) => cancelEditRunHeader(run.id, e)}>✕</button>
-                </div>
-              {:else}
-                <div class="run-info">
-                  <span class="run-name">{run.name}</span>
-                  {#if run.run_type}
-                    <span class="run-meta">📌 {run.run_type}</span>
-                  {/if}
-                </div>
-              {/if}
+    <div
+      class="list-header"
+      style="cursor: pointer; user-select: none;"
+      on:click={() => showClosedRuns = !showClosedRuns}
+      role="button"
+      tabindex="0"
+      on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (showClosedRuns = !showClosedRuns)}
+    >
+      <h2>Abgeschlossene Runs ({closedRuns.length})</h2>
+      <button class="btn btn-secondary" type="button">
+        {showClosedRuns ? '▲ Verbergen' : '▼ Anzeigen'}
+      </button>
+    </div>
 
-              <div class="header-right">
-                {#if statusInfo}
-                  <span class="badge {statusInfo.cssClass}">{statusInfo.label}</span>
-                {/if}
-
-                {#if isAdmin && !editingRunHeader[run.id]}
-                  <button type="button" class="btn btn-icon" title="Run bearbeiten" on:click={(e) => startEditRunHeader(run, e)}>✏️</button>
-                {/if}
-
-                <button class="btn btn-secondary" type="button">
-                  {isExpanded ? '▲ Verbergen' : '▼ Details'}
-                </button>
-              </div>
-            </div>
-
-            {#if isExpanded}
-              <div class="run-details">
-                {#if run.summary}
-                  <div class="summary-banner">
-                    <div class="summary-card">
-                      <span class="summary-label">Gesamteinnahmen</span>
-                      <span class="summary-value total-zeny">{formatZeny(run.summary.total_zeny)}</span>
-                    </div>
-                    <div class="summary-card">
-                      <span class="summary-label">Split pro Spieler ({run.summary.participant_count}x)</span>
-                      <span class="summary-value split-zeny">{formatZeny(run.summary.payout_per_player)}</span>
-                    </div>
-                    <div class="summary-card">
-                      <span class="summary-label">Auszahlungs-Status</span>
-                      <span class="summary-value status-badge" class:all-paid={run.summary.all_paid_out}>
-                        {run.summary.participants_paid} / {run.summary.participant_count} Ausgezahlt
-                      </span>
-                    </div>
-                  </div>
-                {/if}
-
-                <div class="details-grid">
-                  <!-- TEILNEHMER -->
-                  <div class="detail-block participant-block">
-                    <h3>👥 Teilnehmer ({run.participants ? run.participants.length : 0})</h3>
-                    {#if !editingParticipants[run.id]}
-                      {#if run.participants && run.participants.length > 0}
-                        <ul>
-                          {#each run.participants as p, i}
-                            <li class="participant-row" class:paid-row={p.is_paid}>
-                              <div class="p-info">
-                                <strong class="num-prefix">{i + 1}.</strong> 
-                                <span>{p.name}</span>
-                                {#if p.class_name}<span class="class-tag">{p.class_name}</span>{/if}
-                              </div>
-                              {#if canEdit}
-                                <label class="payout-toggle" title="Auszahlungs-Status ändern">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={p.is_paid} 
-                                    on:change={() => togglePayoutStatus(run.id, p.participant_id, p.is_paid)} 
-                                  />
-                                  <span class="payout-label">{p.is_paid ? 'Ausgezahlt' : 'Offen'}</span>
-                                </label>
-                              {:else}
-                                <span class="payout-status-text" class:paid={p.is_paid}>
-                                  {p.is_paid ? '✓ Ausgezahlt' : '⏳ Offen'}
-                                </span>
-                              {/if}
-                            </li>
-                          {/each}
-                        </ul>
-                      {:else}
-                        <p class="empty-text">Keine Teilnehmer eingetragen</p>
-                      {/if}
-                      {#if canEdit}
-                        <button type="button" class="btn btn-secondary" on:click={() => enableParticipantEditing(run)}>➕ Add/Edit</button>
-                      {/if}
-                    {:else}
-                      <ul class="edit-list">
-                        {#each participantInputs[run.id]?.list || [] as p, idx}
-                          <li class="edit-row">
-                            <span class="edit-name"><strong class="num-prefix">{idx + 1}.</strong> {p.name}</span>
-                            <select bind:value={p.class_name} class="input-sm inline-select">
-                              {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
-                            </select>
-                            <button type="button" class="btn btn-danger btn-small" on:click={() => removeParticipantFromBuffer(run.id, idx)}>✕</button>
-                          </li>
-                        {/each}
-                      </ul>
-                      <div class="add-row">
-                        <select bind:value={participantInputs[run.id].newParticipantId} class="input-sm">
-                          <option value="">-- Spieler wählen --</option>
-                          {#each availableParticipants.filter(ap => !(participantInputs[run.id]?.list || []).some(p => Number(p.participant_id) === Number(ap.id))) as ap}
-                            <option value={ap.id}>{ap.name}</option>
-                          {/each}
-                        </select>
-                        <select bind:value={participantInputs[run.id].newClass} class="input-sm">
-                          <option value="">-- Klasse --</option>
-                          {#each roClasses as roClass}<option value={roClass}>{roClass}</option>{/each}
-                        </select>
-                        <button type="button" class="btn btn-secondary btn-small" on:click={() => addParticipantToBuffer(run.id)}>+</button>
-                      </div>
-                      <div class="btn-group">
-                        <button type="button" class="btn btn-primary" on:click={() => saveParticipants(run.id)}>Speichern</button>
-                        <button type="button" class="btn btn-secondary" on:click={() => editingParticipants[run.id] = false}>Abbrechen</button>
-                      </div>
-                    {/if}
-                  </div>
-
-                  <!-- DROPS / ITEMS -->
-                  <div class="detail-block item-block">
-                    <h3>📦 Drops / Items ({run.items ? run.items.length : 0})</h3>
-                    
-                    {#if !editingItems[run.id]}
-                      {#if run.items && run.items.length > 0}
-                        <ul class="items-sales-list">
-                          {#each run.items as item (item.id)}
-                            {@const iconSrc = getItemIconUrl(item)}
-                            {@const roId = getROItemId(item)}
-                            <li class="item-sale-row">
-                              <div class="item-info">
-                                <span class="item-qty">{item.amount || item.quantity || 1}x</span>
-                                <img 
-                                  src={iconSrc} 
-                                  alt={item.name} 
-                                  class="item-icon-img"
-                                  on:error={(e) => handleImgError(e, item)} 
-                                />
-                                {#if roId}
-                                  <span class="item-id-badge">#{roId}</span>
-                                {/if}
-                                <span class="item-name">{getItemName(item, item.name || item.item_name)}</span>
-                              </div>
-
-                              <div class="sale-action-area">
-                                {#if editingSaleForItemId[item.id] && canEdit}
-                                  <div class="inline-sale-form">
-                                    {#if editSaleInputs[item.id]}
-                                      <input 
-                                        type="text" 
-                                        placeholder="Preis" 
-                                        value={editSaleInputs[item.id].priceDisplay || ''} 
-                                        on:input={(e) => handleEditPriceInput(item.id, e)}
-                                        class="price-input input-sm"
-                                      />
-                                      <input 
-                                        type="datetime-local" 
-                                        bind:value={editSaleInputs[item.id].saleDate} 
-                                        class="date-input input-sm"
-                                      />
-                                      <label class="checkbox-label">
-                                        <input type="checkbox" bind:checked={editSaleInputs[item.id].isShop} />
-                                        Shop
-                                      </label>
-                                    {/if}
-                                    <button type="button" class="btn btn-primary btn-small" on:click={() => updateSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="btn btn-danger" on:click={() => deleteSaleForItem(run.id, item)} title="Verkauf zurücksetzen">🗑️</button>
-                                    <button type="button" class="btn btn-secondary btn-small" on:click={() => cancelEditSale(item.id)}>✕</button>
-                                  </div>
-                                {:else if item.sale_price || item.price || item.actual_price}
-                                  <div class="sale-details-col">
-                                    <span class="price-tag">{formatZeny(item.sale_price || item.actual_price || item.price)}</span>
-                                    {#if item.sale_date}
-                                      <span class="sale-date-tag">📅 {formatDate(item.sale_date)}</span>
-                                    {/if}
-                                  </div>
-
-                                  {#if item.is_shop || item.sale_type === 'Shop'}
-                                    <span class="shop-badge">Shop (-2%)</span>
-                                  {/if}
-                                  {#if canEdit}
-                                    <button type="button" class="btn btn-icon" on:click={() => startEditSale(item)} title="Verkauf bearbeiten">✏️</button>
-                                  {/if}
-                                {:else if addingSaleForItemId[item.id] && canEdit}
-                                  <div class="inline-sale-form">
-                                    {#if saleInputs[item.id]}
-                                      <input 
-                                        type="text" 
-                                        placeholder="Preis (z.B. 1.000.000)" 
-                                        value={saleInputs[item.id].priceDisplay || ''} 
-                                        on:input={(e) => handlePriceInput(item.id, e)}
-                                        class="price-input input-sm"
-                                      />
-                                      <input 
-                                        type="datetime-local" 
-                                        bind:value={saleInputs[item.id].saleDate} 
-                                        class="date-input input-sm"
-                                      />
-                                      <label class="checkbox-label">
-                                        <input type="checkbox" bind:checked={saleInputs[item.id].isShop} />
-                                        Shop
-                                      </label>
-                                    {/if}
-                                    <button type="button" class="btn btn-primary btn-small" on:click={() => saveSaleForItem(run.id, item)}>✓</button>
-                                    <button type="button" class="btn btn-secondary btn-small" on:click={() => closeSaleForm(item.id)}>✕</button>
-                                  </div>
-                                {:else if canEdit}
-                                  <button type="button" class="btn btn-secondary btn-small" on:click={() => openSaleForm(item.id)}>
-                                    + Verkauf hinzufügen
-                                  </button>
-                                {:else}
-                                  <span class="empty-text">Offen</span>
-                                {/if}
-                              </div>
-                            </li>
-                          {/each}
-                        </ul>
-                      {:else}
-                        <p class="empty-text">Keine Items eingetragen</p>
-                      {/if}
-
-                      {#if canEdit}
-                        <button type="button" class="btn btn-secondary" on:click={() => enableItemEditing(run)}>
-                          ➕ Add/Edit
-                        </button>
-                      {/if}
-
-                    {:else}
-                      <ul class="edit-list">
-                        {#each itemInputs[run.id]?.list || [] as item, idx}
-                          {@const iconSrc = getItemIconUrl(item)}
-                          {@const roId = getROItemId(item)}
-                          <li class="edit-row">
-                            <span class="item-info">
-                              <span class="item-qty">{item.amount || 1}x</span>
-                              <img 
-                                src={iconSrc} 
-                                alt={item.name} 
-                                class="item-icon-img" 
-                                on:error={(e) => handleImgError(e, item)} 
-                              />
-                              {#if roId}
-                                <span class="item-id-badge">#{roId}</span>
-                              {/if}
-                              <span>{getItemName(item, item.name)}</span>
-                            </span>
-                            <button type="button" class="btn btn-danger" on:click={() => removeItemFromBuffer(run.id, idx)}>✕</button>
-                          </li>
-                        {/each}
-                      </ul>
-
-                      <div class="add-row">
-                        <input 
-                          type="number" 
-                          min="1" 
-                          placeholder="Anzahl" 
-                          bind:value={itemInputs[run.id].newAmount}
-                          class="qty-field"
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="Item Name oder RO-ID" 
-                          list="master-items-list"
-                          bind:value={itemInputs[run.id].newNameOrId}
-                          class="flex-grow-1"
-                        />
-                        <button type="button" class="btn btn-secondary" on:click={() => addItemToBuffer(run.id)}>+</button>
-                      </div>
-
-                      <div class="btn-group">
-                        <button type="button" class="btn btn-primary" on:click={() => saveItems(run.id)}>Speichern</button>
-                        <button type="button" class="btn btn-secondary" on:click={() => editingItems[run.id] = false}>Abbrechen</button>
-                      </div>
-                    {/if}
-                  </div>
-
-                </div>
-              </div>
-            {/if}
-          </li>
-        {/each}
-      </ul>
+    {#if showClosedRuns}
+      {#if closedRuns.length === 0}
+        <p class="empty-text">Noch keine abgeschlossenen Runs vorhanden.</p>
+      {:else}
+        <ul class="runs-list">
+          {#each closedRuns as run (run.id)}
+            <RunCard
+              {run}
+              isExpanded={expandedRunIds.has(run.id)}
+              statusInfo={getRunStatusInfo(run)}
+              {canEdit}
+              {isAdmin}
+              {roClasses}
+              {availableParticipants}
+              bind:uiState
+              {getItemIconUrl}
+              {getROItemId}
+              {getItemName}
+              {handleImgError}
+              {formatDate}
+              {formatZeny}
+              onToggleExpand={toggleExpand}
+              onStartEditHeader={startEditRunHeader}
+              onSaveHeader={saveRunHeader}
+              onCancelEditHeader={cancelEditRunHeader}
+              onDeleteRun={deleteRun}
+              {togglePayoutStatus}
+              {enableParticipantEditing}
+              {removeParticipantFromBuffer}
+              {addParticipantToBuffer}
+              {saveParticipants}
+              {startEditSale}
+              {handlePriceInput}
+              {persistSale}
+              {deleteSaleForItem}
+              {closeSaleForm}
+              {openSaleForm}
+              {enableItemEditing}
+              {removeItemFromBuffer}
+              {addItemToBuffer}
+              {saveItems}
+            />
+          {/each}
+        </ul>
+      {/if}
     {/if}
   </section>
 {/if}
