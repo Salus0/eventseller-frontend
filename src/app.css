@@ -216,10 +216,6 @@ label {
     background-color: var(--bg-darker);
 }
 
-.closed-card h2 {
-    color: var(--text-muted);
-}
-
 .raid-helper-card, .sync-card {
     border-color: var(--accent-purple);
     background-color: var(--bg-darker);
@@ -246,15 +242,12 @@ label {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
     flex-wrap: wrap;
     gap: 1rem;
 }
 
 .list-header h2 {
     margin: 0;
-    font-size: 1.2rem;
-    color: var(--text-dark);
 }
 
 /* ==========================================
@@ -417,6 +410,7 @@ label {
 
 .runs-list, .run-list {
     gap: 0.75rem;
+    margin-top: 1rem;
 }
 
 .participant-list {
@@ -718,6 +712,7 @@ li.run-item[role="button"]:hover {
 /* Tabellen & Item-Übersichten */
 .table-container {
     overflow-x: auto;
+    margin-top: 1rem;
 }
 
 .item-table {
@@ -901,6 +896,17 @@ input::placeholder,
     position: relative;
     flex: 1;
     min-width: 220px;
+}
+
+input[list] {
+    padding-right: 2rem;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 14px;
+}
+input[list]::-webkit-calendar-picker-indicator {
+    display: none !important;
 }
 
 .dropdown-list {
@@ -1117,4 +1123,158 @@ input::placeholder,
 
 .flex-grow-1 {
     flex-grow: 1;
+}
+
+/* ==========================================
+   10. Responsive Design (Mobil & Tablet < 768px)
+   ========================================== */
+@media (max-width: 768px) {
+    /* Layout & Abstände */
+    .page-content, .container {
+        padding: 1rem 0.5rem;
+    }
+
+    .header-action {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    /* Navigation Bar */
+    .nav-container {
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+    }
+
+    .nav-links {
+        width: 100%;
+        justify-content: space-between;
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+    }
+
+    .nav-links a {
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+
+    .nav-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    /* Karten & Header */
+    .card {
+        padding: 1rem 0.5rem;
+    }
+
+    .run-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .header-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .summary-banner {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .run-details {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+        padding: 1rem 0.5rem;
+    }
+
+    .is--dashboard li.run-item {
+        flex-direction: column;
+    }
+
+    .run-title-line {
+        justify-content: space-between;
+    }
+
+    .badge {
+        flex-shrink: 0;
+    }
+
+    .run-details-dashboard {
+        width: 100%;
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    .detail-block li {
+        align-items: flex-start;
+    }
+
+    .p-info-name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 110px;
+    }
+
+    /* Formulare & Eingabefelder */
+    .add-form, .sales-form, .import-row, .add-row {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .input-field, .small-select, .small-input, .date-input,
+    .import-input, .sync-input, .search-input, .wide-price-input {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        box-sizing: border-box;
+    }
+
+    .autocomplete-wrapper {
+        width: 100%;
+        min-width: 0;
+    }
+
+    /* Interaktive Listen & Verkäufe */
+    .item-sale-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.5rem 0;
+    }
+
+    .sale-action-area {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .inline-sale-form {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        gap: 0.5rem;
+    }
+
+    /* Buttons auf volle Breite bei mobilen Formularen */
+    .create-btn, .submit-btn, .import-btn, .sync-btn {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+    }
+}
+
+@media (max-width: 1024px) {
+    /* Grids & Layouts auflösen */
+    .details-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
 }
