@@ -387,6 +387,7 @@
   }
 
   function addItemToBuffer(runId) {
+console.log("addItemToBuffer");
     const input = uiState.items[runId];
     if (!input || !input.newNameOrId.trim()) return;
     const rawInput = input.newNameOrId.trim().toLowerCase();
@@ -404,6 +405,7 @@
   }
 
   function removeItemFromBuffer(runId, index) {
+console.log("removeItemFromBuffer");
     if (uiState.items[runId]?.list) uiState.items[runId].list.splice(index, 1);
   }
 
