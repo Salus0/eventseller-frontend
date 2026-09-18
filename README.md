@@ -81,3 +81,5 @@ PUBLIC_BACKEND_URL=https://yggdrasil-eventseller-backend.up.railway.app
 4. Kopiere den Wert des Keys jwt_token.
 5. Öffne dein lokales Frontend (http://localhost:5173), öffne dort ebenfalls die Entwicklertools -> Local Storage, erstelle einen neuen Eintrag mit dem Namen jwt_token und füge den kopierten Wert ein.
 6. Seite neu laden – du bist lokal eingeloggt und siehst alle Live-Daten im neuen Design.
+
+   
