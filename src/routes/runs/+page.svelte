@@ -387,24 +387,53 @@
   }
 
   function addItemToBuffer(runId) {
-    const input = uiState.items[runId];
+    const input = itemInputs[runId];
     if (!input || !input.newNameOrId.trim()) return;
-    const rawInput = input.newNameOrId.trim().toLowerCase();
-    const matchedMasterItem = masterItems.find(i => String(i.item_id || i.ro_item_id || i.id) === rawInput || i.name.toLowerCase() === rawInput);
 
-    let finalItemId = matchedMasterItem ? Number(matchedMasterItem.item_id ?? matchedMasterItem.ro_item_id ?? matchedMasterItem.id) : (!isNaN(rawInput) ? Number(rawInput) : null);
-    let finalName = matchedMasterItem ? matchedMasterItem.name : getItemName({ item_id: finalItemId }, input.newNameOrId.trim());
+    const rawInput = input.newNameOrId.trim();
+    const query = rawInput.toLowerCase();
 
-    const newItems = Array.from({ length: Number(input.newAmount) || 1 }, () => ({
-      item_id: finalItemId, ro_item_id: finalItemId, name: finalName, amount: 1
-    }));
+    const matchedMasterItem = masterItems.find(
+      i => String(i.item_id || i.ro_item_id || i.id) === query ||
+           i.name.toLowerCase() === query ||
+           `${i.name} (id: ${i.item_id || i.ro_item_id || i.id})`.toLowerCase() === query
+    );
 
-    input.list = [...input.list, ...newItems];
-    input.newNameOrId = ''; input.newAmount = 1;
+    let finalItemId = null;
+    let finalName = rawInput;
+
+    if (matchedMasterItem) {
+      finalItemId = Number(matchedMasterItem.item_id ?? matchedMasterItem.ro_item_id ?? matchedMasterItem.id);
+      finalName = matchedMasterItem.name;
+    } else if (!isNaN(query)) {
+      finalItemId = Number(query);
+      finalName = getItemName({ item_id: finalItemId }, finalName);
+    }
+
+    const amountToTake = Number(input.newAmount) || 1;
+    const newItemsArray = [];
+
+    for (let i = 0; i < amountToTake; i++) {
+      newItemsArray.push({
+        item_id: finalItemId,
+        ro_item_id: finalItemId,
+        name: finalName,
+        amount: 1
+      });
+    }
+
+    input.list = [...input.list, ...newItemsArray];
+
+    input.newNameOrId = '';
+    input.newAmount = 1;
+    itemInputs = { ...itemInputs };
   }
 
   function removeItemFromBuffer(runId, index) {
-    if (uiState.items[runId]?.list) uiState.items[runId].list.splice(index, 1);
+    if (!itemInputs[runId]?.list) return;
+    itemInputs[runId].list.splice(index, 1);
+    itemInputs[runId].list = [...itemInputs[runId].list];
+    itemInputs = { ...itemInputs };
   }
 
   async function saveItems(runId) {
