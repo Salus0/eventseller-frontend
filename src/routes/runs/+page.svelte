@@ -35,7 +35,7 @@
 
   const roClasses = [
     'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
-    'Paladin', 'Professor', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
+    'Paladin', 'Scholar', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
@@ -157,7 +157,11 @@
   // --- RUN HEADER EDITIEREN ---
   function startEditRunHeader(run, e) {
     if (e) e.stopPropagation();
-    uiState.headers[run.id] = { isEditing: true, name: run.name, run_type: run.run_type || '' };
+    uiState.headers[run.id] = {
+      isEditing: true,
+      name: run.name,
+      seller: run.seller || ''
+    };
   }
 
   function cancelEditRunHeader(runId, e) {
@@ -175,13 +179,23 @@
       const res = await fetch(`${backendUrl}/runs/${runId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ name: input.name.trim(), run_type: input.run_type.trim() || null })
+        body: JSON.stringify({
+          name: input.name.trim(),
+          seller: input.seller ? Number(input.seller) : null
+        })
       });
       if (res.ok) {
         uiState.headers[runId].isEditing = false;
         await fetchData();
-      } else alert('Fehler beim Aktualisieren des Runs.');
-    } catch (err) { alert('Netzwerkfehler beim Aktualisieren.'); }
+      } else {
+        const errData = await res.json().catch(() => null);
+        console.error('Backend Fehler-Details:', errData);
+        alert(`Fehler ${res.status}: ${JSON.stringify(errData?.detail || errData)}`);
+      }
+    } catch (err) {
+        console.error('Fetch-Absturz:', err);
+        alert('Verbindungsfehler zum Server.');
+      }
   }
 
   async function deleteRun(runId, runName, e) {

@@ -18,9 +18,14 @@
 
   let selectedParticipants = [{ participant_id: '', class_name: '' }];
 
+  let selectedSellerId = '';
+
+  $: sellerList = availableParticipants.filter(p => p.role === 'seller' || p.role === 'admin');
+  $: selectableSellers = sellerList.length > 0 ? sellerList : availableParticipants;
+
   const roClasses = [
     'Lord Knight', 'High Wizard', 'Sniper', 'High Priest', 'Whitesmith', 'Assassin Cross',
-    'Paladin', 'Professor', 'Scholar', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
+    'Paladin', 'Scholar', 'Clown', 'Gypsy', 'Champion', 'Creator', 'Stalker',
     'Gunslinger', 'Ninja', 'Star Gladiator', 'Super Novice', 'Sonstiges'
   ];
 
@@ -32,7 +37,6 @@
     'whitesmith': 'Whitesmith', 'ws': 'Whitesmith', 'blacksmith': 'Whitesmith',
     'assassin cross': 'Assassin Cross', 'assassin_cross': 'Assassin Cross', 'assa_x': 'Assassin Cross', 'sinx': 'Assassin Cross', 'assassin': 'Assassin Cross',
     'paladin': 'Paladin', 'pala': 'Paladin',
-    'professor': 'Professor', 'prof': 'Professor', 'sage': 'Professor',
     'scholar': 'Scholar',
     'clown': 'Clown', 'bard': 'Clown',
     'gypsy': 'Gypsy', 'gipsy': 'Gypsy', 'dancer': 'Gypsy',
@@ -93,6 +97,7 @@
 
       if (res.ok) {
         availableParticipants = await res.json();
+        console.log('Geladene Participants:', availableParticipants);
       } else {
         console.error(`Fehler beim Laden der Teilnehmer: Status ${res.status}`);
       }
@@ -257,7 +262,8 @@
         },
         body: JSON.stringify({
           name: computedName,
-          created_at: `${eventDate} 20:15:00`
+          created_at: `${eventDate} 20:15:00`,
+          seller: selectedSellerId ? Number(selectedSellerId) : null
         })
       });
 
@@ -336,6 +342,16 @@
       <div class="form-group">
         <label for="event-date">Datum *</label>
         <input id="event-date" type="date" class="input-field" bind:value={eventDate} required />
+      </div>
+
+      <div class="form-group">
+        <label for="seller-select">Verkäufer</label>
+        <select id="seller-select" class="input-field" bind:value={selectedSellerId}>
+          <option value="">-- Keiner / Später festlegen --</option>
+          {#each selectableSellers as seller}
+            <option value={seller.id}>{seller.name}</option>
+          {/each}
+        </select>
       </div>
 
       <div class="form-group full-width">
