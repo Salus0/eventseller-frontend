@@ -478,6 +478,7 @@ li.run-item[role="button"]:hover {
 .name {
     color: var(--text-dark);
     font-weight: 500;
+    flex-grow: 1;
 }
 
 .run-header {
@@ -882,7 +883,6 @@ input::placeholder,
 .edit-input { min-width: 130px; }
 .edit-input-lg { width: 100%; }
 .search-input { width: 250px; }
-.header-edit-input { width: 140px; flex: none; }
 
 .import-input, .sync-input {
     flex: 1;
@@ -890,7 +890,7 @@ input::placeholder,
     border-color: var(--accent-purple);
 }
 
-.sync-input { max-width: 350px; }
+.sync-input { width: 100%; }
 
 .autocomplete-wrapper {
     position: relative;

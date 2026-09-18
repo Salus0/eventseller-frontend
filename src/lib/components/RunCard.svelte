@@ -56,15 +56,18 @@
         <input
           type="text"
           bind:value={uiState.headers[run.id].name}
-          class="header-edit-input input-sm"
+          class="header-edit-input"
           placeholder="Run Name"
         />
-        <input
-          type="text"
-          bind:value={uiState.headers[run.id].run_type}
-          class="input-sm header-edit-input"
-          placeholder="Typ (z.B. ET, WoE)"
-        />
+        <select
+          bind:value={uiState.headers[run.id].seller}
+          class="header-edit-input"
+        >
+          <option value="">-- Kein Verkäufer --</option>
+          {#each availableParticipants.filter(p => p.role === 'seller' || p.role === 'admin') as seller}
+            <option value={seller.id}>{seller.name}</option>
+          {/each}
+        </select>
         <button type="button" class="btn btn-primary btn-small" on:click={(e) => onSaveHeader(run.id, e)}>✓</button>
         <button type="button" class="btn btn-danger btn-small" title="Run löschen" on:click={(e) => onDeleteRun(run.id, run.name, e)}>🗑️</button>
         <button type="button" class="btn btn-secondary btn-small" on:click={(e) => onCancelEditHeader(run.id, e)}>✕</button>
@@ -111,6 +114,10 @@
             <span class="summary-value status-badge" class:all-paid={run.summary.all_paid_out}>
               {run.summary.participants_paid} / {run.summary.participant_count} Ausgezahlt
             </span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-label">Verkäufer</span>
+            <span class="summary-value seller-name">{run.seller_name || 'Keiner zugewiesen'}</span>
           </div>
         </div>
       {/if}

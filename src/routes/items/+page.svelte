@@ -335,7 +335,7 @@
           type="number" 
           placeholder="Item-ID (z.B. 2554)" 
           bind:value={newItemId} 
-          class="input-field input-sm"
+          class="input-field"
           required
         />
         <input 
@@ -385,7 +385,7 @@
               {@const targetId = item.item_id || item.id}
               
               {#if editingId === item.id && isAdmin}
-                <tr class="edit-row">
+                <tr>
                   <td class="icon-cell">
                     <img 
                       src={getItemImageUrl(item, editItemId)} 
@@ -404,7 +404,7 @@
                     />
                   </td>
                   <td>
-                    <input type="number" bind:value={editItemId} class="input-field edit-input-sm" />
+                    <input type="number" bind:value={editItemId} class="input-field" />
                   </td>
                   <td>
                     <input type="text" bind:value={editName} class="input-field edit-input-lg" />
@@ -413,8 +413,8 @@
                   <td class="date-cell">{formatDate(displayDate)}</td>
                   <td>
                     <div class="btn-group">
-                      <button type="button" class="btn btn-primary" on:click={() => saveItem(item.id)}>Speichern</button>
-                      <button type="button" class="btn btn-secondary" on:click={cancelEditing}>Abbrechen</button>
+                      <button type="button" class="btn btn-primary btn-small" on:click={() => saveItem(item.id)}>Speichern</button>
+                      <button type="button" class="btn btn-secondary btn-small" on:click={cancelEditing}>Abbrechen</button>
                     </div>
                   </td>
                 </tr>
@@ -444,7 +444,7 @@
                   <td>
                     <div class="btn-group">
                       {#if isAdmin}
-                        <button type="button" class="btn btn-secondary" on:click={() => startEditing(item)}>✏️ Edit</button>
+                        <button type="button" class="btn btn-secondary btn-small" on:click={() => startEditing(item)}>✏️ Edit</button>
                       {/if}
                       <button 
                         type="button" 

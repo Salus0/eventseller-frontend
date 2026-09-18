@@ -7,6 +7,7 @@
   let participants = [];
   let newName = '';
   let newDiscordId = '';
+  let newRole = 'user';
   let isLoading = true;
   let errorMessage = '';
 
@@ -22,6 +23,16 @@
   let editingId = null;
   let editName = '';
   let editDiscordId = '';
+  let editRole = 'user';
+
+  // Verfügbare Rollen für das Dropdown
+  const availableRoles = [
+    { value: 'user', label: 'User' },
+    { value: 'seller', label: 'Seller' },
+    { value: 'admin', label: 'Admin' }
+  ];
+
+  let isSyncingAll = false;
 
   function checkAdminStatus() {
     const token = localStorage.getItem('jwt_token');
@@ -156,13 +167,15 @@
         },
         body: JSON.stringify({ 
           name: newName.trim(),
-          discord_id: newDiscordId.trim() || null
+          discord_id: newDiscordId.trim() || null,
+          role: newRole || 'user'
         })
       });
 
       if (res.ok) {
         newName = '';
         newDiscordId = '';
+        newRole = 'user';
         await loadParticipants();
       } else {
         alert('Teilnehmer konnte nicht angelegt werden.');
@@ -178,12 +191,14 @@
     editingId = participant.id;
     editName = participant.name;
     editDiscordId = participant.discord_id || participant.discordId || '';
+    editRole = participant.role || 'user';
   }
 
   function cancelEditing() {
     editingId = null;
     editName = '';
     editDiscordId = '';
+    editRole = 'user';
   }
 
   async function saveParticipant(id) {
@@ -206,14 +221,13 @@
         },
         body: JSON.stringify({ 
           name: editName.trim(),
-          discord_id: editDiscordId.trim() || null
+          discord_id: editDiscordId.trim() || null,
+          role: editRole || 'user'
         })
       });
 
       if (res.ok) {
-        editingId = null;
-        editName = '';
-        editDiscordId = '';
+        cancelEditing();
         await loadParticipants();
       } else {
         alert('Änderung konnte nicht gespeichert werden.');
@@ -253,16 +267,21 @@
     <form on:submit|preventDefault={addParticipant} class="add-form">
       <input 
         type="text" 
-        placeholder="Name des Teilnehmers *" 
+        placeholder="Name des Teilnehmers"
         bind:value={newName} 
-        class="input-field" 
-        required
+        class="input-field"
       />
+      <select bind:value={newRole} class="input-field">
+        {#each availableRoles as r}
+          <option value={r.value}>{r.label}</option>
+        {/each}
+      </select>
       <input 
         type="text" 
-        placeholder="Discord ID (Optional)" 
+        placeholder="Discord ID *"
         bind:value={newDiscordId} 
-        class="input-field" 
+        class="input-field"
+        required
       />
       <button 
         type="button" 
@@ -299,14 +318,19 @@
               <input 
                 type="text" 
                 bind:value={editName} 
-                class="input-field edit-input"
+                class="input-field edit-input input-sm"
                 placeholder="Name *"
                 on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
               />
+              <select bind:value={editRole} class="input-field input-sm">
+                {#each availableRoles as r}
+                  <option value={r.value}>{r.label}</option>
+                {/each}
+              </select>
               <input 
                 type="text" 
                 bind:value={editDiscordId} 
-                class="input-field edit-input"
+                class="input-field edit-input input-sm"
                 placeholder="Discord ID"
                 on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
               />
@@ -321,19 +345,24 @@
               </button>
             </div>
             <div class="btn-group">
-              <button type="button" class="btn btn-primary" on:click={() => saveParticipant(p.id)}>Speichern</button>
-              <button type="button" class="btn btn-secondary" on:click={cancelEditing}>Abbrechen</button>
+              <button type="button" class="btn btn-primary btn-small" on:click={() => saveParticipant(p.id)}>Speichern</button>
+              <button type="button" class="btn btn-secondary btn-small" on:click={cancelEditing}>Abbrechen</button>
             </div>
           {:else}
             <!-- Normaler Anzeige-Modus -->
             <div class="info-group">
               <span class="name">{p.name}</span>
+
+              <span class="badge {p.role === 'admin' ? 'status-close' : p.role === 'seller' ? 'status-payout' : 'status-onsale'}">
+                {p.role || 'user'}
+              </span>
+
               {#if currentDiscordId}
                 <code class="discord-badge">ID: {currentDiscordId}</code>
               {/if}
             </div>
             {#if isAdmin}
-              <button type="button" class="btn btn-secondary" on:click={() => startEditing(p)}>✏️ Edit</button>
+              <button type="button" class="btn btn-secondary btn-small" on:click={() => startEditing(p)}>✏️ Edit</button>
             {/if}
           {/if}
         </li>
