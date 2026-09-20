@@ -40,8 +40,6 @@
   export let removeItemFromBuffer = () => {};
   export let addItemToBuffer = () => {};
   export let saveItems = () => {};
-  
-  // Neuer Discord Export Callback
   export let onDiscordExport = () => {};
 </script>
 

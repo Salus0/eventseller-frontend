@@ -53,6 +53,7 @@
   });
 </script>
 
+<div class="layout-wrapper">
 <header class="navbar">
   <div class="nav-container">
     <a href="/" class="brand">
@@ -94,3 +95,18 @@
 <main class="page-content">
   <slot />
 </main>
+
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-info">
+        <span class="footer-brand">Event-Seller</span>
+        <p class="footer-description">
+          Organisiert deine Drops, Verkäufe und Auszahlungen für Ragnarok-Events.
+        </p>
+      </div>
+      <p class="footer-copyright">
+        &copy; {new Date().getFullYear()} Saluso & Arlix. Alle Rechte vorbehalten.
+      </p>
+    </div>
+  </footer>
+</div>
