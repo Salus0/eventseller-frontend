@@ -25,6 +25,9 @@
   // KONTROLLE FÜR DIE ABGESCHLOSSENE RUNS SEKTION (Initial zugeklappt)
   let showClosedRuns = false;
 
+  // Status für Discord-Post Request
+  let isPostingDiscord = false;
+
   // ZENTRALER UI-STATE (Ersetzt die 8 einzelnen Puffer-Objekte)
   let uiState = {
     headers: {},      // [runId]: { isEditing, name, run_type }
@@ -377,7 +380,6 @@
   }
 
   // --- ITEMS ---
-  // --- ITEMS ---
   function enableItemEditing(run) {
     if (!canEdit) return;
     uiState.items[run.id] = {
@@ -501,6 +503,36 @@
     } catch (err) { console.error(err); }
   }
 
+  // --- DISCORD POST ---
+  async function postToDiscord(run, e) {
+    if (e) e.stopPropagation();
+    if (!canEdit) return;
+
+    if (!confirm(`Möchtest du die Zusammenfassung für "${run.name}" wirklich auf Discord posten?`)) {
+      return;
+    }
+
+    isPostingDiscord = true;
+    try {
+      const res = await fetch(`${backendUrl}/discord/runs/${run.id}/post`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      if (res.ok) {
+        alert('Erfolgreich auf Discord gepostet!');
+      } else {
+        const errData = await res.json().catch(() => null);
+        alert(`Fehler beim Posten (${res.status}): ${errData?.detail || 'Unbekannter Fehler'}`);
+      }
+    } catch (err) {
+      console.error('Discord Post Error:', err);
+      alert('Netzwerkfehler beim Senden an Discord.');
+    } finally {
+      isPostingDiscord = false;
+    }
+  }
+
   function formatZeny(amount) {
     return new Intl.NumberFormat('de-DE').format(amount || 0) + ' z';
   }
@@ -573,6 +605,7 @@
             {removeItemFromBuffer}
             {addItemToBuffer}
             {saveItems}
+            onDiscordExport={postToDiscord}
           />
         {/each}
       </ul>
@@ -635,6 +668,7 @@
               {removeItemFromBuffer}
               {addItemToBuffer}
               {saveItems}
+              onDiscordExport={postToDiscord}
             />
           {/each}
         </ul>

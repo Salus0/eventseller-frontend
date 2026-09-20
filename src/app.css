@@ -23,6 +23,9 @@
     --accent-purple: #A855F7;     /* Hauptaktions-Violett */
     --accent-purple-hover: #C084FC;
 
+    --discord-blue: #5865F2;       /* Original Discord Blurple */
+    --discord-blue-hover: #4752C4; /* Dunkleres Discord Blau für Hover */
+
     --danger-red: #E64A5B;        /* Rot für Löschen/Badges/Fehler */
     --success-green: #35A85B;     /* Erfolgsgrün für Payout/Preise */
 }
@@ -315,6 +318,16 @@ label {
     color: var(--text-dark);
 }
 
+.btn-discord {
+    background-color: var(--discord-blue);
+    color: #ffffff;
+    border: 1px solid var(--discord-blue);
+}
+.btn-discord:hover {
+    background-color: var(--discord-blue-hover);
+    border-color: var(--discord-blue-hover);
+}
+
 .btn-link {
     background: none;
     border: none;
@@ -339,7 +352,6 @@ label {
     display: flex;
     gap: 0.4rem;
 }
-
 
 /* ==========================================
    5. Badges & Status-Farben
@@ -539,6 +551,14 @@ li.run-item[role="button"]:hover {
     padding: 1rem;
     border-top: 1px solid var(--border-color);
     background-color: var(--bg-main);
+}
+
+.run-footer-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--border-color);
 }
 
 .run-details-dashboard {
@@ -1264,7 +1284,7 @@ input[list]::-webkit-calendar-picker-indicator {
     }
 
     /* Buttons auf volle Breite bei mobilen Formularen */
-    .create-btn, .submit-btn, .import-btn, .sync-btn {
+    .create-btn, .submit-btn, .import-btn, .sync-btn, .btn-discord {
         width: 100%;
         text-align: center;
         box-sizing: border-box;
