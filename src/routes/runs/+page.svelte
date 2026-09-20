@@ -503,11 +503,22 @@
     } catch (err) { console.error(err); }
   }
 
-  // --- DISCORD POST ---
+// --- DISCORD POST ---
   async function postToDiscord(run, e) {
     if (e) e.stopPropagation();
     if (!canEdit) return;
 
+    // 1. Prüfen, ob noch unverkaufte Items existieren
+    const hasUnsoldItems = run.items && run.items.some(
+      item => !item.sale_price && !item.price && !item.actual_price
+    );
+
+    if (hasUnsoldItems) {
+      alert('Der Run kann erst auf Discord gepostet werden, wenn alle Items verkauft wurden!');
+      return;
+    }
+
+    // 2. Bestätigungsabfrage
     if (!confirm(`Möchtest du die Zusammenfassung für "${run.name}" wirklich auf Discord posten?`)) {
       return;
     }
