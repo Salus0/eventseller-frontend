@@ -130,7 +130,7 @@
           {#if !uiState.participants[run.id]?.isEditing}
             {#if run.participants && run.participants.length > 0}
               <ul>
-                {#each run.participants as p, i}
+                {#each [...run.participants].sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })) as p, i}
                   <li class="participant-row" class:paid-row={p.is_paid}>
                     <div class="p-info">
                       <strong class="num-prefix">{i + 1}.</strong>
