@@ -106,7 +106,7 @@
 
   async function loadAllHistories(itemList) {
     const promises = itemList.map(async (item) => {
-      const targetId = item.item_id || item.id;
+      const targetId = item.id;
       if (!targetId) return;
 
       try {
@@ -215,7 +215,7 @@
   }
 
   async function toggleHistory(item) {
-    const targetId = item.item_id || item.id;
+    const targetId = item.id;
     if (activeHistoryItemId === targetId) {
       activeHistoryItemId = null;
       selectedItemHistory = null;
