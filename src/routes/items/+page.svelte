@@ -116,7 +116,6 @@
         if (res.ok) {
           const hist = await res.json();
           if (Array.isArray(hist) && hist.length > 0) {
-            historyCache[item.item_id] = hist;
             historyCache[item.id] = hist;
           }
         }
@@ -267,7 +266,7 @@
       return item.sold_at || item.last_sold_at;
     }
 
-    const hist = cache[item.item_id] || cache[item.id];
+    const hist = cache[item.id];
     if (Array.isArray(hist) && hist.length > 0) {
       const first = hist[0];
       return first.sold_at || first.created_at || first.run_date || null;
@@ -279,7 +278,7 @@
   function getBestPrice(item, cache) {
     if (item.last_price !== undefined && item.last_price !== null) return item.last_price;
 
-    const hist = cache[item.item_id] || cache[item.id];
+    const hist = cache[item.id];
     if (Array.isArray(hist) && hist.length > 0) {
       const first = hist[0];
       return first.price ?? first.actual_price ?? first.sale_price ?? null;
@@ -382,7 +381,7 @@
             {#each filteredItems as item (item.id || item.item_id)}
               {@const displayDate = getBestSoldDate(item, historyCache)}
               {@const displayPrice = getBestPrice(item, historyCache)}
-              {@const targetId = item.item_id || item.id}
+              {@const targetId = item.id}
               
               {#if editingId === item.id && isAdmin}
                 <tr>
