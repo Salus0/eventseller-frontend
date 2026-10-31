@@ -40,7 +40,7 @@
   
   <div class="links-grid">
     <a href="https://ratemyserver.net/" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/rms.png" alt="RateMyServer Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+      <img src="https://a.favicon.im/ratemyserver.net" alt="ratemyserver.net favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">RateMyServer</span>
         <span class="link-url">ratemyserver.net</span>
@@ -48,7 +48,7 @@
     </a>
 
     <a href="https://uaro-calc.xdthrice.workers.dev/" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/calc.png" alt="Calculator Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+      <img src="https://a.favicon.im/uaro-calc.xdthrice.workers.dev" alt="uaro-calc.xdthrice.workers.dev favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">Calculator (UARO-Edition by Thrice)</span>
         <span class="link-url">uaro-calc.xdthrice.workers.dev</span>
@@ -64,7 +64,7 @@
   
   <div class="links-grid">
     <a href="https://docs.google.com/spreadsheets/d/1FTSlqChpaBHjklWcpEg4k3jHA2hpm9rNq1P3S5acckk/edit?gid=1292359833#gid=1292359833" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/sheet.png" alt="Google Sheets Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+       <img src="https://a.favicon.im/docs.google.com" alt="docs.google.com favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">EC-Taktik Sheet</span>
         <span class="link-url">docs.google.com (Endless Cellar)</span>
@@ -72,7 +72,7 @@
     </a>
 
     <a href="https://docs.google.com/spreadsheets/d/1TtRYbg-aeCZR7pQaa9y3Wdtj7WVMGXbDi9ORGO788zE/edit?gid=651762935#gid=651762935" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/sheet.png" alt="Google Sheets Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+      <img src="https://a.favicon.im/docs.google.com" alt="docs.google.com favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">ET-Taktik Sheet</span>
         <span class="link-url">docs.google.com (Endless Tower)</span>
@@ -80,7 +80,7 @@
     </a>
 
         <a href="https://docs.google.com/spreadsheets/d/1wKT_kSpeINIyxz04QvRh0W6JiXMEXK1ZLFaxrZp0SVk/edit?gid=1157292169#gid=1157292169" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/sheet.png" alt="Google Sheets Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+      <img src="https://a.favicon.im/docs.google.com" alt="docs.google.com favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">uaRO Repetable Quest Sheet</span>
         <span class="link-url">docs.google.com</span>
@@ -96,7 +96,7 @@
   
   <div class="links-grid">
     <a href="https://raid-helper.dev/dashboard/" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/raidhelper.png" alt="Raid-Helper Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+      <img src="https://a.favicon.im/raid-helper.dev" alt="raid-helper.dev favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">Raid-Helper Dashboard</span>
         <span class="link-url">raid-helper.dev</span>
