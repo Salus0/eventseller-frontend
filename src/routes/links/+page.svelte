@@ -1,7 +1,3 @@
-<svelte:head>
-  <title>Wichtige Links - Yggdrasil EventSeller</title>
-</svelte:head>
-
 <h1>Links</h1>
 <p class="section-margin status-text">Hier findest du eine Übersicht aller wichtigen externen Webseiten, Tools und Taktik-Tabellen.</p>
 
