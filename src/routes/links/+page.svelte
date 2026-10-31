@@ -16,7 +16,7 @@
     </a>
 
     <a href="https://uaro.net/cp/" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/uaro.png" alt="uaRO Login Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+      <img src="https://a.favicon.im/uaro.net" alt="uaro.net favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">uaRO Login</span>
         <span class="link-url">uaro.net/cp</span>
@@ -24,7 +24,7 @@
     </a>
 
     <a href="https://discord.com/invite/5wusMPf9XA" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/uaro.png" alt="uaRO Discord Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+      <img src="https://a.favicon.im/discord.com" alt="discord.com favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">uaRO Discord</span>
         <span class="link-url">discord.com</span>
