@@ -65,6 +65,7 @@
       <a href="/runs" class:active={$page.url.pathname.startsWith('/runs')}>Runs</a>
       <a href="/items" class:active={$page.url.pathname.startsWith('/items')}>Items</a>
       <a href="/participants" class:active={$page.url.pathname.startsWith('/participants')}>Teilnehmer</a>
+      <a href="/links" class:active={$page.url.pathname.startsWith('/links')}>Links</a>
     </nav>
 
     <div class="nav-actions">
