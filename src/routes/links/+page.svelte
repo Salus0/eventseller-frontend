@@ -8,7 +8,7 @@
   
   <div class="links-grid">
     <a href="https://wiki.uaro.net/" target="_blank" rel="noopener noreferrer" class="link-card">
-      <img src="/links/uaro.png" alt="uaRO Wiki Logo" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
+      <img src="https://a.favicon.im/wiki.uaro.net" alt="wiki.uaro.net favicon" loading="lazy" class="link-logo" on:error={(e) => e.target.style.display = 'none'} />
       <div class="link-info">
         <span class="link-title">uaRO Wiki</span>
         <span class="link-url">wiki.uaro.net</span>
