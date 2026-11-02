@@ -13,23 +13,23 @@
   let isLoading = true;
   let errorMessage = '';
 
+  // Zustand für das Einblenden des Charakter-Bearbeitungsbereichs
+  let showCharacterForm = false;
+
   // Formular-Felder für neuen Charakter
   let newAccountNumber = '';
   let selectedClass = 'Lord Knight';
   let selectedBuild = 'Spiral Pierce';
   let newCharName = '';
 
-  // Auth & Admin Status prüfen
   let isAdmin = false;
-  let jwtToken = '';
 
-  // Klassen-Mapping mit Icons und Skillungen (inklusive "Sonstige")
   const classSkillMap = {
     'Lord Knight': ['Spiral Pierce', 'Bowling Bash', 'Auto-Attacker', 'Sonstige'],
     'Paladin': ['Devotion', 'Grand Cross', 'Shield Chain', 'Sonstige'],
     'High Wizard': ['Damage', 'Sonstige'],
     'Scholar': ['Support', 'Abra', 'Support & Abra', 'Sonstige'],
-    'Sniper': ['DS', 'FA', 'Sharpsh', 'Crit-Autohitter', 'Sonstige'],
+    'Sniper': ['DS, FA, Sharpshoot', 'Crit-Autohitter', 'Sonstige'],
     'Clown': ['Support', 'Sonstige'],
     'Gypsy': ['Support', 'Sonstige'],
     'High Priest': ['Full Support', 'ME', 'Turn Undead', 'Sonstige'],
@@ -69,7 +69,6 @@
   function checkAdminStatus() {
     const token = localStorage.getItem('jwt_token');
     if (token) {
-      jwtToken = token;
       try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -97,7 +96,8 @@
     isLoading = true;
     errorMessage = '';
     try {
-      const headers = jwtToken ? { 'Authorization': `Bearer ${jwtToken}` } : {};
+      const token = localStorage.getItem('jwt_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
       // 1. Participant laden
       const pRes = await fetch(`${backendUrl}/participants/${participantId}`, { headers });
@@ -114,7 +114,7 @@
         characters = await cRes.json();
       }
 
-      // 3. Auszahlungen laden (nur ausgezahlte Runs)
+      // 3. Auszahlungen laden
       const payoutRes = await fetch(`${backendUrl}/participants/${participantId}/payouts`, { headers });
       if (payoutRes.ok) {
         payouts = await payoutRes.json();
@@ -134,11 +134,12 @@
     }
 
     try {
+      const token = localStorage.getItem('jwt_token');
       const res = await fetch(`${backendUrl}/participants/${participantId}/characters`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwtToken}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           account_number: newAccountNumber.trim(),
@@ -151,6 +152,7 @@
       if (res.ok) {
         newAccountNumber = '';
         newCharName = '';
+        showCharacterForm = false; // Formular nach Erfolg wieder zuklappen
         await loadData();
       } else {
         alert('Charakter konnte nicht hinzugefügt werden.');
@@ -165,9 +167,10 @@
     if (!confirm('Möchtest du diesen Charakter wirklich löschen?')) return;
 
     try {
+      const token = localStorage.getItem('jwt_token');
       const res = await fetch(`${backendUrl}/participants/${participantId}/characters/${charId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${jwtToken}` }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         await loadData();
@@ -207,17 +210,22 @@
     <h1>👤 Teilnehmer-Detail: {participant.name}</h1>
   </header>
 
-  <div class="grid-container">
+  <div class="stack-container">
     
-    <!-- BEREICH 1: CHARAKTERE & ACCOUNTS -->
+    <!-- BEREICH 1: CHARAKTERE & ACCOUNTS (Untereinander angeordnet) -->
     <section class="card">
-      <h2>⚔️ Charaktere & Accounts</h2>
+      <div class="section-header-row">
+        <h2>⚔️ Charaktere & Accounts</h2>
+        <button class="btn btn-secondary btn-small" on:click={() => showCharacterForm = !showCharacterForm}>
+          {showCharacterForm ? '✖ Schließen' : '✏️ Charakter bearbeiten'}
+        </button>
+      </div>
       
-      <form on:submit|preventDefault={addCharacter} class="add-char-form">
-        <div class="form-row">
+      {#if showCharacterForm}
+        <form on:submit|preventDefault={addCharacter} class="add-char-form margin-top">
           <input 
             type="text" 
-            placeholder="Account-Nr. (z.B. Acc 1) *" 
+            placeholder="Account-Nr. (z.B. 1,2,3)" 
             bind:value={newAccountNumber} 
             class="input-field" 
             required 
@@ -237,9 +245,7 @@
               {/each}
             </select>
           </div>
-        </div>
 
-        <div class="form-row">
           <select bind:value={selectedBuild} class="input-field select-dropdown">
             {#each (classSkillMap[selectedClass] || []) as build}
               <option value={build}>{build}</option>
@@ -252,12 +258,12 @@
             bind:value={newCharName} 
             class="input-field" 
           />
-        </div>
 
-        <button type="submit" class="btn btn-primary">+ Charakter hinzufügen</button>
-      </form>
+          <button type="submit" class="btn btn-primary">+ Hinzufügen</button>
+        </form>
+      {/if}
 
-      <div class="char-list">
+      <div class="char-list margin-top">
         {#if characters.length === 0}
           <p class="status-text">Noch keine Charaktere eingetragen.</p>
         {:else}
@@ -277,10 +283,12 @@
                   <tr>
                     <td><span class="badge-acc">{char.account_number}</span></td>
                     <td class="class-td">
-                      {#if classIconMap[char.class_name]}
-                        <img src="/classicons/{classIconMap[char.class_name]}" alt="" class="table-icon" />
-                      {/if}
-                      {char.class_name}
+                      <div class="class-content-wrapper">
+                        {#if classIconMap[char.class_name]}
+                          <img src="/classicons/{classIconMap[char.class_name]}" alt="" class="table-icon" />
+                        {/if}
+                        {char.class_name}
+                      </div>
                     </td>
                     <td>{char.build_name}</td>
                     <td><strong>{char.name || '-'}</strong></td>
@@ -298,7 +306,7 @@
       </div>
     </section>
 
-    <!-- BEREICH 2: AUSZAHLUNGEN & STATISTIKEN -->
+    <!-- BEREICH 2: AUSZAHLUNGEN & STATISTIKEN (Untereinander angeordnet) -->
     <section class="card">
       <h2>💰 Auszahlungen & Statistik</h2>
 

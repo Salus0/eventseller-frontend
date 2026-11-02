@@ -1596,3 +1596,108 @@ input[list]::-webkit-calendar-picker-indicator {
 .participant-link-wrapper:hover {
     background-color: var(--hover-bg);
 }
+
+.stack-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.add-char-form {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    background-color: var(--bg-main);
+    padding: 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    align-items: center;
+}
+
+.add-char-form .input-field,
+.add-char-form .class-select-wrapper,
+.add-char-form select.input-field {
+    flex: 1;
+    min-width: 150px;
+}
+
+.add-char-form .btn-primary {
+    width: auto;
+    flex-shrink: 0;
+}
+
+select.input-field,
+.class-select-wrapper select,
+select {
+    background-color: var(--bg-main) !important;
+    color: var(--text-dark) !important;
+}
+
+select option {
+    background-color: var(--bg-main);
+    color: var(--text-dark);
+    padding: 0.5rem;
+}
+
+.class-select-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    background-color: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0 0.5rem;
+}
+
+.class-select-wrapper .select-dropdown {
+    background: transparent;
+    border: none;
+    color: var(--text-dark);
+    width: 100%;
+    padding: 0.6rem 0;
+    outline: none;
+}
+
+.icon-preview {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+.badge-acc {
+    background-color: var(--card-bg-subtle);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: var(--primary-green);
+    border: 1px solid var(--border-color);
+}
+
+td.class-td {
+    display: table-cell;
+    vertical-align: middle;
+}
+
+.class-content-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.text-right {
+    text-align: right;
+}
