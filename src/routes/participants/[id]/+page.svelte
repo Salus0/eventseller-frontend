@@ -7,7 +7,6 @@
   const participantId = $page.params.id;
 
   let participant = null;
-  let payouts = [];
   let characters = [];
   
   let isLoading = true;
@@ -23,6 +22,7 @@
   let newCharName = '';
 
   let isAdmin = false;
+  let userDiscordId = '';
 
   const classSkillMap = {
     'Lord Knight': ['Spiral Pierce', 'Bowling Bash', 'Auto-Attacker', 'Sonstige'],
@@ -66,7 +66,7 @@
     'Super Novice': 'SuperNovice.webp'
   };
 
-  function checkAdminStatus() {
+  function checkUserStatus() {
     const token = localStorage.getItem('jwt_token');
     if (token) {
       try {
@@ -80,11 +80,16 @@
         );
         const decoded = JSON.parse(jsonPayload);
         isAdmin = decoded.role === 'admin';
+        userDiscordId = decoded.discord_id || decoded.discordId || decoded.id || '';
       } catch (e) {
         isAdmin = false;
       }
     }
   }
+
+  // Prüft, ob der angemeldete Nutzer Admin oder der Besitzer des Profils ist
+  $: isOwner = participant && userDiscordId && (String(participant.discord_id) === String(userDiscordId));
+  $: canModify = isAdmin || isOwner;
 
   function handleClassChange(e) {
     selectedClass = e.target.value;
@@ -112,12 +117,6 @@
       const cRes = await fetch(`${backendUrl}/participants/${participantId}/characters`, { headers });
       if (cRes.ok) {
         characters = await cRes.json();
-      }
-
-      // 3. Auszahlungen laden
-      const payoutRes = await fetch(`${backendUrl}/participants/${participantId}/payouts`, { headers });
-      if (payoutRes.ok) {
-        payouts = await payoutRes.json();
       }
     } catch (err) {
       console.error(err);
@@ -155,7 +154,8 @@
         showCharacterForm = false; // Formular nach Erfolg wieder zuklappen
         await loadData();
       } else {
-        alert('Charakter konnte nicht hinzugefügt werden.');
+        const errData = await res.json().catch(() => null);
+        alert(errData?.detail || 'Charakter konnte nicht hinzugefügt werden.');
       }
     } catch (err) {
       console.error(err);
@@ -175,25 +175,17 @@
       if (res.ok) {
         await loadData();
       } else {
-        alert('Fehler beim Löschen des Charakters.');
+        const errData = await res.json().catch(() => null);
+        alert(errData?.detail || 'Fehler beim Löschen des Charakters.');
       }
     } catch (err) {
       console.error(err);
     }
   }
 
-  // Berechnete Kennzahlen für Auszahlungen
-  $: totalPayout = payouts.reduce((sum, p) => sum + (p.payout_amount || 0), 0);
-  $: paidRunsCount = payouts.length;
-  $: averagePayoutPerRun = paidRunsCount > 0 ? Math.round(totalPayout / paidRunsCount) : 0;
-
-  function formatZeny(val) {
-    return (val || 0).toLocaleString('de-DE') + ' Zeny';
-  }
-
-  onMount(() => {
-    checkAdminStatus();
-    loadData();
+  onMount(async () => {
+    checkUserStatus();
+    await loadData();
   });
 </script>
 
@@ -212,16 +204,18 @@
 
   <div class="stack-container">
     
-    <!-- BEREICH 1: CHARAKTERE & ACCOUNTS (Untereinander angeordnet) -->
+    <!-- BEREICH 1: CHARAKTERE & ACCOUNTS -->
     <section class="card">
       <div class="section-header-row">
         <h2>⚔️ Charaktere & Accounts</h2>
+        {#if canModify}
         <button class="btn btn-secondary btn-small" on:click={() => showCharacterForm = !showCharacterForm}>
           {showCharacterForm ? '✖ Schließen' : '✏️ Charakter bearbeiten'}
         </button>
+        {/if}
       </div>
       
-      {#if showCharacterForm}
+      {#if showCharacterForm && canModify}
         <form on:submit|preventDefault={addCharacter} class="add-char-form margin-top">
           <input 
             type="text" 
@@ -293,7 +287,7 @@
                     <td>{char.build_name}</td>
                     <td><strong>{char.name || '-'}</strong></td>
                     <td class="text-right">
-                      {#if isAdmin}
+                      {#if canModify}
                         <button class="btn btn-danger btn-small" on:click={() => deleteCharacter(char.id)} title="Löschen">🗑️</button>
                       {/if}
                     </td>
@@ -304,54 +298,6 @@
           </div>
         {/if}
       </div>
-    </section>
-
-    <!-- BEREICH 2: AUSZAHLUNGEN & STATISTIKEN (Untereinander angeordnet) -->
-    <section class="card">
-      <h2>💰 Auszahlungen & Statistik</h2>
-
-      <div class="stats-grid">
-        <div class="stat-box green">
-          <span class="stat-title">Gesamtsumme Ausgezahlt</span>
-          <span class="stat-value total-zeny">{formatZeny(totalPayout)}</span>
-        </div>
-        <div class="stat-box blue">
-          <span class="stat-title">Durchschnitt je Run</span>
-          <span class="stat-value split-zeny">{formatZeny(averagePayoutPerRun)}</span>
-        </div>
-      </div>
-
-      <h3>Auszahlungs-Historie (Abgeschlossene Runs)</h3>
-      {#if payouts.length === 0}
-        <p class="status-text">Bisher keine ausgezahlten Runs vorhanden.</p>
-      {:else}
-        <div class="table-container">
-          <table class="item-table">
-            <thead>
-              <tr>
-                <th>Run-Name</th>
-                <th>Datum</th>
-                <th class="text-right">Betrag</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each payouts as payout}
-                <tr>
-                  <td>
-                    <a href="/runs/{payout.run_id}" class="run-link">
-                      {payout.run_name || `Run #${payout.run_id}`}
-                    </a>
-                  </td>
-                  <td class="date-cell">{payout.date || '-'}</td>
-                  <td class="text-right price-cell">
-                    {formatZeny(payout.payout_amount)}
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {/if}
     </section>
 
   </div>
