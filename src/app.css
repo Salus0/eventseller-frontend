@@ -1428,3 +1428,171 @@ input[list]::-webkit-calendar-picker-indicator {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  /* ==========================================
+   13. Teilnehmer-Detailseite & Charaktere
+   ========================================== */
+.grid-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+    .grid-container {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.back-nav {
+    margin-bottom: 1rem;
+}
+
+.back-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s ease;
+}
+
+.back-link:hover {
+    color: var(--text-dark);
+}
+
+/* Charakter Formulare & Dropdowns */
+.form-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.form-row .input-field, .form-row select, .form-row input {
+    flex: 1;
+}
+
+.class-select-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    background-color: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0 0.5rem;
+}
+
+.class-select-wrapper select {
+    background: transparent;
+    border: none;
+    color: var(--text-dark);
+    width: 100%;
+    padding: 0.6rem 0;
+    outline: none;
+}
+
+.icon-preview {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+.badge-acc {
+    background-color: var(--card-bg-subtle);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: var(--primary-green);
+    border: 1px solid var(--border-color);
+}
+
+.class-td {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+/* Statistik Widgets */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-box {
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    background-color: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--text-muted);
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-box.green { border-left-color: var(--success-green); }
+.stat-box.blue { border-left-color: #3b82f6; }
+.stat-box.yellow { border-left-color: var(--accent-gold); }
+.stat-box.purple { border-left-color: var(--accent-purple); }
+
+.stat-title {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.stat-value {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: var(--text-dark);
+    margin-top: 0.2rem;
+}
+
+/* Status Badges für Auszahlungen */
+.badge.paid {
+    background-color: #064e3b;
+    color: #34d399;
+}
+
+.badge.pending {
+    background-color: #78350f;
+    color: #fcd34d;
+}
+
+.run-link {
+    color: var(--primary-green);
+    text-decoration: none;
+    font-weight: 500;
+    display: block;
+}
+
+.run-link:hover {
+    text-decoration: underline;
+    color: var(--primary-hover);
+}
+
+.date-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Klickbare Zeilen für die Teilnehmer-Übersicht */
+.participant-link-wrapper {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.participant-link-wrapper:hover {
+    background-color: var(--hover-bg);
+}

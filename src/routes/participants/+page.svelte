@@ -349,18 +349,21 @@
               <button type="button" class="btn btn-secondary btn-small" on:click={cancelEditing}>Abbrechen</button>
             </div>
           {:else}
-            <!-- Normaler Anzeige-Modus -->
-            <div class="info-group">
-              <span class="name">{p.name}</span>
+            <!-- Normaler Anzeige-Modus (gesamtes Feld klickbar) -->
+            <a href="/participants/{p.id}" class="participant-link-wrapper">
+              <div class="info-group">
+                <span class="name">{p.name}</span>
 
-              <span class="badge {p.role === 'admin' ? 'status-close' : p.role === 'seller' ? 'status-payout' : 'status-onsale'}">
-                {p.role || 'user'}
-              </span>
+                <span class="badge {p.role === 'admin' ? 'status-close' : p.role === 'seller' ? 'status-payout' : 'status-onsale'}">
+                  {p.role || 'user'}
+                </span>
 
-              {#if currentDiscordId}
-                <code class="discord-badge">ID: {currentDiscordId}</code>
-              {/if}
-            </div>
+                {#if currentDiscordId}
+                  <code class="discord-badge">ID: {currentDiscordId}</code>
+                {/if}
+              </div>
+            </a>
+
             {#if isAdmin}
               <button type="button" class="btn btn-secondary btn-small" on:click={() => startEditing(p)}>✏️ Edit</button>
             {/if}
