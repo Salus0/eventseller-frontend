@@ -5,36 +5,26 @@
   const backendUrl = PUBLIC_BACKEND_URL || 'https://yggdrasil-eventseller-backend.up.railway.app';
 
   let participants = [];
-  let newName = '';
-  let newDiscordId = '';
-  let newRole = 'user';
   let isLoading = true;
   let errorMessage = '';
 
-  // Helper State zum Namen-Sync via Raid-Helper
-  let raidHelperEventId = '';
-  let isFetchingDiscordName = false;
-
-  // Auth & Admin Status
-  let isAdmin = false;
   let jwtToken = '';
+  let isAdmin = false;
 
-  // Zustand für das Editieren
-  let editingId = null;
-  let editName = '';
-  let editDiscordId = '';
-  let editRole = 'user';
+  // Zustand zum Aufklappen des Anlegen-Formulars
+  let showCreateForm = false;
+  let newName = '';
+  let newDiscordId = '';
+  let newRole = 'user';
+  let isCreating = false;
 
-  // Verfügbare Rollen für das Dropdown
   const availableRoles = [
     { value: 'user', label: 'User' },
     { value: 'seller', label: 'Seller' },
     { value: 'admin', label: 'Admin' }
   ];
 
-  let isSyncingAll = false;
-
-  function checkAdminStatus() {
+  function checkAuth() {
     const token = localStorage.getItem('jwt_token');
     if (token) {
       jwtToken = token;
@@ -52,9 +42,6 @@
       } catch (e) {
         isAdmin = false;
       }
-    } else {
-      isAdmin = false;
-      jwtToken = '';
     }
   }
 
@@ -62,26 +49,33 @@
     isLoading = true;
     errorMessage = '';
 
-    if (!jwtToken) {
-      isLoading = false;
-      errorMessage = 'Bitte logge dich ein, um die Teilnehmer zu sehen.';
-      return;
+    try {
+      const headers = {};
+      if (jwtToken) {
+        headers['Authorization'] = `Bearer ${jwtToken}`;
     }
 
-    try {
-      const res = await fetch(`${backendUrl}/participants/`, {
-        headers: {
-          'Authorization': `Bearer ${jwtToken}`
-        }
-      });
-
-      if (res.status === 401 || res.status === 403) {
-        errorMessage = 'Keine Berechtigung! Bitte logge dich ein.';
-        return;
-      }
+      const res = await fetch(`${backendUrl}/participants/`, { headers });
 
       if (res.ok) {
-        participants = await res.json();
+        const data = await res.json();
+        
+        // Sortierung: 1. Rolle (admin -> seller -> user), 2. Alphabetisch nach Name
+        const roleOrder = { admin: 1, seller: 2, user: 3 };
+
+        participants = data.sort((a, b) => {
+          const roleA = roleOrder[a.role] || 4;
+          const roleB = roleOrder[b.role] || 4;
+
+          if (roleA !== roleB) {
+            return roleA - roleB;
+          }
+
+          const nameA = (a.name || '').toLowerCase();
+          const nameB = (b.name || '').toLowerCase();
+          return nameA.localeCompare(nameB, 'de', { sensitivity: 'base' });
+        });
+
       } else {
         errorMessage = 'Fehler beim Laden der Teilnehmer.';
       }
@@ -93,71 +87,17 @@
     }
   }
 
-  // Discord-Name einlesen via Proxy
-  async function fetchNameFromRaidHelper(discordIdToFind, targetMode = 'create') {
-    const trimmedDiscordId = discordIdToFind ? discordIdToFind.trim() : '';
-    const trimmedEventId = raidHelperEventId.trim();
-
-    if (!trimmedDiscordId) {
-      alert('Bitte trage zuerst eine Discord ID ein.');
-      return;
-    }
-    if (!trimmedEventId) {
-      alert('Bitte gib oben eine Raid-Helper Event ID ein, um den Namen daraus abzufragen.');
-      return;
-    }
-
-    isFetchingDiscordName = true;
-    try {
-      const res = await fetch(`${backendUrl}/raidhelper/event/${trimmedEventId}`);
-      
-      if (!res.ok) {
-        const errDetail = await res.json().catch(() => null);
-        console.error('Backend-Fehler:', errDetail);
-        alert(`Event konnte nicht geladen werden (Status ${res.status}). Bitte Event-ID und Server-Logs prüfen.`);
-        return;
-      }
-
-      const data = await res.json();
-      const signups = data.signUps || data.signups || [];
-
-      // Suche nach der Discord ID im Event
-      const foundSignup = signups.find(s => {
-        const uid = String(s.userId || s.discordId || '').trim();
-        return uid === trimmedDiscordId;
-      });
-
-      if (foundSignup) {
-        const fetchedName = (foundSignup.name || foundSignup.discordName || '').trim();
-        if (fetchedName) {
-          if (targetMode === 'create') {
-            newName = fetchedName;
-          } else if (targetMode === 'edit') {
-            editName = fetchedName;
-          }
-          alert(`Name "${fetchedName}" erfolgreich übernommen!`);
-        } else {
-          alert('Spieler gefunden, aber es konnte kein Name ausgelesen werden.');
-        }
-      } else {
-        alert('Kein Spieler mit dieser Discord ID in diesem Raid-Helper Event gefunden.');
-      }
-    } catch (err) {
-      console.error('Netzwerk- oder Parsing-Fehler:', err);
-      alert(`Netzwerkfehler: ${err.message}`);
-    } finally {
-      isFetchingDiscordName = false;
-    }
-  }
-
   async function addParticipant() {
     if (!isAdmin) {
-      alert('Keine Berechtigung! Nur Admins dürfen Teilnehmer anlegen.');
+      alert('Keine Berechtigung!');
+      return;
+    }
+    if (!newName.trim()) {
+      alert('Bitte gib einen Namen ein.');
       return;
     }
 
-    if (!newName.trim()) return;
-
+    isCreating = true;
     try {
       const res = await fetch(`${backendUrl}/participants/`, {
         method: 'POST',
@@ -176,6 +116,7 @@
         newName = '';
         newDiscordId = '';
         newRole = 'user';
+        showCreateForm = false;
         await loadParticipants();
       } else {
         alert('Teilnehmer konnte nicht angelegt werden.');
@@ -183,93 +124,39 @@
     } catch (err) {
       console.error(err);
       alert('Fehler beim Anlegen des Teilnehmers.');
-    }
-  }
-
-  function startEditing(participant) {
-    if (!isAdmin) return;
-    editingId = participant.id;
-    editName = participant.name;
-    editDiscordId = participant.discord_id || participant.discordId || '';
-    editRole = participant.role || 'user';
-  }
-
-  function cancelEditing() {
-    editingId = null;
-    editName = '';
-    editDiscordId = '';
-    editRole = 'user';
-  }
-
-  async function saveParticipant(id) {
-    if (!isAdmin) {
-      alert('Keine Berechtigung!');
-      return;
-    }
-
-    if (!editName.trim()) {
-      alert('Der Name darf nicht leer sein.');
-      return;
-    }
-
-    try {
-      const res = await fetch(`${backendUrl}/participants/${id}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwtToken}`
-        },
-        body: JSON.stringify({ 
-          name: editName.trim(),
-          discord_id: editDiscordId.trim() || null,
-          role: editRole || 'user'
-        })
-      });
-
-      if (res.ok) {
-        cancelEditing();
-        await loadParticipants();
-      } else {
-        alert('Änderung konnte nicht gespeichert werden.');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Fehler beim Aktualisieren des Teilnehmers.');
+    } finally {
+      isCreating = false;
     }
   }
 
   onMount(() => {
-    checkAdminStatus();
+    checkAuth();
     loadParticipants();
   });
 </script>
 
 <div class="header-action">
-  <h1>Teilnehmer Verwaltung</h1>
+  <h1>Teilnehmer Übersicht</h1>
+  
+  {#if isAdmin}
+    <div class="header-admin-actions">
+      <button class="btn btn-primary" on:click={() => showCreateForm = !showCreateForm}>
+        {showCreateForm ? '✖ Schließen' : '+ Neuen Teilnehmer anlegen'}
+      </button>
+    </div>
+  {/if}
 </div>
 
-{#if isAdmin}
-  <!-- HELPER BOX: RAID HELPER EVENT ID FÜR NAMEN-SYNC -->
-  <section class="card sync-card">
-    <h2>⚡ Discord-Namen Sync via Raid-Helper (Optional)</h2>
-    <p class="sync-desc">Gib hier eine Event-ID ein, um beim Eintragen/Bearbeiten von Discord-IDs den Namen automatisch aus Raid-Helper abzufragen.</p>
-    <input 
-      type="text" 
-      placeholder="Raid-Helper Event ID (z.B. 112233445566)" 
-      bind:value={raidHelperEventId} 
-      class="input-field sync-input" 
-    />
-  </section>
-
-  <!-- Nur Admins dürfen neue Teilnehmer anlegen -->
+{#if isAdmin && showCreateForm}
   <section class="card margin-top">
     <h2>Neuen Teilnehmer anlegen</h2>
     <form on:submit|preventDefault={addParticipant} class="add-form">
       <input 
         type="text" 
-        placeholder="Name des Teilnehmers"
+        placeholder="Name des Teilnehmers *" 
         bind:value={newName} 
-        class="input-field"
+        class="input-field" 
+        required 
       />
       <select bind:value={newRole} class="input-field">
         {#each availableRoles as r}
@@ -278,20 +165,13 @@
       </select>
       <input 
         type="text" 
-        placeholder="Discord ID *"
+        placeholder="Discord ID (optional)" 
         bind:value={newDiscordId} 
-        class="input-field"
-        required
+        class="input-field" 
       />
-      <button 
-        type="button" 
-        class="btn btn-secondary"
-        on:click|preventDefault={() => fetchNameFromRaidHelper(newDiscordId, 'create')}
-        disabled={isFetchingDiscordName}
-      >
-        🔍 Name ziehen
+      <button type="submit" class="btn btn-primary" disabled={isCreating}>
+        {isCreating ? 'Wird gespeichert...' : 'Hinzufügen'}
       </button>
-      <button type="submit" class="btn btn-primary">+ Hinzufügen</button>
     </form>
   </section>
 {/if}
@@ -306,70 +186,38 @@
   {:else if participants.length === 0}
     <p class="status-text">Noch keine Teilnehmer eingetragen.</p>
   {:else}
-    <ul class="participant-list">
-      {#each participants as p, i (p.id)}
-        {@const currentDiscordId = p.discord_id || p.discordId}
-        <li class="participant-item">
-          <span class="num">{i + 1}.</span>
+    <div class="participants-grid">
+      {#each participants as p}
+        {@const discordId = p.discord_id || p.discordId}
+        {@const discordAvatar = p.avatar || p.discord_avatar}
+        {@const role = p.role || 'user'}
+        
+        <a href="/participants/{p.id}" class="participant-card">
+          <div class="card-top-row">
+            <span class="name">{p.name}</span>
 
-          {#if editingId === p.id && isAdmin}
-            <!-- Bearbeitungs-Modus (Nur Admins) -->
-            <div class="edit-fields">
-              <input 
-                type="text" 
-                bind:value={editName} 
-                class="input-field edit-input input-sm"
-                placeholder="Name *"
-                on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
-              />
-              <select bind:value={editRole} class="input-field input-sm">
-                {#each availableRoles as r}
-                  <option value={r.value}>{r.label}</option>
-                {/each}
-              </select>
-              <input 
-                type="text" 
-                bind:value={editDiscordId} 
-                class="input-field edit-input input-sm"
-                placeholder="Discord ID"
-                on:keydown={(e) => e.key === 'Enter' && saveParticipant(p.id)}
-              />
-              <button 
-                type="button" 
-                class="btn btn-secondary btn-small"
-                on:click={() => fetchNameFromRaidHelper(editDiscordId, 'edit')}
-                disabled={isFetchingDiscordName}
-                title="Namen aus Raid-Helper Event ziehen"
-              >
-                🔍
-              </button>
+            <div class="user-avatar-wrapper">
+              {#if discordId && discordAvatar}
+                <img 
+                  src="https://cdn.discordapp.com/avatars/{discordId}/{discordAvatar}.png" 
+                  alt={p.name} 
+                  class="avatar-img" 
+                />
+              {:else}
+                <div class="avatar-fallback">
+                  {p.name ? p.name.charAt(0).toUpperCase() : '?'}
+                </div>
+              {/if}
             </div>
-            <div class="btn-group">
-              <button type="button" class="btn btn-primary btn-small" on:click={() => saveParticipant(p.id)}>Speichern</button>
-              <button type="button" class="btn btn-secondary btn-small" on:click={cancelEditing}>Abbrechen</button>
             </div>
-          {:else}
-            <!-- Normaler Anzeige-Modus (gesamtes Feld klickbar) -->
-            <a href="/participants/{p.id}" class="participant-link-wrapper">
-              <div class="info-group">
-                <span class="name">{p.name}</span>
 
-                <span class="badge {p.role === 'admin' ? 'status-close' : p.role === 'seller' ? 'status-payout' : 'status-onsale'}">
-                  {p.role || 'user'}
+          <div class="card-bottom-row">
+            <span class="badge {role === 'admin' ? 'admin' : role === 'seller' ? 'status-payout' : 'status-onsale'}">
+              {role}
                 </span>
-
-                {#if currentDiscordId}
-                  <code class="discord-badge">ID: {currentDiscordId}</code>
-                {/if}
               </div>
             </a>
-
-            {#if isAdmin}
-              <button type="button" class="btn btn-secondary btn-small" on:click={() => startEditing(p)}>✏️ Edit</button>
-            {/if}
-          {/if}
-        </li>
       {/each}
-    </ul>
+    </div>
   {/if}
 </section>

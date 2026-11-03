@@ -12,6 +12,13 @@
   let isLoading = true;
   let errorMessage = '';
 
+  // Zustand für das Bearbeiten des Teilnehmer-Profils (Admins)
+  let isEditingParticipant = false;
+  let editName = '';
+  let editRole = 'user';
+  let editDiscordId = '';
+  let isSavingParticipant = false;
+
   // Zustand für das Einblenden des Charakter-Bearbeitungsbereichs
   let showCharacterForm = false;
 
@@ -23,6 +30,12 @@
 
   let isAdmin = false;
   let userDiscordId = '';
+
+  const availableRoles = [
+    { value: 'user', label: 'User' },
+    { value: 'seller', label: 'Seller' },
+    { value: 'admin', label: 'Admin' }
+  ];
 
   const classSkillMap = {
     'Lord Knight': ['Spiral Pierce', 'Bowling Bash', 'Auto-Attacker', 'Sonstige'],
@@ -87,7 +100,6 @@
     }
   }
 
-  // Prüft, ob der angemeldete Nutzer Admin oder der Besitzer des Profils ist
   $: isOwner = participant && userDiscordId && (String(participant.discord_id) === String(userDiscordId));
   $: canModify = isAdmin || isOwner;
 
@@ -104,7 +116,6 @@
       const token = localStorage.getItem('jwt_token');
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-      // 1. Participant laden
       const pRes = await fetch(`${backendUrl}/participants/${participantId}`, { headers });
       if (pRes.ok) {
         participant = await pRes.json();
@@ -113,7 +124,6 @@
         return;
       }
 
-      // 2. Charaktere laden
       const cRes = await fetch(`${backendUrl}/participants/${participantId}/characters`, { headers });
       if (cRes.ok) {
         characters = await cRes.json();
@@ -123,6 +133,56 @@
       errorMessage = 'Fehler beim Laden der Daten.';
     } finally {
       isLoading = false;
+    }
+  }
+
+  function startEditingParticipant() {
+    if (!isAdmin || !participant) return;
+    editName = participant.name || '';
+    editRole = participant.role || 'user';
+    editDiscordId = participant.discord_id || participant.discordId || '';
+    isEditingParticipant = true;
+  }
+
+  function cancelEditingParticipant() {
+    isEditingParticipant = false;
+  }
+
+  async function saveParticipant() {
+    if (!editName.trim()) {
+      alert('Der Name darf nicht leer sein.');
+      return;
+    }
+
+    isSavingParticipant = true;
+    try {
+      const token = localStorage.getItem('jwt_token');
+      const res = await fetch(`${backendUrl}/participants/${participantId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editName.trim(),
+          discord_id: editDiscordId.trim() || null,
+          role: editRole || 'user',
+          avatar: participant.avatar || null
+        })
+      });
+
+      if (res.ok) {
+        isEditingParticipant = false;
+        await loadData();
+      } else {
+        const errData = await res.json().catch(() => null);
+        alert(errData?.detail || 'Änderung konnte nicht gespeichert werden.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Fehler beim Speichern des Teilnehmers.');
+    } finally {
+      isSavingParticipant = false;
     }
   }
 
@@ -151,7 +211,7 @@
       if (res.ok) {
         newAccountNumber = '';
         newCharName = '';
-        showCharacterForm = false; // Formular nach Erfolg wieder zuklappen
+        showCharacterForm = false; 
         await loadData();
       } else {
         const errData = await res.json().catch(() => null);
@@ -198,19 +258,96 @@
 {:else if errorMessage}
   <p class="error">{errorMessage}</p>
 {:else if participant}
+  {@const discordId = participant.discord_id || participant.discordId}
+  {@const discordAvatar = participant.avatar || participant.discord_avatar}
+  {@const role = participant.role || 'user'}
+
   <header class="header-action">
-    <h1>👤 Teilnehmer-Detail: {participant.name}</h1>
+    <h1>Teilnehmer Infoseite</h1>
   </header>
 
   <div class="stack-container">
     
-    <!-- BEREICH 1: CHARAKTERE & ACCOUNTS -->
-    <section class="card">
+    <!-- TEILNEHMER-HEADER (Einzeilig / Tabellarisch) -->
+    <section class="card participant-info-widget">
+      {#if isEditingParticipant && isAdmin}
+        <!-- BEARBEITUNGS-MODUS ZEILE -->
+        <form on:submit|preventDefault={saveParticipant} class="edit-fields">
+          <input 
+            type="text" 
+            bind:value={editName} 
+            class="input-field input-sm" 
+            placeholder="Name *" 
+            required 
+          />
+          <select bind:value={editRole} class="input-field input-sm">
+            {#each availableRoles as r}
+              <option value={r.value}>{r.label}</option>
+            {/each}
+          </select>
+          <input 
+            type="text" 
+            bind:value={editDiscordId} 
+            class="input-field input-sm" 
+            placeholder="Discord ID" 
+          />
+
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary btn-small" disabled={isSavingParticipant}>
+              Speichern
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" on:click={cancelEditingParticipant}>
+              Abbrechen
+            </button>
+        </div>
+        </form>
+      {:else}
+        <!-- NORMALER EINZEILIGER TABELLEN-ANZEIGE-MODUS -->
+        <div class="participant-header-row">
+          <div class="participant-header-info">
+        <div class="user-avatar-wrapper">
+          {#if discordId && discordAvatar}
+            <img 
+              src="https://cdn.discordapp.com/avatars/{discordId}/{discordAvatar}.png" 
+              alt={participant.name} 
+              class="avatar-img" 
+            />
+          {:else}
+            <div class="avatar-fallback">
+              {participant.name ? participant.name.charAt(0).toUpperCase() : '?'}
+            </div>
+          {/if}
+        </div>
+
+            <span class="name">{participant.name}</span>
+
+            <span class="badge {role === 'admin' ? 'admin' : role === 'seller' ? 'status-payout' : 'status-onsale'}">
+              {role}
+            </span>
+
+            {#if discordId}
+              <code class="discord-badge">ID: {discordId}</code>
+            {:else}
+              <span class="discord-id text-muted">Keine Discord ID</span>
+            {/if}
+      </div>
+
+          {#if isAdmin}
+            <button type="button" class="btn btn-secondary btn-small" on:click={startEditingParticipant}>
+              ✏️ Edit
+            </button>
+        {/if}
+      </div>
+      {/if}
+    </section>
+
+    <!-- BEREICH: CHARAKTERE & ACCOUNTS -->
+    <section class="card margin-top">
       <div class="section-header-row">
         <h2>⚔️ Charaktere & Accounts</h2>
         {#if canModify}
         <button class="btn btn-secondary btn-small" on:click={() => showCharacterForm = !showCharacterForm}>
-          {showCharacterForm ? '✖ Schließen' : '✏️ Charakter bearbeiten'}
+          {showCharacterForm ? '✖ Schließen' : '✏️ Charaktere bearbeiten'}
         </button>
         {/if}
       </div>

@@ -1701,3 +1701,119 @@ td.class-td {
 .text-right {
     text-align: right;
 }
+
+/* ==========================================
+   14. Teilnehmer-Übersicht & Detail-Widgets
+   ========================================== */
+.participants-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.participant-card {
+    background-color: var(--navbar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.participant-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary-green);
+    background-color: var(--hover-bg);
+}
+
+.card-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.card-bottom-row {
+    display: flex;
+    align-items: center;
+}
+
+.participant-card .name {
+    font-weight: 600;
+    color: var(--text-dark);
+    font-size: 1.05rem;
+    word-break: break-word;
+}
+
+.discord-id {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+/* User Avatar & Fallback Styling */
+.user-avatar-wrapper {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.avatar-img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--primary-green);
+    object-fit: cover;
+}
+
+.avatar-fallback {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: var(--card-bg-subtle);
+    color: var(--primary-green);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.95rem;
+}
+
+/* Detailseite: Header-Widget & Einzeiliges Tabellen-Layout */
+.participant-info-widget {
+    background-color: var(--navbar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.participant-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.participant-header-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.participant-info-widget .avatar-img,
+.participant-info-widget .avatar-fallback {
+    width: 48px;
+    height: 48px;
+    font-size: 1.2rem;
+}
